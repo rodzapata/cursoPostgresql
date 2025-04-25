@@ -1,0 +1,13 @@
+instalamoe en Python la libreia para importar de sqlserver a Postgresql
+pip install pyodbc psycopg2-binary
+
+y después ejecutamo el script
+
+pyhon subir.py
+
+desde la consola de DOS
+
+bcp "SELECT agencia, numfac, undnegocio, pedido, agencia2, orden_ped, num_aceptacion, obra, nitced, convenio, fch_fac, fch_rad, fch_ven, vlr_fac, vlr_ant, vlr_ndb, vlr_ncr, vlr_ret, vlr_fle, vlr_cob, dscto, iva, estado, observa01, observa02, 
+                         observa03, monto, dir, ciu, subtotal, vlrdscto, vlriva, rtefte, vlrrtefte, total, periodo, ageradica, aiu, a, i, u, vlr_a, vlr_i, vlr_u, vlriva_ut, vlr_anticipo, vlr_rtegtia, RteCree, vlr_rteCree, anula_factura, usuario_radica, fecha_radica, 
+                         observa_radica, observacion_interna, observacion_externa, observacion_pago, responsable, usuario, fechagr, fecham, soportes, tipo_factura, TRM, TRM_ANT, dolar, dolar_ok, fe_emitir, fe_emitir_fecha, fe_xml_factura, 
+                         fe_codigo_cufer, fe_respuesta_cufer, fe_representacion_grafica, fe_UUID, rteiva, vlrrteiva from serviparamo.dbo.com_cxca01 where nomsis='FA' and year(fch_fac)=2018" queryout "C:\servi\com_cxca01_2018.csv" -c -t, -S 192.168.50.51 -U sa -P Clave01.

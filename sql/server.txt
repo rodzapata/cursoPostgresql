@@ -1,0 +1,30 @@
+--sp_dropserver 'PostgreLinkedServer', 'droplogins';
+
+-- Crear el linked server
+EXEC sp_addlinkedserver 
+    @server='PostgreLinkedServer',  -- nombre que usarás en OPENQUERY
+    @srvproduct='', 
+    @provider='MSDASQL', 
+    @datasrc='Postgres17_DSN';  -- nombre del DSN que creaste
+
+-- Establecer login remoto
+EXEC sp_addlinkedsrvlogin 
+    @rmtsrvname = 'PostgreLinkedServer', 
+    @useself = 'false', 
+    @locallogin = NULL, 
+    @rmtuser = 'postgres',         -- usuario de PostgreSQL
+    @rmtpassword = 'Clave01.';
+
+
+	INSERT INTO OPENQUERY(PostgreLinkedServer, 
+  'SELECT id, nombre, salario FROM public.empleados')
+SELECT id, nombre, salario 
+FROM dbo.Empleados
+WHERE salario > 3000;
+
+INSERT INTO OPENQUERY(PostgreLinkedServer, 
+  'SELECT agencia, numfac FROM invoices')
+SELECT agencia, numfac FROM com_cxca01 where numfac='20153855'
+
+SELECT * 
+FROM OPENQUERY(PostgreLinkedServer, 'SELECT agencia, numfac FROM invoices');

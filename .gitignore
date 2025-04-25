@@ -1,0 +1,25 @@
+# Ignorar archivos de entorno
+.env
+
+# Ignorar directorio node_modules (proyectos Node.js)
+node_modules/
+
+# Ignorar binarios o compilados
+*.exe
+*.dll
+*.class
+*.jar
+
+# Ignorar carpetas temporales
+.DS_Store
+Thumbs.db
+
+# Ignorar salidas de compilación de Java, C#, etc.
+target/
+build/
+bin/
+obj/
+
+# Ignorar IDEs (VSCode, IntelliJ, etc.)
+.vscode/
+.idea/

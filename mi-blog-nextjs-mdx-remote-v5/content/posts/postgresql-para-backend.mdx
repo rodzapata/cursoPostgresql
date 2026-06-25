@@ -1,0 +1,33 @@
+---
+title: "PostgreSQL para backend"
+date: "2026-06-27"
+description: "Conceptos clave de PostgreSQL aplicados a APIs y sistemas de negocio"
+slug: "postgresql-para-backend"
+category: "PostgreSQL"
+tags: ["postgresql", "sql", "backend"]
+published: true
+featured: false
+---
+
+# PostgreSQL para backend
+
+PostgreSQL es una excelente opción para APIs REST y sistemas empresariales.
+
+## Puntos que conviene dominar
+
+- tipos de datos
+- índices
+- constraints
+- funciones
+- vistas
+- optimización de consultas
+
+## Ejemplo de tabla
+
+```sql
+CREATE TABLE customer (
+  id BIGSERIAL PRIMARY KEY,
+  full_name VARCHAR(150) NOT NULL,
+  email VARCHAR(120) UNIQUE
+);
+```

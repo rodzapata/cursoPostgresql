@@ -1,0 +1,161 @@
+---
+title: "Conceptos de CSharp"
+date: "2026-06-25"
+description: "Puntos básicos que todos debemos saber en CSharp para trabajar con POO"
+slug: "conceptos-csharp"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+# manejo de cadena
+
+Para que una cadena que sea demasiada larga no se trunque hay que hacerla de la siguiente forma:  
+
+```csharp
+    const string cadSql=@"
+    	select a.tipodoc,a.regimen,a.nitced,a.dv,a.razon,a.direccion,a.telefono,a.municipio,b.dpto, c.codDpto, b.codmunicipio, c.nombreDpto, b.nombreCiudad,
+		d.num_aprobacion, d.fecha1, d.fecha2, d.numfac1, d.numfac2, d.prefijo
+	from grl_nita01  a left join municipios b on a.municipio=b.codigo
+	left join dpto c on b.dpto=c.codigo
+	left join empresa d on a.nitced=d.nitced
+ 	where a.nitced='890116102' and d.tipo='1' ;
+    ";
+```
+# operador Ternario ( ? :)
+
+Este operador es un condicional abreviado SI ELSE  
+```csharp
+// Condición ? Si es Verdadero : Si es Falso
+var resultado = (edad >= 18) ? "Adulto" : "Menor";
+```
+Dentro de C# un **null** dentro del lenguaje no es igual a un **null** que venga de la base de datos,  
+de tal forma que para C# lo reconozca hay que converirlo, para saber si el valor en  la tabla es nulo  
+se usa **DBNull.Value** por ejemplo en if normal tradicional seria:
+
+```csharp
+    if (reader["fecha1"] == DBNull.Value)
+    {
+        Fecha1 = null;
+    }
+    else
+    {
+        Fecha1 = Convert.ToDateTime(reader["fecha1"]);
+    }
+```
+
+Con el operador ternario seria un poco mas abreviado:
+
+```csharp
+    Fecha1 = reader["fecha1"] == DBNull.Value ? null : Convert.ToDateTime(reader["fecha1"])
+```
+
+Ejemplo 2 de ternario
+```csharp
+// Usando el operador ternario tradicional (? :)
+_connectionString = (configuration.GetConnectionString("DefaultConnection") != null) 
+    ? configuration.GetConnectionString("DefaultConnection") 
+    : throw new InvalidOperationException("...");
+```
+Nota si se cumple que DefaultConnection es nulla hay que repetir el codigo configuration.GetConnectionString("DefaultConnection")   
+por eso la nueva forma moderna es usar **??** doble interrogacion , donde se le dice si lo de la izquierda no es nullo uselo  
+en caso cotrario haga lo de la derecha 
+
+```csharp
+// Usando fusión nula (??) -> Más limpio y eficiente
+_connectionString = configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("...");
+```
+
+# manejar tipo de datos entre Sql server y csharp
+
+Por ejemplo si le pasamos los parametro un procedimiento almancenado de Sqlserver si especificamos el tipo de paramatro   
+SqlServer realiza la consulta mas rapido ejemplo 1 y despues el mismo ejemplo pero con los tipos de datos: 
+
+```csharp
+ using var connection = _dbConnectionFactory.CreateConnection();
+ using var command = new SqlCommand(sql, connection);
+
+ command.Parameters.AddWithValue("@NitCed", nitCed);
+ command.Parameters.AddWithValue("@Tipo", tipo);
+```
+
+la forma mejorada seria:
+```csharp
+ using var connection = _dbConnectionFactory.CreateConnection();
+ using var command = new SqlCommand(sql, connection);
+
+ command.Parameters.Add("@NitCed", SqlDbType.VarChar, 20).Value = nitCed;
+ command.Parameters.Add("@Tipo", SqlDbType.VarChar, 3).Value = tipo;
+```
+
+# Mejora 2: El uso de 'as string' extrae el texto o devuelve null automáticamente si es DBNull
+
+Primero usaremos un ejemplo desde un Dto y luego el mismo ejemplo con la mejora :
+```csharp
+    return new EmpresaNitDto
+    {
+      TipoDoc = reader["tipodoc"] == DBNull.Value ? null : reader["tipodoc"].ToString(),
+      Regimen = reader["regimen"] == DBNull.Value ? null : reader["regimen"].ToString(),
+      NitCed = reader["nitced"] == DBNull.Value ? null : reader["nitced"].ToString(),
+      Dv = reader["dv"] == DBNull.Value ? null : reader["dv"].ToString(),
+      Razon = reader["razon"] == DBNull.Value ? null : reader["razon"].ToString(),
+      Direccion = reader["direccion"] == DBNull.Value ? null : reader["direccion"].ToString(),
+      Telefono = reader["telefono"] == DBNull.Value ? null : reader["telefono"].ToString(),
+      Municipio = reader["municipio"] == DBNull.Value ? null : reader["municipio"].ToString(),
+      Dpto = reader["dpto"] == DBNull.Value ? null : reader["dpto"].ToString(),
+      CodDpto = reader["codDpto"] == DBNull.Value ? null : reader["codDpto"].ToString(),
+      CodMunicipio = reader["codmunicipio"] == DBNull.Value ? null : reader["codmunicipio"].ToString(),
+      NombreDpto = reader["nombreDpto"] == DBNull.Value ? null : reader["nombreDpto"].ToString(),
+      NombreCiudad = reader["nombreCiudad"] == DBNull.Value ? null : reader["nombreCiudad"].ToString(),
+      NumAprobacion = reader["num_aprobacion"] == DBNull.Value ? null : reader["num_aprobacion"].ToString(),
+      Fecha1 = reader["fecha1"] == DBNull.Value ? null : Convert.ToDateTime(reader["fecha1"]),
+      Fecha2 = reader["fecha2"] == DBNull.Value ? null : Convert.ToDateTime(reader["fecha2"]),
+      NumFac1 = reader["numfac1"] == DBNull.Value ? null : reader["numfac1"].ToString(),
+      NumFac2 = reader["numfac2"] == DBNull.Value ? null : reader["numfac2"].ToString(),
+      Prefijo = reader["prefijo"] == DBNull.Value ? null : reader["prefijo"].ToString()
+    };
+            
+
+```
+
+la nueva forma de realizarlo: 
+```csharp
+    return new EmpresaNitDto
+    {
+      // Mejora 2: El uso de 'as string' extrae el texto o devuelve null automáticamente si es DBNull
+      TipoDoc = reader["tipodoc"] as string,
+      Regimen = reader["regimen"] as string,
+      NitCed = reader["nitced"] as string,
+      Dv = reader["dv"] as string,
+      Razon = reader["razon"] as string,
+      Direccion = reader["direccion"] as string,
+      Telefono = reader["telefono"] as string,
+      Municipio = reader["municipio"] as string,
+      Dpto = reader["dpto"] as string,
+      CodDpto = reader["codDpto"] as string,
+      CodMunicipio = reader["codmunicipio"] as string,
+      NombreDpto = reader["nombreDpto"] as string,
+      NombreCiudad = reader["nombreCiudad"] as string,
+      NumAprobacion = reader["num_aprobacion"] as string,
+
+      // Mejora 3: Métodos de extensión limpios para tipos de valor nulos (DateTime)
+      Fecha1 = reader.GetNullableDateTime("fecha1"),
+      Fecha2 = reader.GetNullableDateTime("fecha2"),
+
+      NumFac1 = reader["numfac1"] as string,
+      NumFac2 = reader["numfac2"] as string,
+      Prefijo = reader["prefijo"] as string
+    };
+
+// Helper en el mismo archivo o en tu carpeta de Extensions
+    public static class SqlDataReaderExtensions
+    {
+        public static DateTime? GetNullableDateTime(this SqlDataReader reader, string columnName)
+        {
+            var ordinal = reader.GetOrdinal(columnName);
+            return reader.IsDBNull(ordinal) ? null : reader.GetDateTime(ordinal);
+        }
+    }    
+
+```

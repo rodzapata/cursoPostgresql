@@ -1,0 +1,656 @@
+Perfecto. Te lo voy a dejar **completo en .NET 8 con arquitectura en capas**, usando lo que más encaja con lo que vienes trabajando:
+
+* **ASP.NET Core Web API**
+* **SQL Server**
+* **ADO.NET**
+* **DTO**
+* **Repository + Service + Controller**
+* consulta **parametrizada**
+* listo para **copiar y adaptar**
+
+Voy a partir del SQL de FoxPro:
+
+```foxpro
+TEXT TO cad1 noshow
+	select a.tipodoc,a.regimen,a.nitced,a.dv,a.razon,a.direccion,a.telefono,a.municipio,b.dpto, c.codDpto, b.codmunicipio, c.nombreDpto, b.nombreCiudad,
+		d.num_aprobacion, d.fecha1, d.fecha2, d.numfac1, d.numfac2, d.prefijo
+	from grl_nita01  a left join municipios b on a.municipio=b.codigo
+	left join dpto c on b.dpto=c.codigo
+	left join empresa d on a.nitced=d.nitced
+ 	where a.nitced='890116102' and d.tipo='1'
+ENDTEXT
+```
+
+---
+
+# 1) Estructura sugerida del proyecto
+
+```bash
+TuProyecto/
+│
+├── Controllers/
+│   └── EmpresaController.cs
+│
+├── Services/
+│   ├── Interfaces/
+│   │   └── IEmpresaService.cs
+│   └── EmpresaService.cs
+│
+├── Repositories/
+│   ├── Interfaces/
+│   │   └── IEmpresaRepository.cs
+│   └── EmpresaRepository.cs
+│
+├── Dtos/
+│   └── EmpresaNitDto.cs
+│
+├── Data/
+│   └── DbConnectionFactory.cs
+│
+├── appsettings.json
+└── Program.cs
+```
+
+---
+
+# 2) DTO
+
+## `Dtos/EmpresaNitDto.cs`
+
+```csharp
+namespace TuProyecto.Dtos
+{
+    public class EmpresaNitDto
+    {
+        public string? TipoDoc { get; set; }
+        public string? Regimen { get; set; }
+        public string? NitCed { get; set; }
+        public string? Dv { get; set; }
+        public string? Razon { get; set; }
+        public string? Direccion { get; set; }
+        public string? Telefono { get; set; }
+        public string? Municipio { get; set; }
+        public string? Dpto { get; set; }
+        public string? CodDpto { get; set; }
+        public string? CodMunicipio { get; set; }
+        public string? NombreDpto { get; set; }
+        public string? NombreCiudad { get; set; }
+
+        public string? NumAprobacion { get; set; }
+        public DateTime? Fecha1 { get; set; }
+        public DateTime? Fecha2 { get; set; }
+        public string? NumFac1 { get; set; }
+        public string? NumFac2 { get; set; }
+        public string? Prefijo { get; set; }
+    }
+}
+```
+
+---
+
+# 3) Clase para crear conexiones a SQL Server
+
+Esto te ayuda a no repetir `SqlConnection` por todos lados.
+
+## `Data/DbConnectionFactory.cs`
+
+```csharp
+using Microsoft.Data.SqlClient;
+
+namespace TuProyecto.Data
+{
+    public class DbConnectionFactory
+    {
+        private readonly string _connectionString;
+
+        public DbConnectionFactory(IConfiguration configuration)
+        {
+            _connectionString = configuration.GetConnectionString("DefaultConnection")
+                ?? throw new InvalidOperationException("No se encontró la cadena de conexión DefaultConnection.");
+        }
+
+        public SqlConnection CreateConnection()
+        {
+            return new SqlConnection(_connectionString);
+        }
+    }
+}
+```
+
+---
+
+# 4) Interface del repositorio
+
+## `Repositories/Interfaces/IEmpresaRepository.cs`
+
+```csharp
+using TuProyecto.Dtos;
+
+namespace TuProyecto.Repositories.Interfaces
+{
+    public interface IEmpresaRepository
+    {
+        Task<EmpresaNitDto?> ObtenerEmpresaPorNitAsync(string nitCed, string tipo);
+    }
+}
+```
+
+---
+
+# 5) Repositorio con la conversión del FoxPro a C#
+
+Aquí es donde queda la consulta que en FoxPro se armaba con `TEXT TO cad1`.
+
+## `Repositories/EmpresaRepository.cs`
+
+```csharp
+using Microsoft.Data.SqlClient;
+using TuProyecto.Data;
+using TuProyecto.Dtos;
+using TuProyecto.Repositories.Interfaces;
+
+namespace TuProyecto.Repositories
+{
+    public class EmpresaRepository : IEmpresaRepository
+    {
+        private readonly DbConnectionFactory _dbConnectionFactory;
+
+        public EmpresaRepository(DbConnectionFactory dbConnectionFactory)
+        {
+            _dbConnectionFactory = dbConnectionFactory;
+        }
+
+        public async Task<EmpresaNitDto?> ObtenerEmpresaPorNitAsync(string nitCed, string tipo)
+        {
+            const string sql = @"
+                SELECT 
+                    a.tipodoc,
+                    a.regimen,
+                    a.nitced,
+                    a.dv,
+                    a.razon,
+                    a.direccion,
+                    a.telefono,
+                    a.municipio,
+                    b.dpto,
+                    c.codDpto,
+                    b.codmunicipio,
+                    c.nombreDpto,
+                    b.nombreCiudad,
+                    d.num_aprobacion,
+                    d.fecha1,
+                    d.fecha2,
+                    d.numfac1,
+                    d.numfac2,
+                    d.prefijo
+                FROM grl_nita01 a
+                LEFT JOIN municipios b ON a.municipio = b.codigo
+                LEFT JOIN dpto c ON b.dpto = c.codigo
+                LEFT JOIN empresa d ON a.nitced = d.nitced
+                WHERE a.nitced = @NitCed
+                  AND d.tipo = @Tipo;";
+
+            using var connection = _dbConnectionFactory.CreateConnection();
+            using var command = new SqlCommand(sql, connection);
+
+            command.Parameters.AddWithValue("@NitCed", nitCed);
+            command.Parameters.AddWithValue("@Tipo", tipo);
+
+            await connection.OpenAsync();
+
+            using var reader = await command.ExecuteReaderAsync();
+
+            if (!await reader.ReadAsync())
+                return null;
+
+            return new EmpresaNitDto
+            {
+                TipoDoc = reader["tipodoc"] == DBNull.Value ? null : reader["tipodoc"].ToString(),
+                Regimen = reader["regimen"] == DBNull.Value ? null : reader["regimen"].ToString(),
+                NitCed = reader["nitced"] == DBNull.Value ? null : reader["nitced"].ToString(),
+                Dv = reader["dv"] == DBNull.Value ? null : reader["dv"].ToString(),
+                Razon = reader["razon"] == DBNull.Value ? null : reader["razon"].ToString(),
+                Direccion = reader["direccion"] == DBNull.Value ? null : reader["direccion"].ToString(),
+                Telefono = reader["telefono"] == DBNull.Value ? null : reader["telefono"].ToString(),
+                Municipio = reader["municipio"] == DBNull.Value ? null : reader["municipio"].ToString(),
+                Dpto = reader["dpto"] == DBNull.Value ? null : reader["dpto"].ToString(),
+                CodDpto = reader["codDpto"] == DBNull.Value ? null : reader["codDpto"].ToString(),
+                CodMunicipio = reader["codmunicipio"] == DBNull.Value ? null : reader["codmunicipio"].ToString(),
+                NombreDpto = reader["nombreDpto"] == DBNull.Value ? null : reader["nombreDpto"].ToString(),
+                NombreCiudad = reader["nombreCiudad"] == DBNull.Value ? null : reader["nombreCiudad"].ToString(),
+                NumAprobacion = reader["num_aprobacion"] == DBNull.Value ? null : reader["num_aprobacion"].ToString(),
+                Fecha1 = reader["fecha1"] == DBNull.Value ? null : Convert.ToDateTime(reader["fecha1"]),
+                Fecha2 = reader["fecha2"] == DBNull.Value ? null : Convert.ToDateTime(reader["fecha2"]),
+                NumFac1 = reader["numfac1"] == DBNull.Value ? null : reader["numfac1"].ToString(),
+                NumFac2 = reader["numfac2"] == DBNull.Value ? null : reader["numfac2"].ToString(),
+                Prefijo = reader["prefijo"] == DBNull.Value ? null : reader["prefijo"].ToString()
+            };
+        }
+    }
+}
+```
+
+---
+
+# 6) Interface del servicio
+
+## `Services/Interfaces/IEmpresaService.cs`
+
+```csharp
+using TuProyecto.Dtos;
+
+namespace TuProyecto.Services.Interfaces
+{
+    public interface IEmpresaService
+    {
+        Task<EmpresaNitDto?> ObtenerEmpresaPorNitAsync(string nitCed, string tipo);
+    }
+}
+```
+
+---
+
+# 7) Servicio
+
+## `Services/EmpresaService.cs`
+
+```csharp
+using TuProyecto.Dtos;
+using TuProyecto.Repositories.Interfaces;
+using TuProyecto.Services.Interfaces;
+
+namespace TuProyecto.Services
+{
+    public class EmpresaService : IEmpresaService
+    {
+        private readonly IEmpresaRepository _empresaRepository;
+
+        public EmpresaService(IEmpresaRepository empresaRepository)
+        {
+            _empresaRepository = empresaRepository;
+        }
+
+        public async Task<EmpresaNitDto?> ObtenerEmpresaPorNitAsync(string nitCed, string tipo)
+        {
+            if (string.IsNullOrWhiteSpace(nitCed))
+                throw new ArgumentException("El nitCed es obligatorio.");
+
+            if (string.IsNullOrWhiteSpace(tipo))
+                throw new ArgumentException("El tipo es obligatorio.");
+
+            return await _empresaRepository.ObtenerEmpresaPorNitAsync(nitCed, tipo);
+        }
+    }
+}
+```
+
+---
+
+# 8) Controller
+
+## `Controllers/EmpresaController.cs`
+
+```csharp
+using Microsoft.AspNetCore.Mvc;
+using TuProyecto.Services.Interfaces;
+
+namespace TuProyecto.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class EmpresaController : ControllerBase
+    {
+        private readonly IEmpresaService _empresaService;
+
+        public EmpresaController(IEmpresaService empresaService)
+        {
+            _empresaService = empresaService;
+        }
+
+        [HttpGet("{nitCed}")]
+        public async Task<IActionResult> ObtenerPorNit(string nitCed, [FromQuery] string tipo = "1")
+        {
+            var empresa = await _empresaService.ObtenerEmpresaPorNitAsync(nitCed, tipo);
+
+            if (empresa == null)
+                return NotFound(new
+                {
+                    mensaje = "No se encontró información para el NIT consultado."
+                });
+
+            return Ok(empresa);
+        }
+    }
+}
+```
+
+---
+
+# 9) Program.cs
+
+## `Program.cs`
+
+```csharp
+using TuProyecto.Data;
+using TuProyecto.Repositories;
+using TuProyecto.Repositories.Interfaces;
+using TuProyecto.Services;
+using TuProyecto.Services.Interfaces;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// Inyección de dependencias
+builder.Services.AddSingleton<DbConnectionFactory>();
+builder.Services.AddScoped<IEmpresaRepository, EmpresaRepository>();
+builder.Services.AddScoped<IEmpresaService, EmpresaService>();
+
+var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseHttpsRedirection();
+app.UseAuthorization();
+app.MapControllers();
+
+app.Run();
+```
+
+---
+
+# 10) appsettings.json
+
+## `appsettings.json`
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=TU_SERVIDOR;Database=TU_BASE;User Id=TU_USUARIO;Password=TU_PASSWORD;TrustServerCertificate=True;"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*"
+}
+```
+
+Si usas autenticación Windows en SQL Server, podría quedar algo así:
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost;Database=TuBase;Trusted_Connection=True;TrustServerCertificate=True;"
+  }
+}
+```
+
+---
+
+# 11) Cómo probar el endpoint
+
+Si ejecutas la API, el endpoint sería algo así:
+
+```http
+GET /api/empresa/890116102?tipo=1
+```
+
+Ejemplo en local:
+
+```http
+https://localhost:5001/api/empresa/890116102?tipo=1
+```
+
+Respuesta esperada:
+
+```json
+{
+  "tipoDoc": "31",
+  "regimen": "48",
+  "nitCed": "890116102",
+  "dv": "1",
+  "razon": "EMPRESA XYZ SAS",
+  "direccion": "CALLE 10 # 20-30",
+  "telefono": "1234567",
+  "municipio": "41001",
+  "dpto": "41",
+  "codDpto": "41",
+  "codMunicipio": "001",
+  "nombreDpto": "HUILA",
+  "nombreCiudad": "NEIVA",
+  "numAprobacion": "18760000001",
+  "fecha1": "2025-01-01T00:00:00",
+  "fecha2": "2025-12-31T00:00:00",
+  "numFac1": "1",
+  "numFac2": "5000",
+  "prefijo": "FE"
+}
+```
+
+---
+
+# 12) Equivalencia exacta FoxPro → .NET
+
+Tu FoxPro:
+
+```foxpro
+TEXT TO cad1 noshow
+	select ...
+	from ...
+	where a.nitced='890116102' and d.tipo='1'
+ENDTEXT
+```
+
+en .NET queda representado por esta parte del repositorio:
+
+```csharp
+const string sql = @"
+    SELECT ...
+    FROM ...
+    WHERE a.nitced = @NitCed
+      AND d.tipo = @Tipo;";
+```
+
+y luego:
+
+```csharp
+command.Parameters.AddWithValue("@NitCed", nitCed);
+command.Parameters.AddWithValue("@Tipo", tipo);
+```
+
+---
+
+# 13) Mejora importante: evitar `AddWithValue`
+
+Aunque el código anterior funciona, en proyectos reales yo prefiero dejar los tipos definidos para evitar problemas de conversión y rendimiento.
+
+## Versión mejorada del agregado de parámetros
+
+Dentro del repositorio cambia esto:
+
+```csharp
+command.Parameters.AddWithValue("@NitCed", nitCed);
+command.Parameters.AddWithValue("@Tipo", tipo);
+```
+
+por esto:
+
+```csharp
+command.Parameters.Add("@NitCed", System.Data.SqlDbType.VarChar, 20).Value = nitCed;
+command.Parameters.Add("@Tipo", System.Data.SqlDbType.VarChar, 5).Value = tipo;
+```
+
+Quedaría así:
+
+```csharp
+using System.Data;
+using Microsoft.Data.SqlClient;
+using TuProyecto.Data;
+using TuProyecto.Dtos;
+using TuProyecto.Repositories.Interfaces;
+
+namespace TuProyecto.Repositories
+{
+    public class EmpresaRepository : IEmpresaRepository
+    {
+        private readonly DbConnectionFactory _dbConnectionFactory;
+
+        public EmpresaRepository(DbConnectionFactory dbConnectionFactory)
+        {
+            _dbConnectionFactory = dbConnectionFactory;
+        }
+
+        public async Task<EmpresaNitDto?> ObtenerEmpresaPorNitAsync(string nitCed, string tipo)
+        {
+            const string sql = @"
+                SELECT 
+                    a.tipodoc,
+                    a.regimen,
+                    a.nitced,
+                    a.dv,
+                    a.razon,
+                    a.direccion,
+                    a.telefono,
+                    a.municipio,
+                    b.dpto,
+                    c.codDpto,
+                    b.codmunicipio,
+                    c.nombreDpto,
+                    b.nombreCiudad,
+                    d.num_aprobacion,
+                    d.fecha1,
+                    d.fecha2,
+                    d.numfac1,
+                    d.numfac2,
+                    d.prefijo
+                FROM grl_nita01 a
+                LEFT JOIN municipios b ON a.municipio = b.codigo
+                LEFT JOIN dpto c ON b.dpto = c.codigo
+                LEFT JOIN empresa d ON a.nitced = d.nitced
+                WHERE a.nitced = @NitCed
+                  AND d.tipo = @Tipo;";
+
+            using var connection = _dbConnectionFactory.CreateConnection();
+            using var command = new SqlCommand(sql, connection);
+
+            command.Parameters.Add("@NitCed", SqlDbType.VarChar, 20).Value = nitCed;
+            command.Parameters.Add("@Tipo", SqlDbType.VarChar, 5).Value = tipo;
+
+            await connection.OpenAsync();
+
+            using var reader = await command.ExecuteReaderAsync();
+
+            if (!await reader.ReadAsync())
+                return null;
+
+            return new EmpresaNitDto
+            {
+                TipoDoc = reader["tipodoc"] == DBNull.Value ? null : reader["tipodoc"].ToString(),
+                Regimen = reader["regimen"] == DBNull.Value ? null : reader["regimen"].ToString(),
+                NitCed = reader["nitced"] == DBNull.Value ? null : reader["nitced"].ToString(),
+                Dv = reader["dv"] == DBNull.Value ? null : reader["dv"].ToString(),
+                Razon = reader["razon"] == DBNull.Value ? null : reader["razon"].ToString(),
+                Direccion = reader["direccion"] == DBNull.Value ? null : reader["direccion"].ToString(),
+                Telefono = reader["telefono"] == DBNull.Value ? null : reader["telefono"].ToString(),
+                Municipio = reader["municipio"] == DBNull.Value ? null : reader["municipio"].ToString(),
+                Dpto = reader["dpto"] == DBNull.Value ? null : reader["dpto"].ToString(),
+                CodDpto = reader["codDpto"] == DBNull.Value ? null : reader["codDpto"].ToString(),
+                CodMunicipio = reader["codmunicipio"] == DBNull.Value ? null : reader["codmunicipio"].ToString(),
+                NombreDpto = reader["nombreDpto"] == DBNull.Value ? null : reader["nombreDpto"].ToString(),
+                NombreCiudad = reader["nombreCiudad"] == DBNull.Value ? null : reader["nombreCiudad"].ToString(),
+                NumAprobacion = reader["num_aprobacion"] == DBNull.Value ? null : reader["num_aprobacion"].ToString(),
+                Fecha1 = reader["fecha1"] == DBNull.Value ? null : Convert.ToDateTime(reader["fecha1"]),
+                Fecha2 = reader["fecha2"] == DBNull.Value ? null : Convert.ToDateTime(reader["fecha2"]),
+                NumFac1 = reader["numfac1"] == DBNull.Value ? null : reader["numfac1"].ToString(),
+                NumFac2 = reader["numfac2"] == DBNull.Value ? null : reader["numfac2"].ToString(),
+                Prefijo = reader["prefijo"] == DBNull.Value ? null : reader["prefijo"].ToString()
+            };
+        }
+    }
+}
+```
+
+---
+
+# 14) Mi recomendación para dejarlo más reutilizable
+
+En vez de dejar el `tipo = "1"` fijo dentro del SQL, déjalo como parámetro como ya hicimos, porque así el mismo método te sirve para otros casos.
+
+Y si quieres llevarlo a un estilo más limpio todavía, puedes hacer que el controller reciba ambos parámetros:
+
+```csharp
+[HttpGet]
+public async Task<IActionResult> Obtener([FromQuery] string nitCed, [FromQuery] string tipo)
+{
+    var empresa = await _empresaService.ObtenerEmpresaPorNitAsync(nitCed, tipo);
+
+    if (empresa == null)
+        return NotFound();
+
+    return Ok(empresa);
+}
+```
+
+Llamándolo así:
+
+```http
+GET /api/empresa?nitCed=890116102&tipo=1
+```
+
+---
+
+# 15) Lo que yo haría en tu caso
+
+Como tú vienes trabajando bastante con **.NET 8 + SQL Server + capas + DTO + repositorios**, yo dejaría esta conversión en este estilo:
+
+## Capa Repository
+
+* consulta SQL parametrizada
+* `SqlConnection`
+* `SqlCommand`
+* `SqlDataReader`
+
+## Capa Service
+
+* validación de parámetros
+* reglas de negocio
+
+## DTO
+
+* estructura del resultado
+
+## Controller
+
+* endpoint REST
+
+---
+
+# 16) Si quieres, te hago el siguiente paso
+
+Si me pegas **más código de Visual FoxPro**, por ejemplo bloques como estos:
+
+* `SQLEXEC(...)`
+* `TEXT TO ... ENDTEXT`
+* `SCAN / ENDSCAN`
+* `IF / ELSE / DO CASE`
+* `REPLACE`
+* `SEEK`
+* `SELECT ... INTO CURSOR`
+* `LOCATE`
+* `APPEND BLANK`
+* `GATHER / SCATTER`
+
+yo te lo convierto **todo a .NET 8** manteniendo una arquitectura limpia.
+
+Si quieres, envíame **el siguiente bloque de FoxPro** y te lo convierto **igual de completo**:
+**DTO + Repository + Service + Controller** si aplica.

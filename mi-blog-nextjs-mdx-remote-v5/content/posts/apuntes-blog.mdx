@@ -1,0 +1,81 @@
+---
+title: "Pasos para crear un Blog Moderno"
+date: "2026-06-27"
+description: "creacion paso a paso de un blog usando Next + Mdx con la libreria next-mdx-remote"
+slug: "apuntes-blog"
+category: "PostgreSQL"
+tags: ["postgresql", "sql", "backend"]
+published: true
+featured: false
+---
+
+# Pasos para creacion de un blog moderno
+
+Usaremos como herramientas Next JS + MarkDown (.mdx) y la libreria **next-mdx-remote**,
+gracias a esta libreria se corrige el problema de compatibilidad entre Next 15 o superior con React 19 o superior.
+
+<a
+  href="https://www.youtube.com/watch?v=g0D6VCh_fvA"
+  target="_blank"
+  rel="noopener noreferrer"
+>
+  la pagina tutorial
+</a>
+
+
+Blog estatico con NextJs y MarkDown{" "}
+<a
+  href="https://www.youtube.com/watch?v=MrjeefD8sac"
+  target="_blank"
+  rel="noopener noreferrer"
+>
+  blog por Traversy Media
+</a>
+
+## paso 1 verificamos la version de node
+
+node -v
+
+## paso 2 Creamos nuestro proyecto
+
+npx create-next-app curso-postgres
+
+si no tienes **npx** instalado entonces primero debes instalarlo de la siguiente forma:
+
+```bash
+npx create-next-app@latest curso-postgres
+
+```
+
+el proyecto quedaria de la siguiente forma para que no pregunte configuracion:
+```bash
+npx create-next-app@latest blog-2 --js --eslint --no-tailwind --no-src-dir --app --turbo --no-import-alias
+
+```
+
+
+presionamos **ENTER** para escoger la configuracion por defecto.
+
+probamo que nuestra pagina funcione:
+```bash
+npm run dev
+```
+
+## paso 3 Instalamos la libreria next-mdx-remote
+
+Esta libreria solucionó el problema de compatibilidad que se salia entre Next 15 y React 19.
+
+```bash
+npm install next-mdx-remote
+```
+
+instalamos la siguiente libreria de iconos para colocar un icono de copiar y pegar el bloque de codigo:
+
+```bash
+npm install lucide-react
+```
+
+Como quiero que las consola de codigo maneje colores entonces hay que instalar la libreria **prueba**
+```bash
+npm install rehype-pretty-code shiki
+```

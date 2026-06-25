@@ -1,0 +1,1009 @@
+Sí. Te voy a dejar un **ejemplo completo y paso a paso de un blog con Next.js + MDX**, pensado para que lo puedas **entender desde cero** y luego crecerlo.
+
+La idea será construir esto:
+
+* **Next.js**
+* **MDX para los posts**
+* **página principal del blog**
+* **listado de artículos**
+* **página dinámica por slug**
+* **layout común**
+* **índice de posts**
+* **estilos simples**
+* estructura lista para seguir agregando artículos
+
+---
+
+# 1. Qué vamos a construir
+
+Al final tendrás una estructura parecida a esta:
+
+```bash id="1w5d2k"
+mi-blog/
+├─ app/
+│  ├─ blog/
+│  │  ├─ [slug]/
+│  │  │  └─ page.jsx
+│  │  └─ page.jsx
+│  ├─ layout.jsx
+│  ├─ page.jsx
+│  └─ globals.css
+│
+├─ content/
+│  └─ posts/
+│     ├─ mi-primer-post.mdx
+│     ├─ aprender-nextjs.mdx
+│     └─ spring-boot-desde-cero.mdx
+│
+├─ lib/
+│  └─ posts.js
+│
+├─ components/
+│  └─ Header.jsx
+│
+├─ next.config.mjs
+├─ package.json
+└─ jsconfig.json
+```
+
+---
+
+# 2. Qué aprenderás con este ejemplo
+
+Con este ejemplo vas a entender:
+
+1. **Cómo crear el proyecto Next.js**
+2. **Cómo instalar MDX**
+3. **Cómo guardar posts en archivos `.mdx`**
+4. **Cómo leer esos archivos**
+5. **Cómo generar una lista de artículos**
+6. **Cómo abrir cada post por URL**
+7. **Cómo mostrar metadatos** como título, fecha y descripción
+8. **Cómo usar componentes dentro del MDX**
+
+---
+
+# 3. Crear el proyecto Next.js
+
+Abre la terminal y ejecuta:
+
+```bash id="xv4w6p"
+npx create-next-app@latest mi-blog
+```
+
+Te preguntará varias cosas. Puedes responder así:
+
+```bash id="m9z8a1"
+Would you like to use TypeScript? No
+Would you like to use ESLint? Yes
+Would you like to use Tailwind CSS? No
+Would you like your code inside a src/ directory? No
+Would you like to use App Router? Yes
+Would you like to use Turbopack? Yes
+Would you like to customize the import alias? No
+```
+
+> Si quieres, después te lo adapto a **TypeScript** o a **Tailwind**, pero para aprender la base primero prefiero dejarlo simple.
+
+Luego entra al proyecto:
+
+```bash id="d7n3b4"
+cd mi-blog
+```
+
+---
+
+# 4. Instalar MDX en Next.js
+
+Ahora instala lo necesario para usar `.mdx`:
+
+```bash id="c2k6r9"
+npm install @next/mdx @mdx-js/loader @mdx-js/react gray-matter
+```
+
+### ¿Para qué sirve cada paquete?
+
+* **`@next/mdx`** → le enseña a Next.js a entender archivos `.mdx`
+* **`@mdx-js/react`** → permite renderizar MDX con React
+* **`gray-matter`** → sirve para leer los metadatos del post (title, date, etc.)
+
+---
+
+# 5. Configurar Next.js para soportar MDX
+
+Abre el archivo **`next.config.mjs`** y déjalo así:
+
+```javascript id="7j2p8m"
+import createMDX from '@next/mdx'
+
+const withMDX = createMDX({
+  extension: /\.mdx?$/
+})
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  pageExtensions: ['js', 'jsx', 'md', 'mdx']
+}
+
+export default withMDX(nextConfig)
+```
+
+---
+
+# 6. Crear la estructura de carpetas
+
+Dentro del proyecto crea estas carpetas:
+
+```bash id="u3f7l0"
+app/
+content/posts/
+lib/
+components/
+```
+
+---
+
+# 7. Crear tus primeros archivos MDX
+
+Dentro de **`content/posts/`** crea estos archivos.
+
+---
+
+## Archivo: `content/posts/mi-primer-post.mdx`
+
+````mdx id="y8s2v1"
+---
+title: "Mi primer post"
+date: "2026-06-23"
+description: "Este es mi primer artículo usando Next.js y MDX"
+slug: "mi-primer-post"
+---
+
+# Mi primer post
+
+Bienvenido a mi blog.
+
+Este artículo está escrito en **MDX**.
+
+## ¿Qué puedo escribir aquí?
+
+- Títulos
+- Listas
+- Código
+- Enlaces
+- Componentes React
+
+### Bloque de código
+
+```js
+const saludo = "Hola mundo";
+console.log(saludo);
+````
+
+````
+
+---
+
+## Archivo: `content/posts/aprender-nextjs.mdx`
+
+```mdx id="f6q4z2"
+---
+title: "Aprender Next.js desde cero"
+date: "2026-06-24"
+description: "Guía inicial para aprender Next.js paso a paso"
+slug: "aprender-nextjs"
+---
+
+# Aprender Next.js desde cero
+
+Next.js es un framework basado en React que te permite construir aplicaciones web modernas.
+
+## Temas importantes
+
+- Routing
+- Layouts
+- Server Components
+- Fetch de datos
+- SEO
+````
+
+---
+
+## Archivo: `content/posts/spring-boot-desde-cero.mdx`
+
+```mdx id="h1m5n7"
+---
+title: "Spring Boot desde cero"
+date: "2026-06-25"
+description: "Notas básicas para comenzar con Spring Boot"
+slug: "spring-boot-desde-cero"
+---
+
+# Spring Boot desde cero
+
+Spring Boot facilita la creación de aplicaciones Java.
+
+## Qué aprender primero
+
+1. Controladores
+2. Servicios
+3. Repositorios
+4. DTOs
+5. JPA
+```
+
+---
+
+# 8. Entender la parte importante del MDX: el frontmatter
+
+La parte de arriba:
+
+```mdx id="p0t3r8"
+---
+title: "Mi primer post"
+date: "2026-06-23"
+description: "Este es mi primer artículo"
+slug: "mi-primer-post"
+---
+```
+
+se llama **frontmatter**.
+
+Es metadata del post:
+
+* `title` → título
+* `date` → fecha
+* `description` → resumen
+* `slug` → URL amigable
+
+---
+
+# 9. Crear la lógica para leer los posts
+
+Ahora crea el archivo:
+
+## `lib/posts.js`
+
+```javascript id="g4x9c2"
+import fs from 'fs'
+import path from 'path'
+import matter from 'gray-matter'
+
+const postsDirectory = path.join(process.cwd(), 'content/posts')
+
+export function getAllPosts() {
+  const fileNames = fs.readdirSync(postsDirectory)
+
+  const posts = fileNames.map((fileName) => {
+    const fullPath = path.join(postsDirectory, fileName)
+    const fileContents = fs.readFileSync(fullPath, 'utf8')
+    const { data } = matter(fileContents)
+
+    return {
+      title: data.title,
+      date: data.date,
+      description: data.description,
+      slug: data.slug
+    }
+  })
+
+  return posts.sort((a, b) => new Date(b.date) - new Date(a.date))
+}
+
+export function getPostBySlug(slug) {
+  const fullPath = path.join(postsDirectory, `${slug}.mdx`)
+  const fileContents = fs.readFileSync(fullPath, 'utf8')
+  const { data, content } = matter(fileContents)
+
+  return {
+    frontmatter: data,
+    content
+  }
+}
+```
+
+---
+
+# 10. Qué hace este archivo `posts.js`
+
+## `getAllPosts()`
+
+Lee todos los archivos dentro de `content/posts` y devuelve un arreglo como este:
+
+```javascript id="j8d4f6"
+[
+  {
+    title: "Mi primer post",
+    date: "2026-06-23",
+    description: "Este es mi primer artículo usando Next.js y MDX",
+    slug: "mi-primer-post"
+  }
+]
+```
+
+## `getPostBySlug(slug)`
+
+Lee un solo post por su slug, por ejemplo:
+
+* `mi-primer-post`
+* `aprender-nextjs`
+
+y devuelve:
+
+* metadata
+* contenido del artículo
+
+---
+
+# 11. Crear el layout principal
+
+## `app/layout.jsx`
+
+```jsx id="l2b7w9"
+import './globals.css'
+
+export const metadata = {
+  title: 'Mi Blog',
+  description: 'Blog personal hecho con Next.js + MDX'
+}
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="es">
+      <body>
+        <div className="container">
+          <header className="header">
+            <h1>Mi Blog Personal</h1>
+            <nav>
+              <a href="/">Inicio</a>
+              <a href="/blog">Blog</a>
+            </nav>
+          </header>
+
+          <main>{children}</main>
+        </div>
+      </body>
+    </html>
+  )
+}
+```
+
+---
+
+# 12. Crear estilos globales
+
+## `app/globals.css`
+
+```css id="r5n1x4"
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f6f6f6;
+  color: #222;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 40px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #ddd;
+}
+
+.header nav {
+  display: flex;
+  gap: 15px;
+}
+
+.header a {
+  text-decoration: none;
+  color: #0070f3;
+}
+
+.post-card {
+  background: white;
+  padding: 20px;
+  margin-bottom: 20px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+}
+
+.post-card h2 {
+  margin-top: 0;
+}
+
+.post-card a {
+  text-decoration: none;
+  color: #111;
+}
+
+.post-meta {
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.home-box {
+  background: white;
+  padding: 24px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+}
+```
+
+---
+
+# 13. Crear la página de inicio
+
+## `app/page.jsx`
+
+```jsx id="n3c6k8"
+export default function HomePage() {
+  return (
+    <section className="home-box">
+      <h2>Bienvenido a mi blog</h2>
+      <p>
+        Aquí publicaré artículos sobre desarrollo de software, Java, Spring Boot,
+        React, Next.js, PostgreSQL y más.
+      </p>
+      <p>
+        Ve a la sección <strong>Blog</strong> para ver todos los artículos.
+      </p>
+    </section>
+  )
+}
+```
+
+---
+
+# 14. Crear la página que lista todos los posts
+
+## `app/blog/page.jsx`
+
+```jsx id="v7m2q5"
+import Link from 'next/link'
+import { getAllPosts } from '../../lib/posts'
+
+export default function BlogPage() {
+  const posts = getAllPosts()
+
+  return (
+    <section>
+      <h2>Artículos del blog</h2>
+
+      {posts.map((post) => (
+        <article key={post.slug} className="post-card">
+          <h2>
+            <Link href={`/blog/${post.slug}`}>{post.title}</Link>
+          </h2>
+
+          <div className="post-meta">
+            <span>{post.date}</span>
+          </div>
+
+          <p>{post.description}</p>
+
+          <Link href={`/blog/${post.slug}`}>Leer artículo</Link>
+        </article>
+      ))}
+    </section>
+  )
+}
+```
+
+---
+
+# 15. Qué hace esta página
+
+Cuando entres a:
+
+```bash id="w4b8n1"
+/blog
+```
+
+va a mostrar todos los posts leídos desde `content/posts`.
+
+Por cada uno mostrará:
+
+* título
+* fecha
+* descripción
+* enlace al detalle del artículo
+
+---
+
+# 16. Crear la página dinámica para cada artículo
+
+Ahora crea:
+
+## `app/blog/[slug]/page.jsx`
+
+```jsx id="q9d2m6"
+import { notFound } from 'next/navigation'
+import { getAllPosts } from '../../../lib/posts'
+
+export async function generateStaticParams() {
+  const posts = getAllPosts()
+
+  return posts.map((post) => ({
+    slug: post.slug
+  }))
+}
+
+export default async function PostPage({ params }) {
+  const { slug } = await params
+
+  try {
+    const Post = (await import(`../../../content/posts/${slug}.mdx`)).default
+    return (
+      <article className="post-card">
+        <Post />
+      </article>
+    )
+  } catch (error) {
+    notFound()
+  }
+}
+```
+
+---
+
+# 17. Qué hace esta página dinámica
+
+Si tienes un archivo:
+
+```bash id="t6v1p4"
+content/posts/mi-primer-post.mdx
+```
+
+podrás abrirlo en:
+
+```bash id="k2f9j7"
+/blog/mi-primer-post
+```
+
+Si tienes:
+
+```bash id="b5x3w0"
+content/posts/aprender-nextjs.mdx
+```
+
+podrás abrirlo en:
+
+```bash id="e1r4u9"
+/blog/aprender-nextjs
+```
+
+---
+
+# 18. Cómo funciona la URL con `[slug]`
+
+La carpeta:
+
+```bash id="s8y2c6"
+app/blog/[slug]/
+```
+
+significa:
+“esta ruta es dinámica”.
+
+Entonces:
+
+* `/blog/mi-primer-post`
+* `/blog/aprender-nextjs`
+* `/blog/spring-boot-desde-cero`
+
+todas pasan por ese mismo archivo `page.jsx`, y el valor cambia en `params.slug`.
+
+---
+
+# 19. Probar el proyecto
+
+Ahora ejecuta:
+
+```bash id="u7n5d3"
+npm run dev
+```
+
+y abre:
+
+```bash id="z1q4m8"
+http://localhost:3000
+```
+
+### Rutas que deberías probar:
+
+* `/`
+* `/blog`
+* `/blog/mi-primer-post`
+* `/blog/aprender-nextjs`
+* `/blog/spring-boot-desde-cero`
+
+---
+
+# 20. Cómo agregar un nuevo post
+
+Solo crea otro archivo en:
+
+```bash id="c8v2n5"
+content/posts/
+```
+
+por ejemplo:
+
+```bash id="y3m6r1"
+content/posts/react-hooks.mdx
+```
+
+con contenido así:
+
+```mdx id="f9q7t2"
+---
+title: "React Hooks"
+date: "2026-06-26"
+description: "Introducción a useState y useEffect"
+slug: "react-hooks"
+---
+
+# React Hooks
+
+Los hooks permiten manejar estado y efectos en componentes funcionales.
+
+## Hooks comunes
+
+- useState
+- useEffect
+- useMemo
+- useRef
+```
+
+Y automáticamente aparecerá en `/blog`.
+
+---
+
+# 21. Cómo meter enlaces dentro del post MDX
+
+Dentro del `.mdx` puedes escribir Markdown normal:
+
+```md id="h6n4v8"
+[Ir a Next.js](https://nextjs.org)
+```
+
+o si quieres abrir en otra pestaña:
+
+```mdx id="j1p5s9"
+<a href="https://nextjs.org" target="_blank" rel="noopener noreferrer">
+  Ir a Next.js
+</a>
+```
+
+---
+
+# 22. Cómo usar un componente React dentro del MDX
+
+Aquí está una de las grandes ventajas de MDX.
+
+## Paso A: crea un componente
+
+Crea este archivo:
+
+## `components/Alert.jsx`
+
+```jsx id="m4w7c3"
+export default function Alert({ children }) {
+  return (
+    <div
+      style={{
+        padding: '12px',
+        background: '#fff8db',
+        border: '1px solid #f1d36b',
+        borderRadius: '8px',
+        margin: '20px 0'
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+```
+
+---
+
+## Paso B: usarlo dentro del MDX
+
+Por ejemplo en `mi-primer-post.mdx`:
+
+```mdx id="n8z2k4"
+---
+title: "Mi primer post"
+date: "2026-06-23"
+description: "Este es mi primer artículo usando Next.js y MDX"
+slug: "mi-primer-post"
+---
+
+import Alert from '../../components/Alert'
+
+# Mi primer post
+
+<Alert>
+  Este artículo fue escrito usando un componente React dentro de un archivo MDX.
+</Alert>
+
+## Contenido
+Este es un ejemplo de MDX con componente.
+```
+
+---
+
+# 23. Ojo con las rutas del import dentro del MDX
+
+Como el archivo está en:
+
+```bash id="r2v5m1"
+content/posts/mi-primer-post.mdx
+```
+
+y el componente está en:
+
+```bash id="d9w3q7"
+components/Alert.jsx
+```
+
+la ruta relativa sería:
+
+```mdx id="g7c1p8"
+import Alert from '../../components/Alert'
+```
+
+---
+
+# 24. Cómo mejorar la página del detalle para mostrar metadata
+
+Ahora mismo el post se renderiza, pero no estamos mostrando la **fecha** y la **descripción** arriba del artículo.
+
+Hay dos caminos:
+
+## camino simple
+
+dejar que el `.mdx` se renderice tal como está
+
+## camino más profesional
+
+separar:
+
+* **frontmatter**
+* **contenido renderizado**
+* metadata SEO por artículo
+
+Como quieres hacerlo paso a paso, primero te dejo la versión simple funcionando.
+Después te puedo dar la **versión profesional** con:
+
+* `generateMetadata()`
+* SEO por artículo
+* listado por categorías
+* tags
+* tabla de contenidos
+* paginación
+* buscador
+
+---
+
+# 25. Cómo se relaciona todo
+
+## Flujo del proyecto
+
+### 1. Guardas posts en:
+
+```bash id="q5m9t2"
+content/posts/*.mdx
+```
+
+### 2. `lib/posts.js`
+
+lee esos archivos y extrae:
+
+* título
+* fecha
+* descripción
+* slug
+
+### 3. `app/blog/page.jsx`
+
+muestra la lista de artículos
+
+### 4. `app/blog/[slug]/page.jsx`
+
+abre un artículo específico según la URL
+
+---
+
+# 26. Qué mejora te recomiendo hacer después
+
+Cuando ya te funcione esta base, el siguiente paso sería agregar:
+
+## mejora 1 — página “Sobre mí”
+
+Crear:
+
+```bash id="t3v8n6"
+app/about/page.jsx
+```
+
+---
+
+## mejora 2 — componente `PostCard`
+
+Para no dejar la lógica del card dentro de `app/blog/page.jsx`
+
+---
+
+## mejora 3 — metadata SEO por artículo
+
+Ejemplo:
+
+* título de la pestaña dinámico
+* descripción del artículo
+* Open Graph
+
+---
+
+## mejora 4 — orden por fecha y categoría
+
+En el frontmatter podrías guardar:
+
+```mdx id="w7k1q3"
+---
+title: "Spring Boot"
+date: "2026-06-25"
+description: "Introducción"
+slug: "spring-boot"
+category: "Java"
+tags: ["spring", "java", "backend"]
+---
+```
+
+---
+
+## mejora 5 — buscador de posts
+
+Con un input que filtre por:
+
+* título
+* descripción
+* tags
+
+---
+
+## mejora 6 — modo oscuro
+
+Agregar un botón para cambiar entre:
+
+* light
+* dark
+
+---
+
+# 27. Problema importante en el código actual: el nombre del archivo debe coincidir con el slug
+
+Como en esta línea hacemos:
+
+```jsx id="k6n4x2"
+await import(`../../../content/posts/${slug}.mdx`)
+```
+
+entonces si el slug es:
+
+```txt id="x1p8m7"
+mi-primer-post
+```
+
+el archivo debe llamarse:
+
+```txt id="v3r5c9"
+mi-primer-post.mdx
+```
+
+Si no coinciden, no lo encontrará.
+
+---
+
+# 28. Estructura final mínima funcional
+
+Te la dejo de nuevo compacta para que la copies tal cual:
+
+```bash id="a9m2d4"
+mi-blog/
+├─ app/
+│  ├─ blog/
+│  │  ├─ [slug]/
+│  │  │  └─ page.jsx
+│  │  └─ page.jsx
+│  ├─ globals.css
+│  ├─ layout.jsx
+│  └─ page.jsx
+│
+├─ components/
+│  └─ Alert.jsx
+│
+├─ content/
+│  └─ posts/
+│     ├─ mi-primer-post.mdx
+│     ├─ aprender-nextjs.mdx
+│     └─ spring-boot-desde-cero.mdx
+│
+├─ lib/
+│  └─ posts.js
+│
+└─ next.config.mjs
+```
+
+---
+
+# 29. Mi recomendación para ti
+
+Como tú vienes preguntando por:
+
+* blog personal
+* diferencia entre `.md` y `.mdx`
+* enlaces en Markdown
+* si el navegador abre `.mdx`
+
+yo haría este camino:
+
+## Fase 1
+
+Construir exactamente este blog mínimo con:
+
+* `/`
+* `/blog`
+* `/blog/[slug]`
+
+## Fase 2
+
+Agregar:
+
+* **sidebar**
+* **buscador**
+* **tags**
+* **categorías**
+* **modo oscuro**
+
+## Fase 3
+
+Agregar una estructura más profesional:
+
+* `components/`
+* `lib/`
+* `content/posts/`
+* `PostCard`
+* `PostLayout`
+* metadata por artículo
+
+---
+
+# 30. Qué te propongo hacer ahora
+
+Si quieres, en el siguiente mensaje te puedo dar la **versión 2 de este proyecto**, ya **más profesional y lista para usar**, con todo el código completo de:
+
+* **sidebar izquierdo**
+* **listado de posts en la izquierda**
+* **contenido del artículo a la derecha**
+* **buscador**
+* **categorías**
+* **modo oscuro**
+* **componente `PostCard`**
+* **SEO por artículo**
+* **layout bonito tipo documentación/blog técnico**
+
+y te la organizo **archivo por archivo** para que la copies directamente en VS Code.

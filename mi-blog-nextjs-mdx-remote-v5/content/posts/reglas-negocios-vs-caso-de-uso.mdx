@@ -1,0 +1,351 @@
+---
+title: "regla de negocios vs casos de uso"
+date: "2026-06-30"
+description: "En que capa va las reglas de negocio y en que capa va los casos de uso"
+slug: "reglas-negocios-vs-caso-de-uso"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Esta es una de las mayores confusiones al diseñar software. Para entenderlo de forma simple en 2026: Las **Reglas de Negocio** son las leyes del juego, mientras que los **Casos de Uso** son las jugadas que los usuarios pueden hacer respetando esas leyes.
+
+---
+
+## 1. Reglas de Negocio (*Business Rules*)
+
+Son las **políticas, condiciones o restricciones** que existen en el mundo real, independientemente de si hay un sistema de software o no. Son verdades absolutas para la empresa. Si el software dejara de funcionar mañana y tuvieras que operar con papel y lápiz, estas reglas seguirían existiendo.
+
+> **Clave:** Responden al **¿Qué se permite y qué no?**
+
+### Ejemplos Claros:
+
+* **Fintech/Banco:** *"Un cliente no puede transferir más de $5,000 USD por día si su cuenta no está verificada."* (Esto es una ley del banco por regulaciones o seguridad).
+* **E-Commerce:** *"Si un carrito de compras supera los $100, el envío es gratis."*
+* **Recursos Humanos:** *"Un empleado no puede registrar más de 9 horas extras a la semana."*
+
+---
+
+## 2. Casos de Uso (*Use Cases*)
+
+Es la **secuencia de pasos** o la interacción que un usuario realiza dentro del software para lograr un objetivo específico. El caso de uso describe *cómo* el sistema ayuda al usuario a completar una tarea.
+
+> **Clave:** Responden al **¿Cómo el usuario logra su objetivo a través del sistema?**
+
+### Ejemplos Claros:
+
+* **Caso de Uso:** `Transferir Dinero a otra Cuenta`.
+* **Caso de Uso:** `Realizar Pago de Carrito de Compras`.
+* **Caso de Uso:** `Registrar Horas Laboradas`.
+
+---
+
+## ¿Cómo interactúan? (El ejemplo definitivo)
+
+Imaginemos que estás desarrollando el backend de una plataforma de **Cine/Streaming**.
+
+### La Regla de Negocio dice:
+
+> 🚫 *"Los menores de 18 años no pueden ver películas con clasificación 'Clasificación R' (Adultos)."*
+> *(Esta regla existe en los cines físicos, en la ley del país y en tu plataforma. Es una política).*
+
+### El Caso de Uso es: `Comprar Entrada de Cine` o `Reproducir Película`
+
+Este caso de uso describe los pasos en el software:
+
+1. El usuario inicia sesión.
+2. El usuario selecciona la película "Deadpool" (Clasificación R).
+3. **El sistema evalúa la Regla de Negocio:** Revisa la fecha de nacimiento del usuario.
+4. *Si tiene 15 años:* El sistema detiene el caso de uso, bloquea el botón y muestra un mensaje de error.
+5. *Si tiene 25 años:* El sistema permite continuar al paso de pago.
+
+---
+
+## Diferencias Clave para el Desarrollador (.NET / Clean Architecture)
+
+En arquitecturas modernas como **Clean Architecture**, esta separación dicta exactamente dónde poner tu código en C#:
+
+| Característica | Regla de Negocio | Caso de Uso |
+| --- | --- | --- |
+| **¿Dónde vive en el código?** | En las **Entidades de Dominio** (`Domain/Entities`). Son funciones puras dentro de tus clases. | En la capa de **Aplicación** (`Application/Services` o handlers de `MediatR`). |
+| **Dependencias** | No depende de nada. No sabe qué es una base de datos ni qué es una API. | Orquesta todo. Llama a los repositorios, busca datos y luego aplica las reglas. |
+| **Estabilidad** | Cambian muy poco (solo si el negocio cambia sus políticas). | Cambian seguido (si cambia el diseño de la pantalla, los pasos o el flujo). |
+
+### En Código C# (.NET 8):
+
+**La Regla de Negocio vive en la Entidad:**
+
+```csharp
+public class Cliente 
+{
+    public DateTime FechaNacimiento { get; set; }
+    
+    // REGLA DE NEGOCIO PURA: No depende de bases de datos, solo de sus propios datos
+    public bool EsMayorDeEdad() 
+    {
+        return FechaNacimiento.AddYears(18) <= DateTime.Today;
+    }
+}
+
+```
+
+**El Caso de Uso vive en el Servicio (Application):**
+
+```csharp
+public class AlquilarPeliculaUseCase 
+{
+    private readonly IClienteRepository _clienteRepo;
+    private readonly IPeliculaRepository _peliculaRepo;
+
+    // CASO DE USO: Orquesta los pasos del sistema
+    public async Task Ejecutar(int clienteId, int peliculaId)
+    {
+        var cliente = await _clienteRepo.GetByIdAsync(clienteId);
+        var pelicula = await _peliculaRepo.GetByIdAsync(peliculaId);
+
+        // Aquí el Caso de Uso hace cumplir la Regla de Negocio:
+        if (pelicula.EsParaAdultos && !cliente.EsMayorDeEdad())
+        {
+            throw new BusinessException("El cliente no cumple con la edad requerida.");
+        }
+
+        // Continuación del flujo del caso de uso...
+        await _clienteRepo.RegistrarAlquilerAsync(clienteId, peliculaId);
+    }
+}
+
+```
+
+¿Te queda clara la distinción con estos ejemplos, o tienes alguna regla en tu proyecto actual que no estés seguro de dónde colocar?
+
+El **control de stock** es un excelente ejemplo porque, por lo general, se divide en ambas partes. Contiene tanto **Reglas de Negocio** como un **Caso de Uso**.
+
+Para saber exactamente dónde colocar el código en tu arquitectura, debes hacer zoom y separar la **política** (la ley) del **flujo** (el proceso).
+
+Aquí tienes el desglose claro de cómo estructurarlo:
+
+---
+
+### 1. Las Reglas de Negocio (El "Qué" se permite)
+
+Las reglas de negocio de un inventario son las restricciones lógicas y matemáticas que dictan si un producto puede o no alterar su cantidad. **Estas reglas viven dentro de la Entidad de Dominio (`Producto` o `Inventario`)**.
+
+**Ejemplos de Reglas de Negocio en el Stock:**
+
+* *"El stock de un producto nunca puede ser menor que cero (no se permiten existencias negativas)."*
+* *"Si el stock cae por debajo del 'Stock Mínimo', el producto debe cambiar su estado a 'Por Reabastecer'."*
+
+**En código C# (Entidad de Dominio):**
+
+```csharp
+public class Producto 
+{
+    public int Id { get; private set; }
+    public string Nombre { get; private set; } = string.Empty;
+    public int StockActual { get; private set; }
+    public int StockMinimo { get; private set; }
+    public bool RequiereReabastecimiento { get; private set; }
+
+    // REGLA DE NEGOCIO: Modifica el estado interno aplicando las leyes del negocio
+    public void ReducirStock(int cantidad)
+    {
+        if (cantidad <= 0)
+            throw new ArgumentException("La cantidad a retirar debe ser mayor a cero.");
+
+        if (StockActual - cantidad < 0)
+            throw new InvalidOperationException("No hay suficiente stock disponible."); // <- Regla de oro
+
+        StockActual -= cantidad;
+
+        // Otra regla de negocio automatizada
+        if (StockActual <= StockMinimo)
+        {
+            RequiereReabastecimiento = true;
+        }
+    }
+}
+
+```
+
+---
+
+### 2. El Caso de Uso (El "Cómo" se ejecuta en el sistema)
+
+El caso de uso es la acción que el usuario (o un sistema externo) quiere realizar. Por ejemplo: `RegistrarVenta` o `DespacharPedido`. El caso de uso no sabe calcular el stock, su única función es **orquestar**: ir a buscar el producto a la base de datos, pedirle al producto que aplique su regla de negocio y guardar los cambios. **Esto vive en la capa de Aplicación (`Services` o `Handlers`).**
+
+**En código C# (Caso de Uso / Capa de Aplicación):**
+
+```csharp
+public class DespacharPedidoUseCase 
+{
+    private readonly IProductoRepository _productoRepo;
+    private readonly IPedidoRepository _pedidoRepo;
+    private readonly IEmailService _emailService; // Para notificar
+
+    // CASO DE USO: Orquesta el flujo completo del sistema
+    public async Task Ejecutar(int pedidoId)
+    {
+        // 1. Buscar el pedido
+        var pedido = await _pedidoRepo.GetByIdAsync(pedidoId);
+        
+        // 2. Por cada artículo en el pedido, actualizar el stock
+        foreach (var item in pedido.Items)
+        {
+            var producto = await _productoRepo.GetByIdAsync(item.ProductoId);
+            
+            // 3. El caso de uso le pide a la entidad que aplique su regla de negocio
+            producto.ReducirStock(item.Cantidad); 
+            
+            // 4. Si la regla de negocio activó una alerta, el caso de uso reacciona
+            if (producto.RequiereReabastecimiento)
+            {
+                await _emailService.EnviarAlertaStockBajoAsync(producto.Nombre);
+            }
+        }
+
+        // 5. Guardar todo en la base de datos de forma transaccional
+        await _productoRepo.UnitOfWork.SaveChangesAsync();
+    }
+}
+
+```
+
+---
+
+### Resumen: ¿Dónde va cada cosa?
+
+* **La validación `if (StockActual < cantidad)`:** Va en la **Entidad** (Regla de Negocio). Así te aseguras de que nadie, bajo ninguna circunstancia (ya sea desde un controlador, un proceso en segundo plano o un test unitario), pueda dejar el stock en negativo de forma ilegal.
+* **El proceso de ir a la base de datos, descontar el stock de 5 productos y enviar un correo al administrador si falta stock:** Va en el **Caso de Uso / Servicio** (Capa de Aplicación).
+
+¿Tiene sentido esta separación para el inventario que estás diseñando?
+
+No. De hecho, **el `DbContext` no debería ir en `Facturacion.Api`** si estás siguiendo Clean Architecture.
+
+La ubicación recomendada es:
+
+```text
+Facturacion.sln
+
+src/
+│
+├── Facturacion.Domain
+│
+├── Facturacion.Application
+│
+├── Facturacion.Infrastructure
+│     Persistence
+│         AppDbContext.cs   ← Aquí
+│         Configurations/
+│             ProductoConfiguration.cs
+│             ClienteConfiguration.cs
+│         Migrations/
+│
+└── Facturacion.Api
+      Controllers/
+      Program.cs
+      appsettings.json
+```
+
+## ¿Por qué?
+
+`DbContext` pertenece a **Entity Framework Core**, que es un detalle de infraestructura.
+
+La capa **Domain** no debe saber que existe EF Core.
+
+La capa **Application** tampoco debería depender de EF Core (salvo casos específicos como CQRS con consultas optimizadas).
+
+Por eso, el `DbContext` va en **Infrastructure**.
+
+---
+
+## ¿Qué hace la API?
+
+La API solo registra el `DbContext` en el contenedor de dependencias.
+
+Por ejemplo, en `Program.cs`:
+
+```csharp
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection")));
+```
+
+Y registra los repositorios:
+
+```csharp
+builder.Services.AddScoped<IProductoRepository, ProductoRepository>();
+builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
+```
+
+La API conoce a `Infrastructure` únicamente para configurar las dependencias al iniciar la aplicación.
+
+---
+
+## ¿Dónde quedan las migraciones?
+
+Lo más común es dejarlas también en `Infrastructure`:
+
+```text
+Facturacion.Infrastructure
+│
+├── Persistence
+│     AppDbContext.cs
+│
+├── Migrations
+│     202607210001_InitialCreate.cs
+│     AppDbContextModelSnapshot.cs
+```
+
+---
+
+## Dependencias entre proyectos
+
+```text
+                Facturacion.Api
+                       │
+          ┌────────────┴────────────┐
+          ▼                         ▼
+Facturacion.Application    Facturacion.Infrastructure
+          │                         │
+          └────────────┬────────────┘
+                       ▼
+              Facturacion.Domain
+```
+
+Las referencias normalmente son:
+
+* **Domain** → no referencia a nadie.
+* **Application** → referencia a `Domain`.
+* **Infrastructure** → referencia a `Application` y `Domain`.
+* **Api** → referencia a `Application` e `Infrastructure`.
+
+---
+
+### En tu caso
+
+Como has comentado que desarrollas APIs REST en **.NET 8** con **Entity Framework Core**, **DTO**, **JWT** y **SQL Server/PostgreSQL**, la estructura recomendada sería:
+
+```text
+Facturacion.Api
+    Controllers
+    Program.cs
+
+Facturacion.Application
+    DTOs
+    Interfaces
+    Services
+
+Facturacion.Domain
+    Entities
+    ValueObjects
+
+Facturacion.Infrastructure
+    Persistence
+        AppDbContext.cs
+    Repositories
+    Configurations
+    Migrations
+```
+
+Esta es una de las estructuras más utilizadas en proyectos profesionales con Clean Architecture.

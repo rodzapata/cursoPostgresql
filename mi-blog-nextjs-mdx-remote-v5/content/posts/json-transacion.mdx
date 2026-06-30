@@ -1,0 +1,259 @@
+---
+title: "Json transaccion en .net core"
+date: "2026-06-26"
+description: "Json en factura"
+slug: "transacion"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Para una **API REST moderna**, lo más recomendable es **enviar un solo JSON que represente toda la factura** (encabezado + detalles). Esa es la práctica que más verás en APIs bien diseñadas.
+
+## ¿Por qué un solo JSON?
+
+Porque una factura es una **unidad de negocio**. Desde el punto de vista del negocio, no tiene sentido crear primero el encabezado y luego los detalles por separado. Lo correcto es que:
+
+- Se guarde toda la factura.
+- O no se guarde nada.
+
+Esto se conoce como **una operación atómica**, normalmente implementada con una transacción en la base de datos.
+
+---
+
+## Ejemplo recomendado
+
+Supongamos que tienes las tablas:
+
+- Invoice
+- InvoiceDetail
+
+El endpoint sería:
+
+```http
+POST /api/invoices
+```
+
+Y recibiría un único JSON:
+
+```json
+{
+  "customerId": 15,
+  "invoiceDate": "2026-07-17",
+  "paymentMethod": "CONTADO",
+  "observations": "Factura de prueba",
+  "details": [
+    {
+      "productId": 10,
+      "quantity": 2,
+      "unitPrice": 15000,
+      "discount": 0
+    },
+    {
+      "productId": 25,
+      "quantity": 1,
+      "unitPrice": 50000,
+      "discount": 5000
+    }
+  ]
+}
+```
+
+En .NET tendrías un DTO como:
+
+```csharp
+public class CreateInvoiceDto
+{
+    public int CustomerId { get; set; }
+
+    public DateTime InvoiceDate { get; set; }
+
+    public string PaymentMethod { get; set; }
+
+    public string? Observations { get; set; }
+
+    public List<CreateInvoiceDetailDto> Details { get; set; } = [];
+}
+```
+
+Y el detalle:
+
+```csharp
+public class CreateInvoiceDetailDto
+{
+    public int ProductId { get; set; }
+
+    public decimal Quantity { get; set; }
+
+    public decimal UnitPrice { get; set; }
+
+    public decimal Discount { get; set; }
+}
+```
+
+---
+
+# ¿Cómo se procesa?
+
+En el servicio:
+
+```text
+Recibir JSON
+
+↓
+
+Validar DTO
+
+↓
+
+Validar cliente
+
+↓
+
+Validar productos
+
+↓
+
+Crear entidad Factura
+
+↓
+
+Crear entidades Detalle
+
+↓
+
+Iniciar transacción
+
+↓
+
+Guardar encabezado
+
+↓
+
+Guardar detalles
+
+↓
+
+Commit
+
+↓
+
+Responder 201 Created
+```
+
+Si falla cualquiera de los pasos:
+
+```text
+Rollback
+
+↓
+
+No queda información incompleta
+```
+
+---
+
+# ¿Y dos JSON separados?
+
+Algunas personas hacen algo así:
+
+```http
+POST /api/invoices
+```
+
+Devuelve:
+
+```json
+{
+  "invoiceId": 250
+}
+```
+
+Después llaman:
+
+```http
+POST /api/invoices/250/details
+```
+
+Luego:
+
+```http
+POST /api/invoices/250/details
+```
+
+y así sucesivamente.
+
+Este diseño suele tener varios inconvenientes:
+
+- Si falla la segunda llamada, queda un encabezado sin detalles.
+- Necesitas lógica adicional para eliminar facturas incompletas.
+- Genera más tráfico de red.
+- Complica el frontend.
+
+Por eso **no suele ser la mejor opción para crear una factura completa**.
+
+---
+
+# ¿Cuándo sí tendría sentido usar endpoints separados?
+
+Cuando los detalles realmente se administran de forma independiente.
+
+Por ejemplo:
+
+```
+POST   /api/invoices
+POST   /api/invoices/{id}/details
+PUT    /api/invoices/{id}/details/{detailId}
+DELETE /api/invoices/{id}/details/{detailId}
+```
+
+Esto es útil cuando la factura ya existe y el usuario necesita modificarla antes de finalizarla.
+
+---
+
+# ¿Qué hacen los ERPs?
+
+La mayoría de los ERP modernos (SAP, Microsoft Dynamics 365, Odoo, Oracle NetSuite, entre otros) utilizan un enfoque similar:
+
+- Para **crear** una factura: envían el documento completo (encabezado + líneas).
+- Para **editar** una factura existente: permiten agregar, modificar o eliminar líneas mediante operaciones específicas.
+
+---
+
+# ¿Qué te recomiendo para tu proyecto?
+
+Como sé que estás desarrollando una aplicación de facturación con:
+
+- .NET 8
+- SQL Server
+- Dapper o EF Core
+- Arquitectura en capas
+- React
+
+Yo implementaría:
+
+```text
+POST /api/invoices
+```
+
+Recibiendo un único DTO:
+
+```text
+CreateInvoiceDto
+    ├── Datos del encabezado
+    └── List<CreateInvoiceDetailDto>
+```
+
+Y dentro del servicio:
+
+1. Validar el DTO (por ejemplo con FluentValidation).
+2. Verificar que existan cliente y productos.
+3. Calcular subtotales, impuestos, descuentos y total **en el servidor**, sin confiar en los valores enviados por el cliente.
+4. Abrir una transacción.
+5. Guardar el encabezado.
+6. Guardar todos los detalles.
+7. Confirmar la transacción.
+8. Devolver el identificador de la factura creada.
+
+Este enfoque mantiene la consistencia de los datos y es el más utilizado en APIs REST empresariales modernas.

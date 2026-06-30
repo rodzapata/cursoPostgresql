@@ -1,0 +1,78 @@
+---
+title: "Mapeo en .net core"
+date: "2026-06-27"
+description: "Diferentes forma de mapero Dto en NetCore"
+slug: "mapear-dto"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Para ser directo y honesto: **hoy en el 2026, usar AutoMapper para un proyecto nuevo en .NET 8 o .NET 9 ya no es muy recomendable.** Aunque ha sido el rey indiscutible del ecosistema .NET durante más de una década, la evolución del framework y la llegada de mejores herramientas lo han dejado rezagado. Además, el proyecto recientemente cambió su modelo de licenciamiento a comercial para ciertos escenarios corporativos, lo que ha aceleración su migración en la comunidad.
+
+Aquí te explico las razones y cuáles son las mejores alternativas actuales.
+
+---
+
+## ¿Por qué AutoMapper está perdiendo terreno?
+
+- **Rendimiento en tiempo de ejecución:** AutoMapper funciona utilizando _Reflection_ (reflexión) en tiempo de ejecución. Esto penaliza el tiempo de arranque de la aplicación y consume más memoria.
+- **Falta de seguridad en tiempo de compilación:** Si renombras una propiedad en una entidad y olvidas actualizar el DTO, el compilador no te dirá nada. Te enterarás del error mediante una excepción en tiempo de ejecución (muchas veces en producción).
+- **Incompatibilidad con AOT (Ahead-Of-Time):** .NET 8 y 9 empujan fuertemente la compilación nativa AOT (para lambdas en AWS, microservicios ultra rápidos, etc.). Al depender de la reflexión, AutoMapper no es amigable con AOT.
+
+---
+
+## Las mejores alternativas hoy en día
+
+### 1. Riok.Mapperly (La opción moderna y recomendada)
+
+Es actualmente el estándar de la industria si quieres un mapeador automático.
+
+- **¿Cómo funciona?:** Utiliza **Source Generators** (Generadores de Código de C#). No hace magia en tiempo de ejecución; en su lugar, escribe el código de mapeo (`a.Propiedad = b.Propiedad`) por ti **mientras compilas**.
+- **Ventajas:** Es ridículamente rápido (igual que escribirlo a mano), tiene **cero asignaciones de memoria extra**, es 100% compatible con AOT, y si algo falla o falta, te da un **error de compilación**.
+
+```csharp
+// Ejemplo con Mapperly: El código real se genera tras bambalinas
+[Mapper]
+public partial class UserMapper
+{
+    public partial UserDto UserToDto(User user);
+}
+
+```
+
+### 2. Mapster (El equilibrio perfecto)
+
+Si te gusta la sintaxis fluida y la flexibilidad que tenía AutoMapper pero quieres algo mucho más rápido, Mapster es la opción.
+
+- **Ventajas:** Es significativamente más rápido que AutoMapper, permite mapear colecciones de forma muy eficiente, soporta proyecciones directas a Entity Framework (`ProjectToType`) y cuenta con herramientas para generar código si quieres evitar la reflexión.
+
+```csharp
+// Ejemplo con Mapster: Súper directo y sin configurar perfiles complejos
+var userDto = user.Adapt<UserDto>();
+
+```
+
+### 3. Mapeo Manual / Métodos de Extensión (La favorita de los puristas)
+
+Con las mejoras de productividad en C# 12 y 13 (constructores primarios, expresiones de colección) y los asistentes de IA en los IDEs (como GitHub Copilot o JetBrains AI), **escribir los mapeos a mano ya no es una tortura**.
+
+- **Ventajas:** Control absoluto, cero dependencias de terceros, rendimiento insuperable y máxima legibilidad (cualquiera puede hacer _F12 / Ir a definición_ y ver exactamente qué se está mapeando).
+
+```csharp
+public static class UserExtensions
+{
+    public static UserDto ToDto(this User user) =>
+        new(user.Id, user.Name, user.Email);
+}
+
+```
+
+---
+
+## Resumen: ¿Qué deberías elegir?
+
+- Si estás creando un **microservicio de alto rendimiento o usas AOT**: Elige **Mapperly**.
+- Si vienes de AutoMapper y quieres una **transición suave** con rendimiento excelente: Elige **Mapster**.
+- Si es un proyecto **pequeño o mediano**: Hazlo a mano con **Métodos de Extensión**. Es más limpio y te ahorrará dolores de cabeza.

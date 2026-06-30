@@ -1,35 +1,36 @@
-'use client'
+"use client";
 
-import { useMemo, useState } from 'react'
-import Link from 'next/link'
-import SearchPosts from './SearchPosts'
-import CategoryFilter from './CategoryFilter'
-import ThemeToggle from './ThemeToggle'
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import SearchPosts from "./SearchPosts";
+import CategoryFilter from "./CategoryFilter";
+import ThemeToggle from "./ThemeToggle";
 
 export default function BlogSidebar({ posts, categories }) {
-  const [search, setSearch] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('Todas')
+  const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("Todas");
 
   const filteredPosts = useMemo(() => {
     return posts.filter((post) => {
       const matchesCategory =
-        selectedCategory === 'Todas' || post.category === selectedCategory
+        selectedCategory === "Todas" || post.category === selectedCategory;
 
-      const term = search.toLowerCase()
+      const term = search.toLowerCase();
       const matchesSearch =
         post.title.toLowerCase().includes(term) ||
         post.description.toLowerCase().includes(term) ||
-        post.tags.join(' ').toLowerCase().includes(term)
+        post.tags.join(" ").toLowerCase().includes(term);
 
-      return matchesCategory && matchesSearch
-    })
-  }, [posts, search, selectedCategory])
+      return matchesCategory && matchesSearch;
+    });
+  }, [posts, search, selectedCategory]);
 
   return (
     <aside className="sidebar">
       <h1 className="blog-title">Mi Blog</h1>
       <p className="blog-subtitle">
-        Artículos y apuntes sobre Java, Spring Boot, React, Next.js, PostgreSQL y .NET
+        Artículos y apuntes sobre Java, Spring Boot, React, Next.js, Nest,js,
+        PostgreSQL y .NET
       </p>
 
       <ThemeToggle />
@@ -63,5 +64,5 @@ export default function BlogSidebar({ posts, categories }) {
         )}
       </div>
     </aside>
-  )
+  );
 }

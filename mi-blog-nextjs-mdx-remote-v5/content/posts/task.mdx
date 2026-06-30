@@ -1,0 +1,416 @@
+---
+title: "Uso de Task .net core"
+date: "2026-06-26"
+description: "uso de Task"
+slug: "task"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+## Uso de Task
+
+Excelente pregunta. Entender **`Task`** es uno de los conceptos más importantes para desarrollar aplicaciones modernas en .NET.
+
+La respuesta corta es:
+
+> **`Task<T>` representa una operación que terminará en el futuro y devolverá un resultado de tipo `T`.**
+
+Por eso en las APIs modernas verás muchísimos métodos como:
+
+```csharp
+public Task<bool> Existe(string nombre)
+```
+
+o
+
+```csharp
+public async Task<UsuarioDto> ObtenerPorId(int id)
+```
+
+Veamos paso a paso qué significa.
+
+---
+
+# Antes de Task
+
+Supongamos que tienes este método:
+
+```csharp
+public bool Existe(string nombre)
+{
+    return nombre == "Juan";
+}
+```
+
+Cuando llamas:
+
+```csharp
+bool existe = Existe("Juan");
+```
+
+ocurre esto:
+
+```
+Llamada
+   │
+   ▼
+Existe()
+   │
+   ▼
+Calcula el resultado
+   │
+   ▼
+Devuelve bool
+```
+
+Todo ocurre inmediatamente.
+
+---
+
+# ¿Qué pasa cuando hay una base de datos?
+
+Ahora imagina este código:
+
+```csharp
+public bool Existe(string nombre)
+{
+    // Consultar SQL Server
+}
+```
+
+La consulta puede tardar:
+
+- 20 ms
+- 100 ms
+- 500 ms
+- 2 segundos
+
+Mientras tanto, el hilo queda esperando.
+
+```
+Consulta SQL
+██████████████████
+```
+
+Durante ese tiempo el hilo está bloqueado.
+
+---
+
+# Aquí aparece Task
+
+En lugar de decir:
+
+> "Devuélveme un bool ahora"
+
+decimos:
+
+> "Devuélveme una promesa de que más adelante tendrás un bool."
+
+Eso es exactamente un `Task<bool>`.
+
+```csharp
+public Task<bool> Existe(string nombre)
+```
+
+El método ya no devuelve el valor.
+
+Devuelve una tarea.
+
+---
+
+## Visualmente
+
+Con `bool`
+
+```
+Método
+   │
+   ▼
+bool
+```
+
+Con `Task<bool>`
+
+```
+Método
+   │
+   ▼
+Task<bool>
+
+        ▼
+     más tarde
+
+        ▼
+       bool
+```
+
+---
+
+# ¿Y quién espera?
+
+La palabra `await`.
+
+```csharp
+bool existe = await repository.Existe(nombre);
+```
+
+`await` significa:
+
+> "Espera hasta que termine la tarea."
+
+---
+
+# Ejemplo real con Dapper
+
+```csharp
+public async Task<bool> Existe(string nombre)
+{
+    var sql = "SELECT COUNT(*) FROM Usuarios WHERE Nombre = @Nombre";
+
+    int cantidad = await connection.ExecuteScalarAsync<int>(
+        sql,
+        new { Nombre = nombre });
+
+    return cantidad > 0;
+}
+```
+
+Observa que ocurre esto:
+
+```
+Existe()
+
+↓
+
+SQL Server
+
+↓
+
+Esperar
+
+↓
+
+Resultado
+
+↓
+
+bool
+```
+
+Todo sin bloquear el hilo.
+
+---
+
+# ¿Por qué no simplemente bool?
+
+Porque internamente Dapper hace esto:
+
+```
+Enviar consulta
+
+↓
+
+Esperar respuesta
+
+↓
+
+Recibir datos
+```
+
+Ese tiempo de espera es el que aprovecha `Task`.
+
+---
+
+# ¿Qué representa Task?
+
+Piensa en un pedido de pizza.
+
+Cuando llamas:
+
+```
+Pizza pizza = PedirPizza();
+```
+
+Sería como si la pizza apareciera inmediatamente.
+
+Pero en realidad ocurre esto:
+
+```
+PedirPizza()
+
+↓
+
+Esperar 30 minutos
+
+↓
+
+Recibir pizza
+```
+
+Entonces lo correcto sería:
+
+```
+Task<Pizza>
+```
+
+Porque la pizza llegará después.
+
+---
+
+# Lo mismo con SQL Server
+
+```
+Task<Usuario>
+```
+
+significa:
+
+```
+Estoy consultando...
+
+↓
+
+Cuando termine...
+
+↓
+
+te entregaré un Usuario.
+```
+
+---
+
+# ¿Y por qué algunos métodos tienen async?
+
+Ejemplo:
+
+```csharp
+public async Task<bool> Existe(string nombre)
+{
+}
+```
+
+`async` le dice al compilador:
+
+> Dentro usaré `await`.
+
+Por ejemplo:
+
+```csharp
+var usuario = await repository.Obtener(nombre);
+```
+
+Sin `await`, normalmente no necesitas marcar el método como `async`.
+
+---
+
+# Ejemplo sin async
+
+Esto es completamente válido:
+
+```csharp
+public Task<bool> Existe(string nombre)
+{
+    return _repository.Existe(nombre);
+}
+```
+
+Aquí simplemente reenvías la tarea.
+
+---
+
+# Ejemplo con async
+
+```csharp
+public async Task<bool> Existe(string nombre)
+{
+    bool existe = await _repository.Existe(nombre);
+
+    return existe;
+}
+```
+
+Aquí sí utilizas `await`.
+
+---
+
+# Entonces...
+
+## Esto
+
+```csharp
+public bool Existe()
+```
+
+significa:
+
+> Devuelvo el resultado inmediatamente.
+
+---
+
+## Esto
+
+```csharp
+public Task<bool> Existe()
+```
+
+significa:
+
+> Estoy haciendo un trabajo que puede tardar y después devolveré un `bool`.
+
+---
+
+## Esto
+
+```csharp
+public async Task<bool> Existe()
+```
+
+significa:
+
+> Voy a esperar operaciones asincrónicas (`await`) y al final devolveré un `bool`.
+
+---
+
+# ¿Por qué en ASP.NET Core casi todo es Task?
+
+Porque casi todas las operaciones son de entrada/salida (I/O):
+
+- Base de datos
+- Archivos
+- API REST
+- Azure
+- Redis
+- RabbitMQ
+- Correo electrónico
+
+Todas pueden tardar.
+
+Mientras esperan, **no tiene sentido bloquear un hilo**. Al usar `Task` y `await`, el hilo puede atender otras solicitudes, lo que permite que la aplicación escale mucho mejor cuando hay muchos usuarios simultáneos.
+
+---
+
+# Una recomendación importante
+
+En tus proyectos de **.NET 8** y futuras versiones, sigue esta regla:
+
+- **Usa métodos síncronos** (`bool`, `int`, `string`, etc.) cuando el trabajo es inmediato y no realiza operaciones de I/O. Por ejemplo:
+
+```csharp
+public decimal CalcularIVA(decimal subtotal)
+{
+    return subtotal * 0.19m;
+}
+```
+
+- **Usa métodos asincrónicos** (`Task<T>`) cuando llamas a una base de datos, consumes una API, lees/escribes archivos o realizas cualquier operación que pueda tardar.
+
+```csharp
+public async Task<ClienteDto?> ObtenerClienteAsync(int id)
+{
+    return await _repository.ObtenerPorIdAsync(id);
+}
+```
+
+Esta es la práctica recomendada en el desarrollo moderno con ASP.NET Core. Además, notarás que muchos desarrolladores agregan el sufijo **`Async`** al nombre del método (`ObtenerClienteAsync`, `ExisteAsync`) para dejar claro que el método devuelve un `Task` y debe llamarse con `await`. Es una convención muy extendida y mejora la legibilidad del código.

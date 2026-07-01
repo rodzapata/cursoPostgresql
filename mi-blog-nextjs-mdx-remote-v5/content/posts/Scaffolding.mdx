@@ -1,0 +1,458 @@
+---
+title: "Scaffolding"
+date: "2026-06-30"
+description: "creacion de una webapi desde netcore 8 en adelantes"
+slug: "Scaffolding"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+# 1. Creacion de un proyecto web api
+
+Paso a paso creacion de web api aplicando los mejores principios de programacion CRUD con Entity Framework
+<a
+  href="https://www.youtube.com/watch?v=_Gkd6ueaEOU"
+  target="_blank"
+  rel="noopener noreferrer"
+>
+  Curso webapi por Codigo Estudiante
+</a>
+
+WebApi 9 CRUD con Entity Framework
+<a
+  href="https://www.youtube.com/watch?v=zjEyQCfbVB4&t=519s"
+  target="_blank"
+  rel="noopener noreferrer"
+>
+  Curso webapi por Net University
+</a>
+
+CRUD con DAPPER
+<a
+  href="https://www.youtube.com/watch?v=6txDdmRzCVc"
+  target="_blank"
+  rel="noopener noreferrer"
+>
+  Curso webapi CRUD con DAPPER por Codigo Estudiante
+</a>
+
+
+Scalffolding primero la Base de Datos y de
+<a
+  href="https://www.youtube.com/watch?v=DvT3ys2jZ0g&t=533s"
+  target="_blank"
+  rel="noopener noreferrer"
+>
+  Scalffoling por Jose Luis Dev
+</a>
+Scalffolding primero el modelo despues la base de datos
+<a
+  href="https://www.youtube.com/watch?v=IhzQUI6XHPw&t=1215s"
+  target="_blank"
+  rel="noopener noreferrer"
+>
+  Scalffoling por Informatica DP
+</a>
+
+Arquitecura Limpia en capas (CQRS, Mediator, EF Core)
+<a
+  href="https://www.youtube.com/watch?v=xS0f6sS5moI&t=3370s"
+  target="_blank"
+  rel="noopener noreferrer"
+>
+  Arquitectura Limpia por Felipe Gavilan
+</a>
+
+# 2. Estructura de Aquitectura Limpia
+
+La **Arquitectura Limpia (Clean Architecture)**, propuesta por **Robert C. Martin (Uncle Bob)**, organiza una aplicación en capas con una regla fundamental:
+
+> **Las dependencias siempre apuntan hacia el centro.** Las capas internas no conocen las externas.
+
+En un proyecto de **.NET 8**, una implementación típica tiene entre **4 y 5 capas**.
+
+```text
+┌──────────────────────────────────────────┐
+│              Presentation                │
+│     API, MVC, Blazor, Minimal API        │
+└──────────────────────────────────────────┘
+                    │
+                    ▼
+┌──────────────────────────────────────────┐
+│             Application                  │
+│ Casos de uso, DTO, Interfaces, Servicios │
+└──────────────────────────────────────────┘
+                    │
+                    ▼
+┌──────────────────────────────────────────┐
+│                Domain                    │
+│ Entidades, Reglas de negocio, ValueObjects│
+└──────────────────────────────────────────┘
+                    ▲
+                    │
+┌──────────────────────────────────────────┐
+│            Infrastructure                │
+│ EF Core, SQL Server, PostgreSQL, JWT     │
+│ Email, Archivos, APIs externas           │
+└──────────────────────────────────────────┘
+```
+
+---
+
+# 1. Domain (Núcleo)
+
+Es la capa más importante.
+
+Aquí vive únicamente el negocio.
+
+No debe conocer:
+
+* Entity Framework
+* SQL Server
+* ASP.NET
+* JWT
+* HTTP
+* JSON
+
+Contiene:
+
+* Entidades
+* Value Objects
+* Enums
+* Excepciones de dominio
+* Interfaces de dominio (cuando aplica)
+* Reglas de negocio
+
+Ejemplo:
+
+```csharp
+public class Producto
+{
+    public Guid Id { get; private set; }
+
+    public string Nombre { get; private set; }
+
+    public decimal Precio { get; private set; }
+
+    public void CambiarPrecio(decimal nuevoPrecio)
+    {
+        if (nuevoPrecio <= 0)
+            throw new Exception("Precio inválido");
+
+        Precio = nuevoPrecio;
+    }
+}
+```
+
+Observa que aquí no existe:
+
+* DbContext
+* SQL
+* Controllers
+* JSON
+
+---
+
+# 2. Application
+
+Aquí viven los **casos de uso**.
+
+Es donde se implementa la lógica de la aplicación utilizando las entidades del dominio.
+
+Contiene normalmente:
+
+* DTO
+* Interfaces de repositorios
+* Interfaces de servicios
+* Casos de uso
+* Commands
+* Queries
+* Validaciones
+* AutoMapper
+
+Ejemplo:
+
+```text
+Application
+
+DTO
+    ProductoDto
+
+Interfaces
+    IProductoRepository
+
+Services
+    ProductoService
+
+Commands
+Queries
+Validators
+```
+
+Ejemplo:
+
+```csharp
+public class ProductoService
+{
+    private readonly IProductoRepository _repository;
+
+    public ProductoService(IProductoRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<List<ProductoDto>> ObtenerTodos()
+    {
+        var productos = await _repository.ObtenerTodos();
+
+        return productos.Select(x => new ProductoDto
+        {
+            Id = x.Id,
+            Nombre = x.Nombre
+        }).ToList();
+    }
+}
+```
+
+Aquí solo se conoce la interfaz.
+
+No se conoce SQL Server.
+
+---
+
+# 3. Infrastructure
+
+Aquí están las implementaciones.
+
+Todo lo relacionado con tecnología.
+
+Ejemplos:
+
+* Entity Framework Core
+* SQL Server
+* PostgreSQL
+* Oracle
+* MongoDB
+* JWT
+* Email
+* Azure
+* AWS
+* Redis
+* RabbitMQ
+
+Ejemplo:
+
+```text
+Infrastructure
+
+Persistence
+    AppDbContext
+
+Repositories
+    ProductoRepository
+
+Security
+    JwtService
+
+Email
+    EmailService
+```
+
+Ejemplo:
+
+```csharp
+public class ProductoRepository : IProductoRepository
+{
+    private readonly AppDbContext _context;
+
+    public ProductoRepository(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<List<Producto>> ObtenerTodos()
+    {
+        return await _context.Productos.ToListAsync();
+    }
+}
+```
+
+La aplicación conoce la interfaz.
+
+Infrastructure implementa esa interfaz.
+
+---
+
+# 4. Presentation
+
+Es la entrada al sistema.
+
+Puede ser:
+
+* Web API
+* MVC
+* Blazor
+* MAUI
+* gRPC
+
+Aquí viven:
+
+* Controllers
+* Endpoints
+* Middleware
+* Swagger
+* Filtros
+* Configuración
+
+Ejemplo:
+
+```text
+Presentation
+
+Controllers
+
+ProductosController
+
+Program.cs
+
+appsettings.json
+```
+
+Controller:
+
+```csharp
+[ApiController]
+[Route("api/productos")]
+public class ProductosController : ControllerBase
+{
+    private readonly ProductoService _service;
+
+    public ProductosController(ProductoService service)
+    {
+        _service = service;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Get()
+    {
+        return Ok(await _service.ObtenerTodos());
+    }
+}
+```
+
+El controlador no consulta la base de datos directamente.
+
+---
+
+# Flujo completo
+
+```text
+Cliente
+
+      │
+
+      ▼
+
+Controller (Presentation)
+
+      │
+
+      ▼
+
+Application
+
+      │
+
+      ▼
+
+Repository Interface
+
+      │
+
+      ▼
+
+Infrastructure
+
+      │
+
+      ▼
+
+SQL Server
+```
+
+---
+
+# Dependencias
+
+La regla de Clean Architecture es:
+
+```text
+Presentation
+      │
+      ▼
+Application
+      │
+      ▼
+Domain
+
+Infrastructure
+      │
+      └────────► Domain
+      └────────► Application
+```
+
+Es decir:
+
+* **Domain** no depende de nadie.
+* **Application** depende de **Domain**.
+* **Infrastructure** depende de **Application** y **Domain**.
+* **Presentation** depende de **Application** (y normalmente registra las implementaciones de Infrastructure mediante inyección de dependencias).
+
+---
+
+# Estructura de solución en .NET 8
+
+```text
+Facturacion.sln
+
+src/
+
+│
+├── Facturacion.Domain
+│      Entities
+│      Enums
+│      ValueObjects
+│      Exceptions
+│
+├── Facturacion.Application
+│      DTOs
+│      Interfaces
+│      Services
+│      Validators
+│      Commands
+│      Queries
+│
+├── Facturacion.Infrastructure
+│      Persistence
+│      Repositories
+│      Security
+│      Email
+│
+└── Facturacion.API
+       Controllers
+       Middleware
+       Program.cs
+       appsettings.json
+```
+
+## ¿Es esta la arquitectura más recomendada para .NET 8?
+
+Sí. Para aplicaciones empresariales (APIs REST, sistemas de facturación, ERP, CRM, etc.), esta estructura es una de las más utilizadas porque:
+
+* Mantiene separadas las responsabilidades.
+* Facilita las pruebas unitarias al depender de interfaces.
+* Permite cambiar tecnologías (por ejemplo, SQL Server por PostgreSQL) con un impacto mínimo en la lógica de negocio.
+* Escala mejor a medida que crece el proyecto.
+
+Dado que en conversaciones anteriores has comentado que estás desarrollando APIs REST en **.NET 8** con **Entity Framework Core**, **JWT**, **DTO** y **SQL Server/PostgreSQL**, esta arquitectura encaja muy bien con ese tipo de proyectos y es una excelente base para construir aplicaciones mantenibles y fáciles de evolucionar.

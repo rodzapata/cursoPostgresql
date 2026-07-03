@@ -1,0 +1,269 @@
+---
+title: "varaiables de entorno para conexion de Postgres version 18"
+date: "2026-07-03"
+description: "pasos para configurar variables de entorno en netcore 10"
+slug: "variables-entorno"
+category: "postgres"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+En **.NET 10** (igual que en .NET 8 y .NET 9), las variables de entorno son una de las formas recomendadas para almacenar configuración sensible o que cambia entre ambientes, como:
+
+* Cadenas de conexión.
+* Claves de API.
+* Tokens JWT.
+* Credenciales.
+* URLs de servicios.
+* Configuración específica por ambiente.
+
+Una ventaja importante es que **ASP.NET Core las carga automáticamente** mediante el sistema de configuración (`IConfiguration`).
+
+---
+
+# Orden de prioridad de la configuración
+
+ASP.NET Core combina la configuración desde varias fuentes. De forma simplificada, la prioridad (de menor a mayor) es:
+
+1. `appsettings.json`
+2. `appsettings.Development.json`
+3. User Secrets (en desarrollo)
+4. Variables de entorno
+5. Parámetros de línea de comandos
+
+Si una misma clave existe en varias fuentes, prevalece la de mayor prioridad.
+
+---
+
+# Ejemplo 1: Crear una variable de entorno
+
+Supongamos que quieres guardar una cadena de conexión.
+
+### En Windows (CMD)
+
+```cmd
+setx ConnectionStrings__DefaultConnection "Server=.;Database=Facturacion;Trusted_Connection=True;TrustServerCertificate=True"
+```
+
+Observa los **dos guiones bajos (`__`)**.
+
+Representan los `:` de la configuración.
+
+Por ejemplo:
+
+```
+ConnectionStrings:DefaultConnection
+```
+
+se convierte en
+
+```
+ConnectionStrings__DefaultConnection
+```
+
+---
+
+### En PowerShell
+
+```powershell
+$env:ConnectionStrings__DefaultConnection="Server=.;Database=Facturacion;Trusted_Connection=True;TrustServerCertificate=True"
+```
+
+Esta solo dura mientras la sesión de PowerShell esté abierta.
+
+---
+
+# Ejemplo 2: appsettings.json
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": ""
+  }
+}
+```
+
+La variable de entorno sobrescribirá este valor.
+
+---
+
+# Ejemplo 3: Leer la variable
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+string connection =
+    builder.Configuration.GetConnectionString("DefaultConnection");
+```
+
+o
+
+```csharp
+string connection =
+    builder.Configuration["ConnectionStrings:DefaultConnection"];
+```
+
+---
+
+# Ejemplo 4: Registrar DbContext
+
+```csharp
+builder.Services.AddDbContext<AppDbContext>(options =>
+{
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"));
+});
+```
+
+No necesitas hacer nada adicional para que ASP.NET Core lea la variable de entorno.
+
+---
+
+# Variables simples
+
+Puedes definir:
+
+```
+ApiKey
+```
+
+y leerla así:
+
+```csharp
+string apiKey = builder.Configuration["ApiKey"];
+```
+
+o
+
+```csharp
+var apiKey = Environment.GetEnvironmentVariable("ApiKey");
+```
+
+La diferencia es que `IConfiguration` también puede obtener el valor desde `appsettings.json`, User Secrets u otros proveedores, mientras que `Environment.GetEnvironmentVariable` solo consulta las variables de entorno del sistema.
+
+---
+
+# Variables anidadas
+
+Supón esta configuración:
+
+```json
+{
+    "Jwt": {
+        "Key": "",
+        "Issuer": "",
+        "Audience": ""
+    }
+}
+```
+
+Las variables serían:
+
+```
+Jwt__Key
+Jwt__Issuer
+Jwt__Audience
+```
+
+y se leen así:
+
+```csharp
+var key = builder.Configuration["Jwt:Key"];
+var issuer = builder.Configuration["Jwt:Issuer"];
+var audience = builder.Configuration["Jwt:Audience"];
+```
+
+---
+
+# Configuración tipada (Options Pattern)
+
+Una práctica recomendada es agrupar la configuración en una clase.
+
+Clase:
+
+```csharp
+public class JwtOptions
+{
+    public string Key { get; set; } = "";
+    public string Issuer { get; set; } = "";
+    public string Audience { get; set; } = "";
+}
+```
+
+Registro:
+
+```csharp
+builder.Services.Configure<JwtOptions>(
+    builder.Configuration.GetSection("Jwt"));
+```
+
+Uso:
+
+```csharp
+public class TokenService
+{
+    private readonly JwtOptions _jwt;
+
+    public TokenService(IOptions<JwtOptions> options)
+    {
+        _jwt = options.Value;
+    }
+}
+```
+
+---
+
+# Variables de entorno en Visual Studio
+
+Durante el desarrollo puedes definir variables en el perfil de ejecución (`launchSettings.json`):
+
+```json
+{
+  "profiles": {
+    "https": {
+      "environmentVariables": {
+        "Jwt__Key": "MiClaveSuperSegura",
+        "ApiKey": "123456"
+      }
+    }
+  }
+}
+```
+
+Estas variables solo se aplican cuando ejecutas la aplicación desde Visual Studio o con `dotnet run`.
+
+---
+
+# Variables en Docker
+
+```yaml
+environment:
+  - Jwt__Key=MiClave
+  - Jwt__Issuer=FacturacionApi
+```
+
+---
+
+# Variables en Azure
+
+En **App Service**:
+
+```
+Settings
+↓
+Environment Variables
+↓
+Add
+```
+
+No necesitas modificar el código; ASP.NET Core las detectará automáticamente.
+
+---
+
+# Recomendaciones
+
+* **Desarrollo**: usa **User Secrets** para secretos locales y `launchSettings.json` para valores específicos del perfil de ejecución.
+* **Pruebas**: utiliza variables de entorno o archivos `appsettings.{Environment}.json` según el entorno.
+* **Producción**: almacena secretos en variables de entorno o en un gestor de secretos como **Azure Key Vault** o **AWS Secrets Manager**. Evita incluir credenciales en `appsettings.json` o en el repositorio.
+
+Este enfoque funciona igual en **.NET 8, .NET 9 y .NET 10**, y es el recomendado por el equipo de ASP.NET Core para aplicaciones modernas.

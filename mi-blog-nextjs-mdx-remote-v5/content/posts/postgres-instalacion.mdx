@@ -1,0 +1,107 @@
+---
+title: "Instalacion de Postgres version 18"
+date: "2026-07-03"
+description: "instalacion profesional de postgres"
+slug: "postgres-instalacion"
+category: "postgres"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+## 1. Creacion de Base de Datos desde una ruta especifica
+
+Procederemos a crear la base de datos **tribuSoft**
+
+### 1.1 creamos el TableSpace donde se guardara nuestra base de datos
+```sql
+CREATE TABLESPACE ts_tribu_soft
+LOCATION 'c:/tribusoft/data';
+
+```
+**Nota** Me equivoque al colocarle el nombre al Table space para borrarlo use
+```sql
+DROP TABLESPACE tribu_soft;
+```
+
+### 1.2 creamos la base de datos dentro del Tablespace creado
+```sql
+CREATE DATABASE tribu_soft
+TABLESPACE ts_tribu_soft;
+
+```
+
+### 1.3 Comando para verificar la ruta de tablespace y de la base de datos
+```sql
+SELECT
+    datname,
+    dattablespace
+FROM pg_database;
+
+
+SELECT
+    spcname,
+    pg_tablespace_location(oid)
+FROM pg_tablespace;
+
+```
+
+## 2. Creamos el usuario de la base de datos
+En posgres los usuarios son Roles de base de datos, se recomienda por lo menos 3 roles:
+```sql
+-- 1. Grupo de Solo Lectura (Ideal para analistas de datos, BI o dashboards)
+CREATE ROLE db_read_group;
+
+-- 2. Grupo de Lectura y Escritura (Para la aplicación web/móvil principal)
+CREATE ROLE db_write_group;
+
+-- 3. Grupo de Administración/DDL (Para herramientas de migración como Liquibase/Flyway o desarrolladores Senior)
+CREATE ROLE db_admin_group;
+```
+
+Ahora se asignan privilegios por grupo de roles  
+para el grupo de solo lectura **db_read_group**
+
+```sql
+GRANT CONNECT ON DATABASE tribu_soft TO db_read_group;
+GRANT USAGE ON SCHEMA public TO db_read_group;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO db_read_group;
+
+-- Asegurar que las tablas que se creen en el futuro también sean legibles
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO db_read_group;
+```
+
+Para el grupo de escritura **db_write_group**
+```sql
+GRANT db_read_group TO db_write_group; -- Hereda lo de solo lectura
+GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO db_write_group;
+GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO db_write_group;
+
+-- Privilegios por defecto para el futuro
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT INSERT, UPDATE, DELETE ON TABLES TO db_write_group;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO db_write_group;
+```
+
+Para el grupo de Administrador **db_admin_group**
+
+```sql
+GRANT db_write_group TO db_admin_group; -- Hereda lectura y escritura
+GRANT ALL PRIVILEGES ON SCHEMA public TO db_admin_group;
+-- Este grupo puede hacer CREATE, DROP, ALTER de tablas y funciones.
+```
+
+Ahora si creamos usuarios finales (Roles con Login)
+
+```sql
+-- Usuario para la aplicación web (Solo lee y escribe, no borra ni crea tablas)
+CREATE ROLE app_user WITH LOGIN PASSWORD 'Clave01.';
+GRANT db_write_group TO app_user;
+
+-- Usuario para un Analista de Datos de la empresa (Solo lectura)
+CREATE ROLE analista_juanc WITH LOGIN PASSWORD 'Clave01.';
+GRANT db_read_group TO analista_juanc;
+
+-- Usuario para el sistema de despliegue/CI-CD (Necesita crear/alterar tablas)
+CREATE ROLE cicd_deployer WITH LOGIN PASSWORD 'Clave01.';
+GRANT db_admin_group TO cicd_deployer;
+```

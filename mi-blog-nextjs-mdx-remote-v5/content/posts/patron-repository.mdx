@@ -1,0 +1,1945 @@
+---
+title: "Patron Repository"
+date: "2026-07-02"
+description: "Patron Repository capa intermedia enntre el controlador y la base de datos"
+slug: "patron-repository"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Como ya conozco los temas que estás estudiando (.NET, SQL Server, React y arquitecturas para sistemas empresariales), te recomiendo aprender el **Patrón Repositorio** como si estuvieras construyendo un proyecto real de facturación. Es la mejor forma de entender por qué existe y cuándo realmente vale la pena usarlo.
+
+---
+
+# ¿Qué es el Patrón Repositorio?
+
+El Patrón Repositorio (**Repository Pattern**) es un patrón que **encapsula el acceso a los datos**.
+
+En lugar de que el controlador consulte directamente la base de datos mediante `DbContext`, delega esa responsabilidad a una clase llamada **Repositorio**.
+
+Sin repositorio:
+
+```
+Controller
+     │
+ DbContext
+     │
+ SQL Server
+```
+
+Con repositorio:
+
+```
+Controller
+     │
+ Servicio
+     │
+Repositorio
+     │
+ DbContext
+     │
+ SQL Server
+```
+
+La idea es que el controlador **no sepa cómo se obtienen los datos**.
+
+---
+
+# ¿Qué problema resuelve?
+
+Supongamos que tienes un controlador.
+
+```csharp
+public class ClienteController : ControllerBase
+{
+    private readonly FacturacionDbContext _context;
+
+    public ClienteController(FacturacionDbContext context)
+    {
+        _context = context;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Obtener()
+    {
+        var clientes = await _context.Clientes.ToListAsync();
+
+        return Ok(clientes);
+    }
+}
+```
+
+Aquí el controlador conoce:
+
+* Entity Framework
+* DbContext
+* SQL Server
+
+Eso significa que si mañana cambias EF por Dapper, deberás modificar todos los controladores.
+
+---
+
+## Con Repository
+
+```
+Controller
+
+↓
+
+IClienteRepository
+
+↓
+
+ClienteRepository
+
+↓
+
+DbContext
+```
+
+Ahora el controlador no sabe si los datos vienen de:
+
+* SQL Server
+* PostgreSQL
+* Oracle
+* API REST
+* Redis
+
+Solo sabe que existe un repositorio.
+
+---
+
+# Paso 1. Crear la entidad
+
+```csharp
+public class Cliente
+{
+    public int Id { get; set; }
+
+    public string Nombre { get; set; } = string.Empty;
+
+    public string Ciudad { get; set; } = string.Empty;
+}
+```
+
+---
+
+# Paso 2. Crear el DbContext
+
+```csharp
+public class FacturacionDbContext : DbContext
+{
+    public FacturacionDbContext(DbContextOptions<FacturacionDbContext> options)
+        : base(options)
+    {
+    }
+
+    public DbSet<Cliente> Clientes => Set<Cliente>();
+}
+```
+
+Hasta aquí es un proyecto normal.
+
+---
+
+# Paso 3. Crear la interfaz del repositorio
+
+Aquí defines **qué puede hacer**.
+
+```csharp
+public interface IClienteRepository
+{
+    Task<List<Cliente>> ObtenerTodosAsync();
+
+    Task<Cliente?> ObtenerPorIdAsync(int id);
+
+    Task AgregarAsync(Cliente cliente);
+
+    Task ActualizarAsync(Cliente cliente);
+
+    Task EliminarAsync(int id);
+}
+```
+
+Observa que **no aparece Entity Framework**.
+
+Solo reglas de acceso.
+
+---
+
+# Paso 4. Crear la implementación
+
+```csharp
+public class ClienteRepository : IClienteRepository
+{
+    private readonly FacturacionDbContext _context;
+
+    public ClienteRepository(FacturacionDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<List<Cliente>> ObtenerTodosAsync()
+    {
+        return await _context.Clientes.ToListAsync();
+    }
+
+    public async Task<Cliente?> ObtenerPorIdAsync(int id)
+    {
+        return await _context.Clientes.FindAsync(id);
+    }
+
+    public async Task AgregarAsync(Cliente cliente)
+    {
+        _context.Clientes.Add(cliente);
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task ActualizarAsync(Cliente cliente)
+    {
+        _context.Clientes.Update(cliente);
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task EliminarAsync(int id)
+    {
+        var cliente = await _context.Clientes.FindAsync(id);
+
+        if (cliente == null)
+            return;
+
+        _context.Clientes.Remove(cliente);
+
+        await _context.SaveChangesAsync();
+    }
+}
+```
+
+Aquí sí aparece EF Core.
+
+---
+
+# Paso 5. Registrar el repositorio
+
+```csharp
+builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
+```
+
+---
+
+# Paso 6. Usarlo en el controlador
+
+```csharp
+[ApiController]
+[Route("api/clientes")]
+public class ClienteController : ControllerBase
+{
+    private readonly IClienteRepository _repository;
+
+    public ClienteController(IClienteRepository repository)
+    {
+        _repository = repository;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Obtener()
+    {
+        var clientes = await _repository.ObtenerTodosAsync();
+
+        return Ok(clientes);
+    }
+}
+```
+
+El controlador ya no conoce Entity Framework.
+
+---
+
+# Flujo completo
+
+```
+Usuario
+
+↓
+
+HTTP
+
+↓
+
+Controller
+
+↓
+
+Repository
+
+↓
+
+DbContext
+
+↓
+
+SQL Server
+```
+
+---
+
+# ¿Qué pasa cuando insertas?
+
+```
+POST
+
+↓
+
+Controller
+
+↓
+
+Repository
+
+↓
+
+_context.Clientes.Add()
+
+↓
+
+SaveChanges()
+
+↓
+
+SQL Server
+```
+
+---
+
+# Agregar un cliente
+
+```csharp
+[HttpPost]
+public async Task<IActionResult> Crear(Cliente cliente)
+{
+    await _repository.AgregarAsync(cliente);
+
+    return Ok();
+}
+```
+
+El controlador no sabe cómo se inserta.
+
+---
+
+# Buscar por Id
+
+```csharp
+public async Task<Cliente?> ObtenerPorIdAsync(int id)
+{
+    return await _context.Clientes.FindAsync(id);
+}
+```
+
+Uso:
+
+```csharp
+var cliente = await _repository.ObtenerPorIdAsync(10);
+```
+
+---
+
+# Actualizar
+
+```csharp
+public async Task ActualizarAsync(Cliente cliente)
+{
+    _context.Clientes.Update(cliente);
+
+    await _context.SaveChangesAsync();
+}
+```
+
+---
+
+# Eliminar
+
+```csharp
+public async Task EliminarAsync(int id)
+{
+    var cliente = await _context.Clientes.FindAsync(id);
+
+    if (cliente != null)
+    {
+        _context.Clientes.Remove(cliente);
+
+        await _context.SaveChangesAsync();
+    }
+}
+```
+
+---
+
+# ¿Dónde va cada clase?
+
+```
+Facturacion.Api
+│
+├── Controllers
+│      ClienteController.cs
+│
+├── Program.cs
+
+Facturacion.Infrastructure
+│
+├── Data
+│      FacturacionDbContext.cs
+│
+├── Repositories
+│      ClienteRepository.cs
+
+Facturacion.Application
+│
+├── Interfaces
+│      IClienteRepository.cs
+
+Facturacion.Domain
+│
+├── Entities
+│      Cliente.cs
+```
+
+---
+
+# ¿Es suficiente este repositorio?
+
+Para proyectos pequeños, sí. Sin embargo, en aplicaciones empresariales modernas con **.NET 8, .NET 9 o .NET 10**, es habitual dar un paso más:
+
+* El repositorio **solo se encarga de acceder a los datos**.
+* La lógica de negocio (validaciones, reglas, cálculos, etc.) se mueve a una **capa de servicios o casos de uso**.
+
+El flujo queda así:
+
+```
+Controller
+      │
+      ▼
+Servicio (Application)
+      │
+      ▼
+Repositorio
+      │
+      ▼
+DbContext
+      │
+      ▼
+SQL Server
+```
+
+Por ejemplo, si al crear un cliente debes verificar que el NIT no exista, esa validación pertenece al **servicio**, no al repositorio.
+
+---
+
+## ¿Qué aprender después?
+
+Para dominar el patrón repositorio en proyectos reales, te recomiendo avanzar en este orden:
+
+1. Repositorio básico (CRUD).
+2. Inyección de dependencias (`AddScoped`, `AddTransient`, `AddSingleton`).
+3. Repositorio genérico (`IRepository<T>`).
+4. Unit of Work.
+5. Especificaciones (Specification Pattern) para consultas complejas.
+6. Clean Architecture integrando Repositorio + Servicios + DTOs + AutoMapper.
+7. CQRS con MediatR, donde el repositorio sigue existiendo pero los casos de uso se organizan por comandos y consultas.
+
+## Mi recomendación para ti
+
+Por el tipo de proyectos que has venido desarrollando (facturación, SQL Server, React y APIs REST), **no te quedes en el repositorio básico**. Aprende directamente cómo se implementa en una **Clean Architecture** con:
+
+* DTOs.
+* Repositorios.
+* Servicios (casos de uso).
+* Unit of Work.
+* Entity Framework Core.
+* Transacciones.
+
+Ese enfoque es el que encontrarás con mayor frecuencia en aplicaciones empresariales de tamaño medio y grande.
+
+Excelente. El siguiente paso es **la capa de Servicios (Service Layer o Application Layer)**, que es donde realmente empieza la separación de responsabilidades. Muchos desarrolladores principiantes cometen el error de poner toda la lógica en el repositorio, cuando en realidad el repositorio **solo debe acceder a los datos**.
+
+# ¿Por qué necesitamos una capa de Servicios?
+
+Supongamos que debes crear un cliente.
+
+Las reglas de negocio son:
+
+* El NIT no puede estar repetido.
+* El nombre es obligatorio.
+* El correo debe ser válido.
+* Al crear el cliente, se debe registrar una auditoría.
+* Se debe enviar un correo de bienvenida.
+
+¿Quién debe hacer eso?
+
+No el controlador.
+
+No el repositorio.
+
+Lo hace el **Servicio**.
+
+---
+
+# Arquitectura
+
+Ahora el flujo cambia.
+
+```text
+Usuario
+   │
+HTTP
+   │
+Controller
+   │
+IClienteService
+   │
+ClienteService
+   │
+IClienteRepository
+   │
+ClienteRepository
+   │
+DbContext
+   │
+SQL Server
+```
+
+Observa que:
+
+El controlador nunca habla con EF.
+
+El controlador tampoco conoce SQL Server.
+
+---
+
+# Responsabilidad de cada capa
+
+## Controller
+
+Solo recibe la petición.
+
+```csharp
+[HttpPost]
+public async Task<IActionResult> Crear(ClienteDto dto)
+{
+    await _service.CrearClienteAsync(dto);
+
+    return Ok();
+}
+```
+
+Nada más.
+
+---
+
+## Service
+
+Aquí está toda la lógica.
+
+```text
+¿Existe el cliente?
+
+↓
+
+¿El correo es válido?
+
+↓
+
+¿El NIT ya existe?
+
+↓
+
+Guardar
+
+↓
+
+Enviar correo
+
+↓
+
+Registrar auditoría
+```
+
+---
+
+## Repository
+
+Solo hace operaciones de base de datos.
+
+```text
+Insert
+
+Update
+
+Delete
+
+Select
+```
+
+No valida reglas de negocio.
+
+---
+
+# Paso 1. Crear el DTO
+
+Nunca envíes una entidad directamente.
+
+```csharp
+public class ClienteDto
+{
+    public string Nit { get; set; } = "";
+
+    public string Nombre { get; set; } = "";
+
+    public string Correo { get; set; } = "";
+}
+```
+
+---
+
+# Paso 2. Agregar un método al repositorio
+
+Necesitamos buscar un cliente por NIT.
+
+Interfaz
+
+```csharp
+public interface IClienteRepository
+{
+    Task<Cliente?> ObtenerPorNitAsync(string nit);
+
+    Task AgregarAsync(Cliente cliente);
+}
+```
+
+Implementación
+
+```csharp
+public async Task<Cliente?> ObtenerPorNitAsync(string nit)
+{
+    return await _context.Clientes
+                         .FirstOrDefaultAsync(x => x.Nit == nit);
+}
+```
+
+Observa que aquí **no validamos** si está repetido.
+
+Solo buscamos.
+
+---
+
+# Paso 3. Crear la interfaz del servicio
+
+```csharp
+public interface IClienteService
+{
+    Task CrearClienteAsync(ClienteDto dto);
+}
+```
+
+---
+
+# Paso 4. Implementar el servicio
+
+```csharp
+public class ClienteService : IClienteService
+{
+    private readonly IClienteRepository _repository;
+
+    public ClienteService(IClienteRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task CrearClienteAsync(ClienteDto dto)
+    {
+        // Validar nombre
+        if (string.IsNullOrWhiteSpace(dto.Nombre))
+            throw new Exception("El nombre es obligatorio.");
+
+        // Validar NIT
+        var cliente = await _repository.ObtenerPorNitAsync(dto.Nit);
+
+        if (cliente != null)
+            throw new Exception("El NIT ya existe.");
+
+        // Crear entidad
+        var nuevo = new Cliente
+        {
+            Nit = dto.Nit,
+            Nombre = dto.Nombre,
+            Correo = dto.Correo
+        };
+
+        await _repository.AgregarAsync(nuevo);
+    }
+}
+```
+
+Aquí está la diferencia importante.
+
+Toda la lógica está en el servicio.
+
+---
+
+# El controlador queda muy limpio
+
+```csharp
+[ApiController]
+[Route("api/clientes")]
+public class ClienteController : ControllerBase
+{
+    private readonly IClienteService _service;
+
+    public ClienteController(IClienteService service)
+    {
+        _service = service;
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Crear(ClienteDto dto)
+    {
+        await _service.CrearClienteAsync(dto);
+
+        return Ok();
+    }
+}
+```
+
+Ya no tiene lógica.
+
+---
+
+# Registrar el servicio
+
+```csharp
+builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
+
+builder.Services.AddScoped<IClienteService, ClienteService>();
+```
+
+---
+
+# Flujo completo
+
+Cuando un usuario crea un cliente:
+
+```text
+POST /api/clientes
+
+        │
+
+ClienteController
+
+        │
+
+ClienteService
+
+        │
+
+¿Nombre vacío?
+
+        │
+
+¿NIT existe?
+
+        │
+
+Crear entidad
+
+        │
+
+ClienteRepository
+
+        │
+
+DbContext
+
+        │
+
+SQL Server
+```
+
+---
+
+# ¿Qué ventajas obtenemos?
+
+## Sin servicio
+
+```text
+Controller
+
+↓
+
+Repository
+
+↓
+
+DbContext
+```
+
+El controlador termina validando datos y el repositorio haciendo reglas de negocio.
+
+---
+
+## Con servicio
+
+```text
+Controller
+
+↓
+
+Service
+
+↓
+
+Repository
+
+↓
+
+DbContext
+```
+
+Cada clase tiene una única responsabilidad (principio **SRP** de SOLID):
+
+* **Controller:** recibe la petición HTTP y devuelve la respuesta.
+* **Service:** aplica las reglas de negocio y coordina el caso de uso.
+* **Repository:** accede a la base de datos.
+* **DbContext:** interactúa con Entity Framework Core.
+
+---
+
+# Una mejora importante
+
+En los ejemplos anteriores el repositorio ejecuta `SaveChangesAsync()`. En proyectos empresariales esto suele evitarse porque limita el control de las transacciones.
+
+En lugar de eso:
+
+```csharp
+public async Task AgregarAsync(Cliente cliente)
+{
+    await _context.Clientes.AddAsync(cliente);
+}
+```
+
+Y el guardado se realiza una sola vez desde un **Unit of Work**:
+
+```csharp
+await _unitOfWork.SaveChangesAsync();
+```
+
+Esto permite que varias operaciones sobre distintos repositorios formen parte de la **misma transacción**, algo muy común en sistemas de facturación.
+
+## El siguiente paso
+
+Ahora que ya entiendes **Controller → Service → Repository**, el siguiente tema natural es **Unit of Work**, donde aprenderás:
+
+* por qué no conviene llamar a `SaveChangesAsync()` dentro de cada repositorio;
+* cómo manejar transacciones correctamente;
+* cómo coordinar varios repositorios en una sola operación (por ejemplo, crear una factura, sus detalles y actualizar el inventario de forma atómica).
+
+Ese es el patrón que normalmente encontrarás en aplicaciones empresariales desarrolladas con .NET 8, .NET 9 y .NET 10.
+
+Perfecto. Ahora llegamos a uno de los patrones más importantes en aplicaciones empresariales: **Unit of Work (UoW)**.
+
+Este patrón suele ser el punto en el que muchos desarrolladores entienden por qué **no es buena práctica llamar a `SaveChangesAsync()` desde cada repositorio**.
+
+---
+
+# ¿Qué problema resuelve Unit of Work?
+
+Imagina que estás desarrollando un sistema de facturación.
+
+Cuando se crea una factura debes realizar estas operaciones:
+
+1. Guardar la factura.
+2. Guardar los detalles.
+3. Descontar inventario.
+4. Registrar un movimiento de kardex.
+5. Registrar una auditoría.
+
+Todo eso debe ocurrir como **una única transacción**.
+
+---
+
+## Sin Unit of Work
+
+Supongamos que cada repositorio hace esto:
+
+```csharp
+public async Task AgregarAsync(Factura factura)
+{
+    _context.Facturas.Add(factura);
+
+    await _context.SaveChangesAsync();
+}
+```
+
+Luego:
+
+```csharp
+public async Task AgregarAsync(FacturaDetalle detalle)
+{
+    _context.FacturaDetalles.Add(detalle);
+
+    await _context.SaveChangesAsync();
+}
+```
+
+Y el inventario:
+
+```csharp
+public async Task ActualizarAsync(Producto producto)
+{
+    _context.Productos.Update(producto);
+
+    await _context.SaveChangesAsync();
+}
+```
+
+Ahora mira el flujo.
+
+```text
+Guardar factura
+
+↓
+
+SaveChanges()
+
+↓
+
+Guardar detalle
+
+↓
+
+SaveChanges()
+
+↓
+
+Actualizar inventario
+
+↓
+
+¡¡Error!!
+```
+
+¿Qué ocurrió?
+
+La factura quedó guardada.
+
+El detalle quedó guardado.
+
+El inventario NO.
+
+La base de datos quedó inconsistente.
+
+---
+
+# Lo correcto
+
+Debe existir **una sola llamada** a SaveChanges.
+
+```text
+Agregar factura
+
+↓
+
+Agregar detalle
+
+↓
+
+Actualizar inventario
+
+↓
+
+Guardar auditoría
+
+↓
+
+SaveChanges()
+
+↓
+
+COMMIT
+```
+
+Si algo falla:
+
+```text
+ROLLBACK
+```
+
+Nada queda guardado.
+
+---
+
+# ¿Quién hace eso?
+
+Unit of Work.
+
+---
+
+# Arquitectura
+
+Ahora el flujo cambia.
+
+```text
+Controller
+
+↓
+
+Service
+
+↓
+
+Repository
+
+↓
+
+DbContext
+
+↓
+
+Unit Of Work
+
+↓
+
+SaveChanges()
+```
+
+Observa que ahora el repositorio **ya no guarda**.
+
+Solo agrega.
+
+---
+
+# Paso 1. Modificar el repositorio
+
+Antes
+
+```csharp
+public async Task AgregarAsync(Cliente cliente)
+{
+    _context.Clientes.Add(cliente);
+
+    await _context.SaveChangesAsync();
+}
+```
+
+Ahora
+
+```csharp
+public async Task AgregarAsync(Cliente cliente)
+{
+    await _context.Clientes.AddAsync(cliente);
+}
+```
+
+Nada más.
+
+---
+
+Actualizar
+
+Antes
+
+```csharp
+_context.Update(cliente);
+
+await _context.SaveChangesAsync();
+```
+
+Ahora
+
+```csharp
+_context.Update(cliente);
+```
+
+---
+
+Eliminar
+
+Antes
+
+```csharp
+_context.Remove(cliente);
+
+await _context.SaveChangesAsync();
+```
+
+Ahora
+
+```csharp
+_context.Remove(cliente);
+```
+
+El repositorio nunca guarda.
+
+---
+
+# Paso 2. Crear la interfaz Unit Of Work
+
+```csharp
+public interface IUnitOfWork
+{
+    Task<int> SaveChangesAsync();
+
+    Task BeginTransactionAsync();
+
+    Task CommitAsync();
+
+    Task RollbackAsync();
+}
+```
+
+---
+
+# Paso 3. Implementación
+
+```csharp
+public class UnitOfWork : IUnitOfWork
+{
+    private readonly FacturacionDbContext _context;
+
+    private IDbContextTransaction? _transaction;
+
+    public UnitOfWork(FacturacionDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task BeginTransactionAsync()
+    {
+        _transaction =
+            await _context.Database.BeginTransactionAsync();
+    }
+
+    public async Task CommitAsync()
+    {
+        await _context.SaveChangesAsync();
+
+        if (_transaction != null)
+            await _transaction.CommitAsync();
+    }
+
+    public async Task RollbackAsync()
+    {
+        if (_transaction != null)
+            await _transaction.RollbackAsync();
+    }
+
+    public async Task<int> SaveChangesAsync()
+    {
+        return await _context.SaveChangesAsync();
+    }
+}
+```
+
+---
+
+# Registrar
+
+```csharp
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+```
+
+---
+
+# Inyectarlo en el Service
+
+```csharp
+public class ClienteService
+{
+    private readonly IClienteRepository _repository;
+
+    private readonly IUnitOfWork _unitOfWork;
+
+    public ClienteService(
+        IClienteRepository repository,
+        IUnitOfWork unitOfWork)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+    }
+}
+```
+
+---
+
+# Crear un cliente
+
+```csharp
+public async Task CrearClienteAsync(ClienteDto dto)
+{
+    var cliente = new Cliente
+    {
+        Nombre = dto.Nombre
+    };
+
+    await _repository.AgregarAsync(cliente);
+
+    await _unitOfWork.SaveChangesAsync();
+}
+```
+
+Observa la diferencia.
+
+El repositorio agrega.
+
+El Unit Of Work guarda.
+
+---
+
+# Ejemplo real
+
+Ahora hagamos una factura.
+
+Necesitamos:
+
+* Factura
+* Detalle
+* Inventario
+
+---
+
+Sin Unit Of Work
+
+```text
+FacturaRepository
+
+↓
+
+SaveChanges()
+
+↓
+
+DetalleRepository
+
+↓
+
+SaveChanges()
+
+↓
+
+InventarioRepository
+
+↓
+
+ERROR
+```
+
+Resultado
+
+Factura guardada.
+
+Inventario incorrecto.
+
+---
+
+Con Unit Of Work
+
+```text
+FacturaRepository
+
+↓
+
+DetalleRepository
+
+↓
+
+InventarioRepository
+
+↓
+
+SaveChanges()
+
+↓
+
+Commit
+```
+
+Todo o nada.
+
+---
+
+# Código
+
+```csharp
+public async Task CrearFactura(Factura factura)
+{
+    await _facturaRepository.AgregarAsync(factura);
+
+    foreach (var detalle in factura.Detalles)
+    {
+        await _detalleRepository.AgregarAsync(detalle);
+
+        var producto =
+            await _productoRepository.ObtenerPorIdAsync(detalle.ProductoId);
+
+        producto.Stock -= detalle.Cantidad;
+
+        _productoRepository.Actualizar(producto);
+    }
+
+    await _unitOfWork.SaveChangesAsync();
+}
+```
+
+Solo un SaveChanges.
+
+---
+
+# ¿Y las transacciones?
+
+Ahora imagina que además llamas un Web Service.
+
+```text
+Guardar factura
+
+↓
+
+Guardar detalle
+
+↓
+
+Enviar correo
+
+↓
+
+Actualizar inventario
+
+↓
+
+Guardar auditoría
+```
+
+Podemos hacer:
+
+```csharp
+await _unitOfWork.BeginTransactionAsync();
+
+try
+{
+    ...
+
+    await _unitOfWork.CommitAsync();
+}
+catch
+{
+    await _unitOfWork.RollbackAsync();
+}
+```
+
+Todo queda protegido.
+
+---
+
+# ¿Por qué Microsoft dice que DbContext ya es un Unit of Work?
+
+Porque internamente EF Core ya implementa ese patrón.
+
+De hecho:
+
+```csharp
+_context.SaveChangesAsync();
+```
+
+ya agrupa todos los cambios pendientes en una sola operación y, por defecto, utiliza una transacción cuando es necesario.
+
+Por eso muchos desarrolladores consideran innecesario crear una clase `UnitOfWork` adicional cuando trabajan **solo con Entity Framework Core**.
+
+---
+
+# Entonces... ¿debo crear Unit of Work?
+
+Depende del proyecto.
+
+## Opción 1 (la que personalmente recomiendo para proyectos modernos con EF Core)
+
+No crear un `UnitOfWork` propio.
+
+```text
+Controller
+
+↓
+
+Service
+
+↓
+
+Repository
+
+↓
+
+DbContext
+```
+
+El servicio llama una sola vez a:
+
+```csharp
+await _context.SaveChangesAsync();
+```
+
+Aprovechas el `DbContext` como Unit of Work.
+
+---
+
+## Opción 2 (útil si buscas desacoplar EF Core o mantener una arquitectura muy estricta)
+
+Crear una interfaz `IUnitOfWork` que encapsule `SaveChangesAsync()` y las transacciones.
+
+Esto facilita cambiar la implementación o realizar pruebas con mayor aislamiento.
+
+---
+
+# ¿Cuál es la práctica más utilizada en 2026?
+
+En proyectos nuevos con **.NET 8, .NET 9 y .NET 10**, el enfoque más común es:
+
+* **Repository** para encapsular consultas y persistencia.
+* **DbContext** actuando como Unit of Work.
+* **SaveChangesAsync() una sola vez por caso de uso**.
+* **Transacciones explícitas** solo cuando el caso lo requiere.
+
+Es un enfoque más simple y aprovecha las capacidades nativas de Entity Framework Core.
+
+---
+
+# La siguiente etapa de aprendizaje
+
+Ya dominas el flujo:
+
+```
+Controller
+      ↓
+Service
+      ↓
+Repository
+      ↓
+DbContext
+```
+
+El siguiente paso es aprender **DTOs y AutoMapper**.
+
+Ahí entenderás por qué **nunca deberías devolver directamente las entidades de Entity Framework** desde tu API y cómo transformar entidades en objetos diseñados específicamente para las peticiones y respuestas. Ese es el siguiente componente clave para construir APIs REST profesionales con ASP.NET Core.
+
+Excelente. Ahora entramos en uno de los temas más importantes en el desarrollo de APIs profesionales: **DTO (Data Transfer Object)**.
+
+> **En mi opinión, aprender DTOs es más importante que aprender Repository o Unit of Work**, porque prácticamente todas las APIs empresariales utilizan DTOs, independientemente de la arquitectura (N-Layer, Clean Architecture, Vertical Slice, etc.).
+
+---
+
+# ¿Qué es un DTO?
+
+DTO significa **Data Transfer Object**.
+
+Es un objeto que se utiliza **únicamente para transportar información** entre capas o entre el cliente y la API.
+
+No contiene lógica de negocio ni acceso a datos.
+
+---
+
+# ¿Por qué no devolver las entidades?
+
+Supongamos que tu entidad `Cliente` es esta:
+
+```csharp
+public class Cliente
+{
+    public int Id { get; set; }
+
+    public string Nit { get; set; } = "";
+
+    public string Nombre { get; set; } = "";
+
+    public string Correo { get; set; } = "";
+
+    public string Password { get; set; } = "";
+
+    public decimal Saldo { get; set; }
+
+    public DateTime FechaCreacion { get; set; }
+
+    public bool Eliminado { get; set; }
+}
+```
+
+Si haces esto:
+
+```csharp
+return Ok(cliente);
+```
+
+El JSON será:
+
+```json
+{
+  "id": 1,
+  "nit": "900123456",
+  "nombre": "Empresa ABC",
+  "correo": "info@abc.com",
+  "password": "123456",
+  "saldo": 2500000,
+  "fechaCreacion": "2026-07-02",
+  "eliminado": false
+}
+```
+
+**Problemas:**
+
+* Estás enviando la contraseña.
+* Envías información que el cliente no necesita.
+* Si agregas una columna nueva en la base de datos, también se enviará automáticamente.
+* Tu API queda acoplada al modelo de la base de datos.
+
+---
+
+# La solución: DTO
+
+Creamos un DTO específico para responder.
+
+```csharp
+public class ClienteResponseDto
+{
+    public int Id { get; set; }
+
+    public string Nit { get; set; } = "";
+
+    public string Nombre { get; set; } = "";
+
+    public string Correo { get; set; } = "";
+}
+```
+
+Ahora el JSON será:
+
+```json
+{
+   "id":1,
+   "nit":"900123456",
+   "nombre":"Empresa ABC",
+   "correo":"info@abc.com"
+}
+```
+
+Mucho más limpio.
+
+---
+
+# Un error muy común
+
+Muchos desarrolladores crean un solo DTO.
+
+```text
+ClienteDto
+```
+
+Y lo usan para todo.
+
+Eso no es recomendable.
+
+---
+
+# Lo correcto
+
+Cada operación debe tener su propio DTO.
+
+```text
+Cliente
+
+│
+
+├── ClienteCreateDto
+
+├── ClienteUpdateDto
+
+├── ClienteResponseDto
+
+├── ClienteListDto
+
+└── ClienteLoginDto
+```
+
+Cada uno tiene un propósito diferente.
+
+---
+
+# ClienteCreateDto
+
+Lo usa el POST.
+
+```csharp
+public class ClienteCreateDto
+{
+    public string Nit { get; set; } = "";
+
+    public string Nombre { get; set; } = "";
+
+    public string Correo { get; set; } = "";
+
+    public string Password { get; set; } = "";
+}
+```
+
+---
+
+# ClienteUpdateDto
+
+```csharp
+public class ClienteUpdateDto
+{
+    public string Nombre { get; set; } = "";
+
+    public string Correo { get; set; } = "";
+}
+```
+
+No permitimos cambiar el NIT.
+
+---
+
+# ClienteResponseDto
+
+```csharp
+public class ClienteResponseDto
+{
+    public int Id { get; set; }
+
+    public string Nombre { get; set; } = "";
+
+    public string Correo { get; set; } = "";
+}
+```
+
+---
+
+# ClienteListDto
+
+Imagina una tabla con miles de registros.
+
+No necesitas enviar todo.
+
+```csharp
+public class ClienteListDto
+{
+    public int Id { get; set; }
+
+    public string Nombre { get; set; } = "";
+}
+```
+
+Mucho más rápido.
+
+---
+
+# Flujo
+
+```text
+ClienteCreateDto
+
+↓
+
+Controller
+
+↓
+
+Service
+
+↓
+
+Repository
+
+↓
+
+Entity Framework
+
+↓
+
+SQL Server
+
+↓
+
+Entidad Cliente
+
+↓
+
+ClienteResponseDto
+
+↓
+
+JSON
+```
+
+Observa que la entidad nunca sale de la capa de acceso a datos.
+
+---
+
+# Conversión manual
+
+Supongamos que obtienes una entidad.
+
+```csharp
+var cliente = await _repository.ObtenerPorIdAsync(id);
+```
+
+Construyes el DTO.
+
+```csharp
+var dto = new ClienteResponseDto
+{
+    Id = cliente.Id,
+    Nombre = cliente.Nombre,
+    Correo = cliente.Correo
+};
+```
+
+Devuelves
+
+```csharp
+return dto;
+```
+
+---
+
+# Problema
+
+Si tienes 100 entidades...
+
+```text
+Cliente
+
+Producto
+
+Factura
+
+Proveedor
+
+Usuario
+
+Empleado
+
+Inventario
+
+Ciudad
+```
+
+Debes escribir cientos de conversiones.
+
+---
+
+# Aquí aparece AutoMapper
+
+AutoMapper hace esto automáticamente.
+
+---
+
+# Instalar
+
+```bash
+dotnet add package AutoMapper.Extensions.Microsoft.DependencyInjection
+```
+
+---
+
+# Crear un Profile
+
+```csharp
+using AutoMapper;
+
+public class ClienteProfile : Profile
+{
+    public ClienteProfile()
+    {
+        CreateMap<Cliente, ClienteResponseDto>();
+
+        CreateMap<ClienteCreateDto, Cliente>();
+
+        CreateMap<ClienteUpdateDto, Cliente>();
+    }
+}
+```
+
+---
+
+# Registrar
+
+```csharp
+builder.Services.AddAutoMapper(typeof(ClienteProfile));
+```
+
+---
+
+# Inyectarlo
+
+```csharp
+private readonly IMapper _mapper;
+
+public ClienteService(IMapper mapper)
+{
+    _mapper = mapper;
+}
+```
+
+---
+
+# Convertir
+
+Antes
+
+```csharp
+var dto = new ClienteResponseDto
+{
+    Id = cliente.Id,
+    Nombre = cliente.Nombre,
+    Correo = cliente.Correo
+};
+```
+
+Ahora
+
+```csharp
+var dto = _mapper.Map<ClienteResponseDto>(cliente);
+```
+
+Una línea.
+
+---
+
+# Crear una entidad
+
+Antes
+
+```csharp
+var cliente = new Cliente
+{
+    Nit = dto.Nit,
+    Nombre = dto.Nombre,
+    Correo = dto.Correo,
+    Password = dto.Password
+};
+```
+
+Ahora
+
+```csharp
+var cliente = _mapper.Map<Cliente>(dto);
+```
+
+---
+
+# ¿AutoMapper sigue siendo la mejor opción en .NET 8, 9 y 10?
+
+Aquí hay un cambio importante en el ecosistema.
+
+Hace algunos años, **AutoMapper** era prácticamente el estándar. Sin embargo, hoy muchas empresas prefieren realizar el mapeo **manual** o utilizar **generadores de código** como **Mapperly** o **Mapster**, porque ofrecen mejor rendimiento y permiten detectar errores en tiempo de compilación.
+
+En proyectos pequeños y medianos, el mapeo manual suele ser suficiente y muy fácil de mantener.
+
+Por ejemplo:
+
+```csharp
+public static class ClienteMapper
+{
+    public static ClienteResponseDto ToResponseDto(this Cliente cliente)
+    {
+        return new ClienteResponseDto
+        {
+            Id = cliente.Id,
+            Nombre = cliente.Nombre,
+            Correo = cliente.Correo
+        };
+    }
+
+    public static Cliente ToEntity(this ClienteCreateDto dto)
+    {
+        return new Cliente
+        {
+            Nit = dto.Nit,
+            Nombre = dto.Nombre,
+            Correo = dto.Correo,
+            Password = dto.Password
+        };
+    }
+}
+```
+
+Uso:
+
+```csharp
+var dto = cliente.ToResponseDto();
+```
+
+Este enfoque tiene varias ventajas:
+
+* El código es explícito y fácil de seguir.
+* El compilador detecta cambios en propiedades.
+* No dependes de reflexión en tiempo de ejecución.
+* Es sencillo depurarlo.
+
+---
+
+# Estructura recomendada
+
+```text
+Facturacion.Api
+│
+├── Controllers
+│
+Facturacion.Application
+│
+├── DTOs
+│   ├── ClienteCreateDto.cs
+│   ├── ClienteUpdateDto.cs
+│   ├── ClienteResponseDto.cs
+│   └── ClienteListDto.cs
+│
+├── Services
+│
+├── Interfaces
+│
+├── Mappers
+│   └── ClienteMapper.cs
+│
+Facturacion.Domain
+│
+├── Entities
+│
+Facturacion.Infrastructure
+│
+├── Repositories
+│
+├── Data
+```
+
+---
+
+# ¿Qué sigue?
+
+Hasta ahora hemos construido una arquitectura bastante sólida:
+
+* ✅ Entidades (Domain).
+* ✅ Repository Pattern.
+* ✅ Capa de Servicios.
+* ✅ Unit of Work (o uso directo de `DbContext` como UoW).
+* ✅ DTOs.
+* ✅ Mapeo entre entidades y DTOs.
+
+## El siguiente paso será **Validaciones profesionales con FluentValidation**.
+
+Aprenderás a eliminar validaciones del tipo:
+
+```csharp
+if (string.IsNullOrWhiteSpace(dto.Nombre))
+    throw new Exception("El nombre es obligatorio.");
+```
+
+y reemplazarlas por validadores reutilizables, desacoplados y fáciles de mantener. Este es el enfoque que encontrarás con frecuencia en proyectos modernos desarrollados con ASP.NET Core 8, 9 y 10.
+

@@ -2,7 +2,7 @@
 title: "Json transaccion en .net core"
 date: "2026-06-26"
 description: "Json en factura"
-slug: "transacion"
+slug: "json-transacion"
 category: "Netcore"
 tags: ["netcore", "csharp", "backend"]
 published: true
@@ -257,3 +257,85 @@ Y dentro del servicio:
 8. Devolver el identificador de la factura creada.
 
 Este enfoque mantiene la consistencia de los datos y es el más utilizado en APIs REST empresariales modernas.
+
+
+¡Este es el ejemplo de texto de manual para explicar por qué **EF Core ya hace el trabajo por ti** y por qué el patrón Unit of Work manual sigue siendo innecesario!
+
+En tu caso, estás tocando tres partes del sistema (Encabezado, Cuerpo/Detalles y Stock de Producto), pero todas forman parte de una **única unidad lógica de negocio: "Registrar una Venta/Factura"**.
+
+Aquí te explico cómo maneja esto .NET 10 de forma nativa, limpia y segura sin agregar capas extra.
+
+---
+
+**No, en absoluto.** Si vas a trabajar con una sola tabla, implementar el patrón **Unit of Work (UoW)** de forma manual es una de las prácticas de sobreingeniería más comunes (y desaconsejadas) en .NET.
+
+De hecho, en .NET 10 (y desde hace varias versiones de EF Core), la recomendación general es **no crear capas personalizadas de Unit of Work ni de Repositorio Genérico**, a menos que tengas una razón de peso muy específica.
+
+Aquí te explico los motivos técnicos y qué debes hacer con las transacciones en tu caso:
+
+---
+
+## 1. EF Core ya es tu Unit of Work y tu Repositorio
+
+Cuando usas Entity Framework Core:
+
+* **`DbContext`** ya actúa como el patrón **Unit of Work**. Mantiene el seguimiento de los cambios (Change Tracker) de todas las entidades involucradas en una operación.
+* **`DbSet<T>`** ya actúa como el patrón **Repository**. Tiene los métodos `Add`, `Remove`, `Update` y permite hacer consultas LINQ.
+
+Si creas una clase llamada `UnitOfWork` que adentro solo tiene un `_context.SaveChangesAsync()`, lo único que estás haciendo es envolver una herramienta que ya funciona perfectamente dentro de otra capa innecesaria (un *wrapper* del *wrapper*), lo que añade código repetitivo (*boilerplate*) sin aportar ningún valor.
+
+---
+
+## 2. ¿Qué pasa con las transacciones si es una sola tabla?
+
+Aquí hay una confusión común: **No necesitas Unit of Work para tener transacciones.** Cuando tú haces operaciones en EF Core sobre una sola tabla (o incluso sobre varias):
+
+* **`DbContext.SaveChangesAsync()` es atómico por defecto.** Esto significa que todo lo que hayas modificado o agregado antes de llamar a ese método se ejecutará dentro de una transacción de base de datos automática. Si una fila falla, todo el bloque de esa llamada hace *rollback*.
+
+### El único escenario donde sí necesitas configurar transacciones manualmente:
+
+Si en tu lógica de negocio necesitas hacer **múltiples llamadas separadas** a `SaveChangesAsync()` y necesitas que si la segunda falla, la primera también se cancele.
+
+Incluso en ese caso, en .NET 10 no necesitas Unit of Work; se maneja directamente con la API de transacciones de EF Core:
+
+```csharp
+// Ejemplo en un endpoint de Minimal API (.NET 10) para una sola tabla
+app.MapPost("/usuarios/procesar-lote", async (DbContext miContexto) => 
+{
+    // 1. Abrimos una transacción explícita
+    using var transaction = await miContexto.Database.BeginTransactionAsync();
+
+    try 
+    {
+        // Operación 1
+        miContexto.Usuarios.Add(new Usuario { Nombre = "Ana" });
+        await miContexto.SaveChangesAsync(); 
+
+        // ... Algo de lógica de negocio intermedia aquí ...
+
+        // Operación 2 (en la misma tabla, pero dependiente de la anterior)
+        miContexto.Usuarios.Add(new Usuario { Nombre = "Carlos" });
+        await miContexto.SaveChangesAsync();
+
+        // Si todo sale bien, confirmamos
+        await transaction.CommitAsync();
+        return Results.Ok();
+    }
+    catch (Exception)
+    {
+        // Si algo falla, se deshace todo automáticamente al salir del 'using'
+        await transaction.RollbackAsync();
+        return Results.BadRequest("Error procesando el lote");
+    }
+});
+
+```
+
+---
+
+## 🛠️ Resumen de recomendación para .NET 10
+
+* **Para 1 sola tabla:** Inyecta tu `DbContext` directamente en tu Minimal API o Servicio. Haz tus cambios y llama a `SaveChangesAsync()`. Olvídate de Unit of Work y Repositorios.
+* **Para proyectos medianos/grandes:** Sigue la misma regla. La documentación oficial de Microsoft y arquitectos de renombre en el ecosistema .NET (como Jimmy Bogard) desaconsejan el uso de Unit of Work sobre EF Core porque bloquea las características avanzadas de LINQ y añade complejidad innecesaria.
+
+¿Qué tipo de operación estás intentando realizar en esa tabla que te hizo pensar en necesitar transacciones o Unit of Work?

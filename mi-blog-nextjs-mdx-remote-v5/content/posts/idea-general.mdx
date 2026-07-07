@@ -11,41 +11,46 @@ featured: true
 
 # 1. Nombre de la aplicacion
 
-Se llamará **TribuSoft** empesaremos con una api web hecha en net core 10 
+Se llamará **TribuSoft** empesaremos con una api web hecha en net core 10
 
 # 2. Instalaciond de Metcore 10
 
-Lo primero es actualizar a la utlima vesion de visual studio 2022 es la numero **17.14.35** en mi equipo tenia la **17.11.5** 
+Lo primero es actualizar a la utlima vesion de visual studio 2022 es la numero **17.14.35** en mi equipo tenia la **17.11.5**
 
 Despues hay que descargar el SDK 10 desde el link : https://dotnet.microsoft.com/download/dotnet/10.0
 
-Una vez instalado comprobamos que la version de SDK que tenomos intalada: 
+Una vez instalado comprobamos que la version de SDK que tenomos intalada:
+
 ```bash
 dotnet --list-sdks
 ```
 
 y para comprobar cual es la version actual por defecto:
+
 ```bash
 dotnet --version
 ```
+
 # 3. Recomendaciones para nombrar las tablas e indices
+
 Mi recomendación para tu proyecto
 
 Como estás desarrollando un sistema de facturación, información exógena DIAN, .NET 10, Entity Framework Core y buscas aplicar mejores prácticas, yo usaría siempre la segunda forma y nombraría explícitamente todos los objetos de la base de datos.
 
 Incluso seguiría una convención consistente:
 
-Objeto	Prefijo	Ejemplo
-Primary Key	PK_	PK_Departamento
-Foreign Key	FK_	FK_Municipio_Departamento
-Unique	UQ_	UQ_Tercero_NumeroDocumento
-Check	CK_	CK_Tercero_TipoPersona
-Default	DF_	DF_Tercero_Activo
-Index	IX_	IX_Municipio_CodigoDepartamento
-
+Objeto Prefijo Ejemplo
+Primary Key PK* PK_Departamento
+Foreign Key FK* FK*Municipio_Departamento
+Unique UQ* UQ*Tercero_NumeroDocumento
+Check CK* CK*Tercero_TipoPersona
+Default DF* DF*Tercero_Activo
+Index IX* IX_Municipio_CodigoDepartamento
 
 # 4. Estructura de las tablas y entidades
+
 La tabla en sqlserver de **Municipio** seria:
+
 ```sql
 CREATE TABLE municipio
 (
@@ -62,6 +67,7 @@ CREATE TABLE municipio
 );
 
 ```
+
 La tabla en sqlserver de **Departamento** seria:
 
 ```sql
@@ -103,12 +109,13 @@ CREATE TABLE tercero
         FOREIGN KEY (codigo_municipio)
         REFERENCES municipio(codigo),
 
-    CONSTRAINT UQ_tercero_numero_documento UNIQUE (numero_documento)        
+    CONSTRAINT UQ_tercero_numero_documento UNIQUE (numero_documento)
 
 );
 ```
 
 # 5 Entidades en Entity Framework Core 10
+
 Entidad **Municipio**:
 
 ```csharp
@@ -123,6 +130,7 @@ public class Municipio
     public Departamento Departamento { get; set; } = null!;
 }
 ```
+
 Configuracion
 
 ```csharp
@@ -137,24 +145,24 @@ builder.Property(x => x.CodigoDepartamento)
        .IsFixedLength();
 ```
 
-
-
 **Nota** No es necesario crear una columna id autoincremental y tomamos los codigos que utiliza la Dian
 
 Recomendacion para campos por valores por defecto :
 forma corta:
+
 ```sql
 Activo BIT DEFAULT(1)
 ```
 
 Forma profesional :
+
 ```sql
 CONSTRAINT DF_Empleado_Activo
 DEFAULT(1)
 FOR Activo
 ```
 
-**Nota** los nombres de las tablas en postgresql deben ser en minuscula y separadao con **_** guion abajo
+**Nota** los nombres de las tablas en postgresql deben ser en minuscula y separadao con **\_** guion abajo
 🛠️ El secreto para conectarlo con .NET 10 (Sin ensuciar tu código)
 Si usas la estructura anterior (snake_case), no tienes por qué castigar tu código de C# escribiendo propiedades en minúsculas.
 
@@ -167,7 +175,7 @@ dotnet add package EFCore.NamingConventions
 ```
 
 2. Configura tu DbContext en .NET 10:
-Al registrar tu contexto (ya sea en el Program.cs o en el OnConfiguring), añades .UseSnakeCaseNamingConvention():
+   Al registrar tu contexto (ya sea en el Program.cs o en el OnConfiguring), añades .UseSnakeCaseNamingConvention():
 
 ```csharp
 protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -177,11 +185,12 @@ protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         .UseSnakeCaseNamingConvention(); // <--- ¡Aquí está la magia!
 }
 ```
+
 3. Tu Entidad en C# queda perfecta y limpia:
-Gracias a esa línea, EF Core sabe que cuando en C# preguntas por PrimerNombre, en Postgres debe buscar primer_nombre.
+   Gracias a esa línea, EF Core sabe que cuando en C# preguntas por PrimerNombre, en Postgres debe buscar primer_nombre.
 
 ```csharp
-public class Tercero 
+public class Tercero
 {
     public long Id { get; set; }
     public string Nit { get; set; } = null!;
@@ -191,13 +200,15 @@ public class Tercero
     // ...
 }
 ```
+
 **CONCLUSION**
 manejare sqlserver con las convencion de postgresql y el codigo en csharp quedaria:
+
 ```csharp
 protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 {
     // Supongamos que lees el tipo de motor desde tu appsettings.json
-    string motor = Configuration["DatabaseProvider"]; 
+    string motor = Configuration["DatabaseProvider"];
 
     if (motor == "PostgreSQL")
     {
@@ -209,11 +220,12 @@ protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     }
 
     // ¡La magia universal! Aplica snake_case automáticamente para CUALQUIER motor
-    optionsBuilder.UseSnakeCaseNamingConvention(); 
+    optionsBuilder.UseSnakeCaseNamingConvention();
 }
 ```
 
-## Estructura en postgresql 18 ##
+## Estructura en postgresql 18
+
 ```sql
 -- ===========================================
 -- Tabla: departamento
@@ -278,3 +290,64 @@ CREATE TABLE tercero
         UNIQUE (numero_documento)
 );
 ```
+
+## escrip de insercion masiva
+
+insertamos de los depatamentos
+
+```sql
+COPY departamento(
+    codigo,
+    nombre
+)
+FROM 'C:\tribusoft\excel\dptos.csv'
+DELIMITER ';'
+CSV HEADER;
+```
+
+**Nota**
+Dentro DBeaver tuve que anteponerle un **/** para que funcionara quedando asi:
+
+```sql
+\COPY departamento(
+    codigo,
+    nombre
+)
+FROM 'C:\tribusoft\excel\dptos.csv'
+DELIMITER ';'
+CSV HEADER;
+```
+
+insertamos los municipios
+
+```sql
+COPY municipio(
+    codigo,
+    nombre,
+	codigo_departamento
+)
+FROM 'C:\tribusoft\excel\municipios.csv'
+DELIMITER ';'
+CSV HEADER;
+```
+
+insertamos los Terceros
+
+\COPY dian_terceros(
+nit,
+apellido1,
+apellido2,
+nombre1,
+nombre2,
+tipo_doc,
+razon,
+nomb_terce,
+direccion,
+coddpto,
+codmunicipio,
+unirmunicipio,
+excluir_compras
+)
+FROM 'C:\proveedorSQL\sql\dian_terceros.csv'
+DELIMITER ';'
+CSV HEADER;

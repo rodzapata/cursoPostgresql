@@ -14,24 +14,29 @@ featured: true
 Procederemos a crear la base de datos **tribuSoft**
 
 ### 1.1 creamos el TableSpace donde se guardara nuestra base de datos
+
 ```sql
 CREATE TABLESPACE ts_tribu_soft
-LOCATION 'c:/tribusoft/data';
+LOCATION 'c:/tribusoft/data/tribusoft_db';
 
 ```
+
 **Nota** Me equivoque al colocarle el nombre al Table space para borrarlo use
+
 ```sql
 DROP TABLESPACE tribu_soft;
 ```
 
 ### 1.2 creamos la base de datos dentro del Tablespace creado
+
 ```sql
-CREATE DATABASE tribu_soft
+CREATE DATABASE tribusoft_db
 TABLESPACE ts_tribu_soft;
 
 ```
 
 ### 1.3 Comando para verificar la ruta de tablespace y de la base de datos
+
 ```sql
 SELECT
     datname,
@@ -47,7 +52,9 @@ FROM pg_tablespace;
 ```
 
 ## 2. Creamos el usuario de la base de datos
+
 En posgres los usuarios son Roles de base de datos, se recomienda por lo menos 3 roles:
+
 ```sql
 -- 1. Grupo de Solo Lectura (Ideal para analistas de datos, BI o dashboards)
 CREATE ROLE db_read_group;
@@ -72,6 +79,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO db_read_grou
 ```
 
 Para el grupo de escritura **db_write_group**
+
 ```sql
 GRANT db_read_group TO db_write_group; -- Hereda lo de solo lectura
 GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO db_write_group;
@@ -102,6 +110,6 @@ CREATE ROLE analista_juanc WITH LOGIN PASSWORD 'Clave01.';
 GRANT db_read_group TO analista_juanc;
 
 -- Usuario para el sistema de despliegue/CI-CD (Necesita crear/alterar tablas)
-CREATE ROLE cicd_deployer WITH LOGIN PASSWORD 'Clave01.';
-GRANT db_admin_group TO cicd_deployer;
+CREATE ROLE app_deployer WITH LOGIN PASSWORD 'Clave01.';
+GRANT db_admin_group TO app_deployer;
 ```

@@ -12,30 +12,36 @@ featured: true
 ## 1. Creacion de Base de Datos desde una ruta especifica
 
 Procederemos a crear la base de datos **tribuSoft**
+Lo primeo que debemos hacer es crear el directorio en el sistema operativo en caso de windows
 
-### 1.1 creamos el TableSpace donde se guardara nuestra base de datos
+```bash
+mkdir tribusoft\data\postgresql\tribusoft_db
+
+```
+
+### 1.0 creamos el TableSpace donde se guardara nuestra base de datos
 
 ```sql
-CREATE TABLESPACE ts_tribu_soft
-LOCATION 'c:/tribusoft/data/tribusoft_db';
+CREATE TABLESPACE ts_tribusoft
+LOCATION 'c:/tribusoft/data/postgresql/tribusoft_db';
 
 ```
 
 **Nota** Me equivoque al colocarle el nombre al Table space para borrarlo use
 
 ```sql
-DROP TABLESPACE tribu_soft;
+DROP TABLESPACE tribusoft;
 ```
 
-### 1.2 creamos la base de datos dentro del Tablespace creado
+### 1.0.1 creamos la base de datos dentro del Tablespace creado
 
 ```sql
 CREATE DATABASE tribusoft_db
-TABLESPACE ts_tribu_soft;
+TABLESPACE ts_tribusoft;
 
 ```
 
-### 1.3 Comando para verificar la ruta de tablespace y de la base de datos
+### 1.0.4 Comando para verificar la ruta de tablespace y de la base de datos
 
 ```sql
 SELECT
@@ -51,7 +57,7 @@ FROM pg_tablespace;
 
 ```
 
-## 2. Creamos el usuario de la base de datos
+## 1.1 Creamos el usuario de la base de datos
 
 En posgres los usuarios son Roles de base de datos, se recomienda por lo menos 3 roles:
 
@@ -70,7 +76,7 @@ Ahora se asignan privilegios por grupo de roles
 para el grupo de solo lectura **db_read_group**
 
 ```sql
-GRANT CONNECT ON DATABASE tribu_soft TO db_read_group;
+GRANT CONNECT ON DATABASE tribusoft_db TO db_read_group;
 GRANT USAGE ON SCHEMA public TO db_read_group;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO db_read_group;
 
@@ -113,3 +119,18 @@ GRANT db_read_group TO analista_juanc;
 CREATE ROLE app_deployer WITH LOGIN PASSWORD 'Clave01.';
 GRANT db_admin_group TO app_deployer;
 ```
+
+**Nota:**
+decidi eliminar los roles y los usuario para realizar todo el proceso ordenadamente y para eliminar los roles tuve que:
+```sql
+DROP OWNED BY db_read_group CASCADE;
+REVOKE db_read_group FROM db_write_group;
+DROP ROLE db_read_group;
+
+DROP OWNED BY db_write_group CASCADE;
+DROP ROLE db_write_group;
+
+DROP OWNED BY db_admin_group CASCADE;
+DROP ROLE db_admin_group;
+```
+

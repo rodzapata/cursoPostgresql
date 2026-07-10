@@ -49,6 +49,19 @@ Index IX* IX_Municipio_CodigoDepartamento
 
 # 4. Estructura de las tablas y entidades
 
+La tabla en sqlserver de **Departamento** seria:
+
+```sql
+CREATE TABLE departamento
+(
+    codigo CHAR(2) NOT NULL,
+    nombre VARCHAR(80) NOT NULL,
+
+    CONSTRAINT PK_departamento
+        PRIMARY KEY (codigo)
+);
+```
+
 La tabla en sqlserver de **Municipio** seria:
 
 ```sql
@@ -68,53 +81,38 @@ CREATE TABLE municipio
 
 ```
 
-La tabla en sqlserver de **Departamento** seria:
-
-```sql
-CREATE TABLE departamento
-(
-    codigo CHAR(2) NOT NULL,
-    nombre VARCHAR(80) NOT NULL,
-
-    CONSTRAINT PK_departamento
-        PRIMARY KEY (codigo)
-);
-```
 
 La tabla en sqlserver de **Terceros** seria:
 
 ```sql
 CREATE TABLE tercero
 (
-    tipo_documento      CHAR(2)       NOT NULL,
-    numero_documento    VARCHAR(20)   NOT NULL,
+    id                  BIGINT IDENTITY(1,1) NOT NULL,
+    tipo_documento      CHAR(2)      NOT NULL,
+    numero_documento    VARCHAR(20)  NOT NULL,
 
-    primer_apellido     VARCHAR(60)   NULL,
-    segundo_apellido    VARCHAR(60)   NULL,
-
-    primer_nombre       VARCHAR(60)   NULL,
-    otros_nombres       VARCHAR(120)  NULL,
-
-    razon_social        VARCHAR(200)  NULL,
-
-    direccion          VARCHAR(130)  NULL,
-
-    codigo_municipio    CHAR(5)       NOT NULL,
-
+    primer_apellido     VARCHAR(60)  NULL,
+    segundo_apellido    VARCHAR(60)  NULL,
+    primer_nombre       VARCHAR(60)  NULL,
+    otros_nombres       VARCHAR(120) NULL,
+    razon_social        VARCHAR(200) NULL,
+    direccion           VARCHAR(130) NULL,
+    codigo_municipio    CHAR(5)      NOT NULL,
 
     CONSTRAINT PK_tercero
-        PRIMARY KEY (numero_documento),
+        PRIMARY KEY (id),
+
+    -- Evita que existan dos terceros con el mismo número de documento
+    CONSTRAINT UQ_tercero_documento
+        UNIQUE (numero_documento),
 
     CONSTRAINT FK_tercero_municipio
         FOREIGN KEY (codigo_municipio)
-        REFERENCES municipio(codigo),
-
-    CONSTRAINT UQ_tercero_numero_documento UNIQUE (numero_documento)
-
+        REFERENCES municipio(codigo)
 );
 ```
 
-# 5 Entidades en Entity Framework Core 10
+# 5. Entidades en Entity Framework Core 10
 
 Entidad **Municipio**:
 
@@ -264,31 +262,30 @@ CREATE TABLE municipio
 
 CREATE TABLE tercero
 (
+    id                  BIGINT GENERATED ALWAYS AS IDENTITY,
     tipo_documento      CHAR(2)      NOT NULL,
     numero_documento    VARCHAR(20)  NOT NULL,
 
     primer_apellido     VARCHAR(60),
     segundo_apellido    VARCHAR(60),
-
     primer_nombre       VARCHAR(60),
     otros_nombres       VARCHAR(120),
-
     razon_social        VARCHAR(200),
-
     direccion           VARCHAR(130),
-
     codigo_municipio    CHAR(5)      NOT NULL,
 
-    CONSTRAINT pk_tercero
-        PRIMARY KEY (numero_documento),
+    CONSTRAINT pk_tercero 
+        PRIMARY KEY (id),
+        
+    -- Evita que existan dos terceros con el mismo tipo y número de documento
+    CONSTRAINT uq_tercero_documento 
+        UNIQUE (numero_documento),
 
     CONSTRAINT fk_tercero_municipio
         FOREIGN KEY (codigo_municipio)
-        REFERENCES municipio(codigo),
-
-    CONSTRAINT uq_tercero_numero_documento
-        UNIQUE (numero_documento)
+        REFERENCES municipio(codigo)
 );
+
 ```
 
 ## escrip de insercion masiva
@@ -331,7 +328,19 @@ DELIMITER ';'
 CSV HEADER;
 ```
 
+
+
 insertamos los Terceros
+```sql
+COPY tercero(
+    tipo_documento, numero_documento, primer_apellido, segundo_apellido, primer_nombre, otros_nombres, 
+    razon_social, direccion,  codigo_municipio)
+FROM 'C:\tribusoft\excel\terceros.csv'
+DELIMITER ';'
+CSV HEADER;
+
+```
+tipo_doc;nit;apellido1;apellido2;nombre1;nombre2;razon;direccion;unirmunicipio
 
 \COPY dian_terceros(
 nit,
@@ -351,3 +360,417 @@ excluir_compras
 FROM 'C:\proveedorSQL\sql\dian_terceros.csv'
 DELIMITER ';'
 CSV HEADER;
+
+## Carga masiva desde netcore
+
+Opción 3: Carga masiva desde .NET 10 (C#) 
+Como estás usando .NET 10, puedes programar la carga masiva de manera ultra rápida usando Npgsql (el proveedor de PostgreSQL para .NET).  
+Esto evita tocar permisos del sistema de archivos del servidor y usa la infraestructura de streaming de Postgres:  
+
+```sql
+using var dataSource = NpgsqlDataSource.Create("tu_cadena_conexion");
+await using var connection = await dataSource.OpenConnectionAsync();
+
+// Abre el archivo CSV desde C#
+using var reader = new StreamReader(@"C:\tribusoft\excel\dptos.csv");
+
+// Inicia la operación de copia masiva binaria o de texto
+await using var writer = await connection.BeginTextImportAsync(
+    "COPY departamento (codigo, nombre) FROM STDIN WITH DELIMITER ';' CSV HEADER"
+);
+
+// Transmite el contenido del archivo directamente a la base de datos
+string? line;
+while ((line = await reader.ReadLineAsync()) != null)
+{
+    await writer.WriteLineAsync(line);
+}
+```
+
+Con este enfoque de .NET, tu usuario de base de datos solo necesita permisos estándar de INSERT sobre la tabla departamento.  
+No requiere permisos de servidor.  
+
+# 6. Creamos nuestra webapi en Netcore 10 y postgresql 18
+
+Lo primero que debemos hacer es crear nuestro proyecto **WebApi**
+el paso a pado en webapi con postgresql en ingles es:
+
+<a
+  href="https://www.youtube.com/watch?v=IR19SLn9A2Y&t=356s"
+  target="_blank"
+   rel="noopener noreferrer"
+>
+  webapi con postgresql por Israel Quiroz
+</a>
+
+
+# 6.1 Instalacion de paquetes:
+y agregar al proyectos los siguientes paquetes: **Nuget**
+* 1. Microsoft.EntityFrameworkCore
+* 2. Microsoft.EntityFrameworkCore.Tools 
+* 3. Microsoft.EntityFrameworkCore.Design
+* 4. Microsoft.EntityFrameworkCore.SqlServer
+
+* 5. Microsoft.EntityFrameworkCore.Relational
+
+* 6. Npgsql.EntityFrameworkCore.PostgreSQL
+* 7. Npgsql.EntityFrameworkCore.PostgreSQL.Design
+
+* 8. paquetes JWT 
+* 9. FluentValidation.DependencyInjectionExtensions
+recomendado para las validaciones de los DTO  
+
+* 10. Serilog.AspNetCore
+* 11. Serilog.Sinks.Console
+* 12. Serilog.Sinks.File
+Esto 3 paquetes son muy utilizados para el **loggin** 
+
+
+
+
+# 6.2 Estructura del proyecto
+
+**Proyectos independientes en una misma solución (Recomendado)**
+Creas una solución (TribuSoft.sln) y dentro separas las responsabilidades en múltiples proyectos de biblioteca de clases (Class Library), dejando el proyecto Web API únicamente como el punto de entrada (la interfaz). Una estructura común basada en Clean Architecture o Arquitectura en Capas es:
+
+TribuSoft.API (Proyecto Web API: Solo controladores, middlewares y configuración).
+* Microsoft.EntityFrameworkCore.Design  
+* Npgsql.EntityFrameworkCore.PostgreSQL.Design  
+
+TribuSoft.Application (Biblioteca de clases: Lógica de negocio, interfaces, DTOs).
+
+TribuSoft.Infrastructure (Biblioteca de clases: DbContext, repositorios, migraciones, servicios externos).
+* Microsoft.EntityFrameworkCore.SqlServer  
+* Npgsql.EntityFrameworkCore.PostgreSQL  
+
+TribuSoft.Domain (Biblioteca de clases: Entidades puras y lógica del dominio).
+
+**Arquitectura Recomendada**
+
+Para un proyecto nuevo en .NET 10 con soporte para PostgreSQL 18 y SQL Server 2022, organizaría la solución así:  
+```bash
+TribuSoft.sln
+
+TribuSoft.Api
+│
+├── Controllers
+├── Middlewares
+├── Extensions
+└── Program.cs
+
+TribuSoft.Application
+│
+├── DTOs
+├── Services
+├── Validators
+└── Interfaces
+
+TribuSoft.Domain
+│
+├── Entities
+├── Enums
+├── ValueObjects
+└── Events
+
+TribuSoft.Infrastructure
+│
+├── Persistence
+│   ├── PostgreSqlDbContext
+│   ├── SqlServerDbContext
+│   ├── Configurations
+│   ├── Migrations
+│   │   ├── PostgreSql
+│   │   └── SqlServer
+│   └── Seed
+├── Logging
+└── DependencyInjection
+```
+
+# 7. Agregamos referencia de proyectos dentro de la solucion
+
+en el proyecto de infraestructura 
+* agregar referencia a Domain
+
+en el proyecto de Application
+* agregar referencia  a infraestructura
+
+en el proyecto de Api
+* agregar referencia a Application
+
+# 8. Eliminamos archivos de ejemplo en la Api
+
+Por defecto en el proyecto api nos crea un controlador llamando **WeatherForecastController.cs**
+y una clase llamada **WeatherForecast.cs** ambas las eliminamos para limpiar el proyecto de cosas que 
+no vamos a usar. 
+
+# 9. creacion de DBConstext en la capa de Infraestructura
+
+Lo primero es instalar desde Nuges el componente Npgsql.EntityFrameworkCore.PostgreSQL
+Microsoft.EntityFrameworkCore.SqlServer   
+Microsoft.EntityFrameworkCore.Design    
+Microsoft.EntityFrameworkCore.Tools   
+**version 10.0.2** para ambos paquetes 
+
+Antes de crear nuestras entidades en la capa de Domain, podemos realizar un **Scaffolding** que nos ayude
+mapeando la estructura de las tablas de la base de datos de postgresql con el comando :
+
+en el proyecto damos boton derecho y escogemos herramientas - administrador de paquetes Nuget - Consola administrador de paquetes -
+debe aparecer el promop PM y escribimos :
+
+La configuracion correcta fue:
+```bash
+Scaffold-DbContext "Host=localhost;Port=5432;Database=tribusoft_db;Username=app_user;Password=Clave01." Npgsql.EntityFrameworkCore.PostgreSQL -OutputDir Persistence\Entities -Context AppDbContext -ContextDir Persistence -DataAnnotations:$false -NoOnConfiguring  -Verbose -force
+
+```
+Scaffold-DbContext "Host=localhost;Port=5432;Database=tribusoft_db;Username=app_user;Password=Clave01." Npgsql.EntityFrameworkCore.PostgreSQL -OutputDir ..\TribuSoft.Domain\Entities -Context AppDbContext -ContextDir Persistence -DataAnnotations:$false -NoOnConfiguring  -Verbose -force
+
+
+```bash
+Scaffold-DbContext "Host=localhost;Port=5432;Database=tribusoft_db;Username=app_user;Password=Clave01." Npgsql.EntityFrameworkCore.PostgreSQL -OutputDir Persistence\Entities -Context AppDbContext -ContextDir Persistence -UseDatabaseNames -NoPluralize -DataAnnotations:$false -NoOnConfiguring  -Verbose
+```
+
+# 10. EF Core Power Tools es mejor Herramientas que el Scaffold para la generacion de DBContext
+Esta Herramienta Open Source te permite mapear la base de datos y crea el DBContext y las Endidades aplicando mejores practicas
+<a
+  href="https://www.youtube.com/watch?v=PR3S6ga3tCk"
+  target="_blank"
+  rel="noopener noreferrer"
+>
+  Ingenieria Inversa por CodeRoll
+</a>
+
+# 11. Codigo generado por la Herramienta Scaffolding y Refactorizacion de la misma
+
+**Entidad Tercero**
+```sql
+public partial class Tercero
+{
+    public long Id { get; set; }
+    public string TipoDocumento { get; set; } = null!;
+    public string NumeroDocumento { get; set; } = null!;
+    public string? PrimerApellido { get; set; }
+    public string? SegundoApellido { get; set; }
+    public string? PrimerNombre { get; set; }
+    public string? OtrosNombres { get; set; }
+    public string? RazonSocial { get; set; }
+    public string? Direccion { get; set; }
+    public string CodigoMunicipio { get; set; } = null!;
+    public virtual Municipio CodigoMunicipioNavigation { get; set; } = null!;
+}
+
+```
+No usar **public partial class** sino simplemente **public class**  
+En .NET 10 (2026) y siguiendo las recomendaciones de Microsoft y las prácticas utilizadas en proyectos empresariales, la regla es bastante sencilla:
+
+Usa public class en prácticamente todas las clases que escribas manualmente.
+Usa public partial class únicamente cuando la clase se divide intencionalmente en varios archivos o una parte es generada automáticamente por una herramienta. 
+
+No usar **virtual** este codigo se usa para carga peresosa ya no se recomienda  
+
+**Principales mejoras aplicadas**
+Convenciones de C# 10/11: **record** para entidades inmutables o class **sealed** si necesitas herencia controlada.
+
+Data Annotations: validación y restricciones directamente en el modelo.
+
+Propiedades requeridas: uso de **required** en lugar de inicialización con **null!**.
+
+Nombres consistentes: claridad en nombres de propiedades.
+
+Relaciones EF Core: navegación explícita y clave foránea.
+
+Separación de capas: entidad de dominio sin lógica de persistencia.
+
+Tercero refactorizado quedaria:
+```sql
+namespace Tribusoft.Domain.Entities;
+
+public sealed class Tercero
+{
+    public long Id { get; private set; } // O 'init'
+
+    public required string TipoDocumento { get; set; }
+    public required string NumeroDocumento { get; set; }
+
+    public string? PrimerApellido { get; set; }
+    public string? SegundoApellido { get; set; }
+    public string? PrimerNombre { get; set; }
+    public string? OtrosNombres { get; set; }
+    public string? RazonSocial { get; set; }
+    public string? Direccion { get; set; }
+
+    public required string CodigoMunicipio { get; set; }
+
+    // Relación limpia. Es opcional (?) porque se carga bajo demanda (Eager Loading)
+    public Municipio? Municipio { get; set; } 
+}
+```
+¿Y dónde van las restricciones de tamaño (StringLength)?
+Persistence/Configurations
+
+```sql
+public class TerceroConfiguration : IEntityTypeConfiguration<Tercero>
+{
+    public void Configure(EntityTypeBuilder<Tercero> builder)
+    {
+        builder.HasKey(t => t.Id);
+        
+        builder.Property(t => t.TipoDocumento).HasMaxLength(20).IsRequired();
+        builder.Property(t => t.NumeroDocumento).HasMaxLength(50).IsRequired();
+        builder.Property(t => t.RazonSocial).HasMaxLength(200);
+        // ... el resto de configuraciones
+        
+        builder.HasOne(t => t.Municipio)
+               .WithMany()
+               .HasForeignKey(t => t.CodigoMunicipio);
+    }
+}
+```
+
+**Entidad Departameto con Scaffolding**
+```sql
+
+namespace TribuSoft.Domain.Entities;
+
+public partial class Departamento
+{
+    public string Codigo { get; set; } = null!;
+    public string Nombre { get; set; } = null!;
+
+    public virtual ICollection<Municipio> Municipios { get; set; } = new List<Municipio>();
+}
+
+```
+
+**Refactorizamos Departamento aplicando las mejores practicas**
+```sql
+namespace TribuSoft.Domain.Entities;
+
+public sealed class Departamento
+{
+    // Usamos 'init' ya que el código suele ser la llave primaria natural y no cambia tras crearse.
+    public required string Codigo { get; init; } 
+    public required string Nombre { get; set; } 
+
+    // Respaldamos la lista en un campo privado
+    private readonly List<Municipio> _municipios = [];
+
+    // Exponemos la colección como de solo lectura para proteger la consistencia del dominio
+    public IReadOnlyCollection<Municipio> Municipios => _municipios.AsReadOnly();
+
+    // Constructor requerido por Entity Framework Core para la materialización
+    private Departamento() { }
+
+    // Constructor recomendado para crear la entidad de forma controlada
+    public Departamento(string codigo, string nombre)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(codigo);
+        ArgumentException.ThrowIfNullOrWhiteSpace(nombre);
+
+        Codigo = codigo;
+        Nombre = nombre;
+    }
+
+    // Método de negocio para encapsular cómo se añade un municipio
+    public void RegistrarMunicipio(Municipio municipio)
+    {
+        ArgumentNullException.ThrowIfNull(municipio);
+        
+        // Aquí podrías agregar validaciones de negocio antes de insertar
+        _municipios.Add(municipio);
+    }
+}
+```
+y la configuracion seria: 
+```sql
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using TribuSoft.Domain.Entities;
+
+namespace TribuSoft.Infrastructure.Persistence.Configurations;
+
+public sealed class DepartamentoConfiguration : IEntityTypeConfiguration<Departamento>
+{
+    public void Configure(EntityTypeBuilder<Departamento> builder)
+    {
+        builder.ToTable("Departamentos");
+
+        // Configuración de la Llave Primaria
+        builder.HasKey(d => d.Codigo);
+
+        builder.Property(d => d.Codigo)
+            .HasMaxLength(5) // Ajusta al tamaño de tus códigos (ej. ISO o DIVIPOLA)
+            .IsRequired();
+
+        builder.Property(d => d.Nombre)
+            .HasMaxLength(100)
+            .IsRequired();
+
+        // Configuración de la relación 1 a Muchos con acceso al campo privado (Backing Field)
+        builder.HasMany(d => d.Municipios)
+            .WithOne(m => m.Departamento) // Asumiendo que Municipio tiene la propiedad 'Departamento'
+            .HasForeignKey(m => m.CodigoDepartamento)
+            .Metadata.PrincipalToDependent?
+            .SetPropertyAccessMode(PropertyAccessMode.Field); 
+    }
+}
+```
+**Mejoras aplicadas**
+¿Qué mejoras y convenciones se aplicaron?
+Movimiento al Dominio (Domain.Entities): La entidad ahora vive en el corazón de la aplicación. No depende de bases de datos, ORMs ni librerías externas.
+
+Uso de expresiones de colección [] (C# 12+): Se reemplazó el tradicional new List<Municipio>() por la sintaxis moderna y eficiente de inicialización de colecciones [].
+
+Encapsulamiento de Colecciones (IReadOnlyCollection): Si dejas public ICollection<Municipio> Municipios { get; set; }, cualquier parte de tu código (como un controlador o servicio) podría hacer departamento.Municipios.Clear() o reasignar la lista directamente, rompiendo las reglas del negocio. Exponerla como IReadOnlyCollection obliga a usar métodos controlados (como RegistrarMunicipio).
+
+ArgumentException.ThrowIfNullOrWhiteSpace (C# 12/13): Validaciones nativas y optimizadas de rendimiento en los constructores para asegurar que un Departamento nunca nazca con datos corruptos o vacíos. 
+
+Configuración segregada: La infraestructura ahora se limita puramente a mapear la entidad mediante IEntityTypeConfiguration<T>, logrando un desacoplamiento total y un código sumamente limpio.
+
+**Recomendaciones en program.cs**
+
+aprovechando el paquete Microsoft.EntityFrameworkCore.Relational como capa común: 
+```sql
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Lee el proveedor desde appsettings.json
+var provider = builder.Configuration["DatabaseProvider"];
+var connectionString = builder.Configuration.GetConnectionString(provider);
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+{
+    if (provider == "Postgres")
+    {
+        options.UseNpgsql(connectionString); // PostgreSQL
+    }
+    else if (provider == "SqlServer")
+    {
+        options.UseSqlServer(connectionString); // SQL Server
+    }
+});
+
+var app = builder.Build();
+
+app.MapGet("/", () => "API funcionando correctamente");
+
+app.Run();
+
+```
+
+Ejemplo de appsettings.json 
+
+```json
+{
+  "ConnectionStrings": {
+    "Postgres": "Host=localhost;Database=MiDb;Username=usuario;Password=clave",
+    "SqlServer": "Server=localhost;Database=MiDb;User Id=usuario;Password=clave;"
+  },
+  "DatabaseProvider": "Postgres"
+}
+
+```
+
+Si mañana decides migrar a SQL Server, solo cambias el valor de DatabaseProvider a "SqlServer" y tu código seguirá funcionando sin tocar el dominio ni los repositorios.  
+
+

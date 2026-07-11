@@ -1,4 +1,4 @@
-// File: C:\Users\Ryzen\Documents\workspace\cursoPostgresql\mi-blog-nextjs-mdx-remote-v5\app\layout.jsx
+// File: C:\Users\MIGUEL\Documents\workspace\cursoPostgresql\mi-blog-nextjs-mdx-remote-v5\app\layout.jsx
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

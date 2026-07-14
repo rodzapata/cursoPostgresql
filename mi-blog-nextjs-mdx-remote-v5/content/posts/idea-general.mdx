@@ -13,7 +13,7 @@ featured: true
 
 Se llamará **TribuSoft** empesaremos con una api web hecha en net core 10
 
-# 2. Instalaciond de Metcore 10
+# 2. Instalacion de Metcore 10
 
 Lo primero es actualizar a la utlima vesion de visual studio 2022 es la numero **17.14.35** en mi equipo tenia la **17.11.5**
 
@@ -39,12 +39,12 @@ Como estás desarrollando un sistema de facturación, información exógena DIAN
 
 Incluso seguiría una convención consistente:
 
-Objeto Prefijo Ejemplo
-Primary Key PK* PK_Departamento
-Foreign Key FK* FK*Municipio_Departamento
-Unique UQ* UQ*Tercero_NumeroDocumento
-Check CK* CK*Tercero_TipoPersona
-Default DF* DF*Tercero_Activo
+Objeto Prefijo Ejemplo  
+Primary Key PK* PK_Departamento  
+Foreign Key FK* FK*Municipio_Departamento  
+Unique UQ* UQ*Tercero_NumeroDocumento  
+Check CK* CK*Tercero_TipoPersona  
+Default DF* DF*Tercero_Activo  
 Index IX* IX_Municipio_CodigoDepartamento
 
 # 4. Estructura de las tablas y entidades
@@ -339,27 +339,6 @@ CSV HEADER;
 
 ```
 
-tipo_doc;nit;apellido1;apellido2;nombre1;nombre2;razon;direccion;unirmunicipio
-
-\COPY dian_terceros(
-nit,
-apellido1,
-apellido2,
-nombre1,
-nombre2,
-tipo_doc,
-razon,
-nomb_terce,
-direccion,
-coddpto,
-codmunicipio,
-unirmunicipio,
-excluir_compras
-)
-FROM 'C:\proveedorSQL\sql\dian_terceros.csv'
-DELIMITER ';'
-CSV HEADER;
-
 ## Carga masiva desde netcore
 
 Opción 3: Carga masiva desde .NET 10 (C#)
@@ -393,14 +372,7 @@ No requiere permisos de servidor.
 
 Lo primero que debemos hacer es crear nuestro proyecto **WebApi**
 el paso a pado en webapi con postgresql en ingles es:
-
-<a
-  href="https://www.youtube.com/watch?v=IR19SLn9A2Y&t=356s"
-  target="_blank"
-  rel="noopener noreferrer"
->
-  webapi con postgresql por Israel Quiroz
-</a>
+[por Israel Quiroz](https://www.youtube.com/watch?v=IR19SLn9A2Y&t=356s)
 
 # 6.1 Instalacion de paquetes:
 
@@ -536,14 +508,6 @@ Scaffold-DbContext "Host=localhost;Port=5432;Database=tribusoft_db;Username=app_
 # 10. EF Core Power Tools es mejor Herramientas que el Scaffold para la generacion de DBContext
 
 Esta Herramienta Open Source te permite mapear la base de datos y crea el DBContext y las Endidades aplicando mejores practicas
-
-<a
-  href="https://www.youtube.com/watch?v=PR3S6ga3tCk"
-  target="_blank"
-  rel="noopener noreferrer"
->
-  Ingenieria Inversa por CodeRoll
-</a>
 
 # 11. Codigo generado por la Herramienta Scaffolding y Refactorizacion de la misma
 
@@ -729,17 +693,31 @@ public sealed class DepartamentoConfiguration : IEntityTypeConfiguration<Departa
 }
 ```
 
-**Mejoras aplicadas**
+**Mejorias aplicadas**
+
+```sql
 ¿Qué mejoras y convenciones se aplicaron?
-Movimiento al Dominio (Domain.Entities): La entidad ahora vive en el corazón de la aplicación. No depende de bases de datos, ORMs ni librerías externas.
+Movimiento al Dominio (Domain.Entities):
+La entidad ahora vive en el corazón de la aplicación. No depende de bases de datos, ORMs ni librerías externas.
 
-Uso de expresiones de colección [] (C# 12+): Se reemplazó el tradicional new List<Municipio>() por la sintaxis moderna y eficiente de inicialización de colecciones [].
+Uso de expresiones de colección [] (C# 12+):
+Se reemplazó el tradicional new List<Municipio>() por la sintaxis moderna y eficiente de inicialización de colecciones [].
 
-Encapsulamiento de Colecciones (IReadOnlyCollection): Si dejas public ICollection<Municipio> Municipios { get; set; }, cualquier parte de tu código (como un controlador o servicio) podría hacer departamento.Municipios.Clear() o reasignar la lista directamente, rompiendo las reglas del negocio. Exponerla como IReadOnlyCollection obliga a usar métodos controlados (como RegistrarMunicipio).
+Encapsulamiento de Colecciones (IReadOnlyCollection):
+Si dejas public ICollection<Municipio> Municipios { get; set; },
+cualquier parte de tu código (como un controlador o servicio) podría hacer departamento.Municipios.Clear()
+o reasignar la lista directamente, rompiendo las reglas del negocio.
+Exponerla como IReadOnlyCollection obliga a usar métodos controlados (como RegistrarMunicipio).
 
-ArgumentException.ThrowIfNullOrWhiteSpace (C# 12/13): Validaciones nativas y optimizadas de rendimiento en los constructores para asegurar que un Departamento nunca nazca con datos corruptos o vacíos.
+ArgumentException.ThrowIfNullOrWhiteSpace (C# 12/13):
+Validaciones nativas y optimizadas de rendimiento en los constructores para asegurar
+que un Departamento nunca nazca con datos corruptos o vacíos.
 
-Configuración segregada: La infraestructura ahora se limita puramente a mapear la entidad mediante IEntityTypeConfiguration<T>, logrando un desacoplamiento total y un código sumamente limpio.
+Configuración segregada:
+La infraestructura ahora se limita puramente a mapear la entidad mediante IEntityTypeConfiguration<T>,
+logrando un desacoplamiento total y un código sumamente limpio.
+
+```
 
 **Recomendaciones en program.cs**
 

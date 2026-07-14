@@ -8,71 +8,20 @@ tags: ["netcore", "csharp", "backend"]
 published: true
 featured: true
 ---
+
 # 1. Creacion de un proyecto web api
 
-Paso a paso creacion de web api aplicando los mejores principios de programacion CRUD con Entity Framework
-<a
-  href="https://www.youtube.com/watch?v=_Gkd6ueaEOU"
-  target="_blank"
-  rel="noopener noreferrer"
->
-  Curso webapi por Codigo Estudiante
-</a>
+Paso a paso creacion de web api aplicando los mejores principios de programacion CRUD  
+con Entity Framework [Curso webapi por Codigo Estudiante](https://www.youtube.com/watch?v=_Gkd6ueaEOU)  
+WebApi 9 CRUD con Entity Framework [Curso webapi por Net University](https://www.youtube.com/watch?v=zjEyQCfbVB4&t=519s)
 
-WebApi 9 CRUD con Entity Framework
-<a
-  href="https://www.youtube.com/watch?v=zjEyQCfbVB4&t=519s"
-  target="_blank"
-  rel="noopener noreferrer"
->
-  Curso webapi por Net University
-</a>
+CRUD con DAPPER [Scalffoling por Jose Luis Dev](https://www.youtube.com/watch?v=DvT3ys2jZ0g&t=533s)
 
-CRUD con DAPPER
-<a
-  href="https://www.youtube.com/watch?v=6txDdmRzCVc"
-  target="_blank"
-  rel="noopener noreferrer"
->
-  Curso webapi CRUD con DAPPER por Codigo Estudiante
-</a>
+Scalffolding primero el modelo despues la base de datos [Scalffoling por Informatica DP](https://www.youtube.com/watch?v=IhzQUI6XHPw&t=1215s)  
+Arquitecura Limpia en capas (CQRS, Mediator, EF Core) [Arquitectura Limpia por Felipe Gavilan](https://www.youtube.com/watch?v=xS0f6sS5moI&t=3370s)  
+Blog de arquitecura limpia [Arquitectura Limpia por NetMentor](https://www.netmentor.es/entrada/clean-architecture)
 
-
-Scalffolding primero la Base de Datos y de
-<a
-  href="https://www.youtube.com/watch?v=DvT3ys2jZ0g&t=533s"
-  target="_blank"
-  rel="noopener noreferrer"
->
-  Scalffoling por Jose Luis Dev
-</a>
-Scalffolding primero el modelo despues la base de datos
-<a
-  href="https://www.youtube.com/watch?v=IhzQUI6XHPw&t=1215s"
-  target="_blank"
-  rel="noopener noreferrer"
->
-  Scalffoling por Informatica DP
-</a>
-
-Arquitecura Limpia en capas (CQRS, Mediator, EF Core)
-<a
-  href="https://www.youtube.com/watch?v=xS0f6sS5moI&t=3370s"
-  target="_blank"
-  rel="noopener noreferrer"
->
-  Arquitectura Limpia por Felipe Gavilan
-</a>
-
-Blog de arquitecura limpia
-<a
-  href="https://www.netmentor.es/entrada/clean-architecture"
-  target="_blank"
-  rel="noopener noreferrer"
->
-  Arquitectura Limpia por NetMentor
-</a>
-
+Primero la base de datos [Ingenieria Inversa por CodeRoll](https://www.youtube.com/watch?v=PR3S6ga3tCk)
 
 # 2. Estructura de Aquitectura Limpia
 
@@ -118,21 +67,21 @@ Aquí vive únicamente el negocio.
 
 No debe conocer:
 
-* Entity Framework
-* SQL Server
-* ASP.NET
-* JWT
-* HTTP
-* JSON
+- Entity Framework
+- SQL Server
+- ASP.NET
+- JWT
+- HTTP
+- JSON
 
 Contiene:
 
-* Entidades
-* Value Objects
-* Enums
-* Excepciones de dominio
-* Interfaces de dominio (cuando aplica)
-* Reglas de negocio
+- Entidades
+- Value Objects
+- Enums
+- Excepciones de dominio
+- Interfaces de dominio (cuando aplica)
+- Reglas de negocio
 
 Ejemplo:
 
@@ -157,10 +106,10 @@ public class Producto
 
 Observa que aquí no existe:
 
-* DbContext
-* SQL
-* Controllers
-* JSON
+- DbContext
+- SQL
+- Controllers
+- JSON
 
 ---
 
@@ -172,14 +121,14 @@ Es donde se implementa la lógica de la aplicación utilizando las entidades del
 
 Contiene normalmente:
 
-* DTO
-* Interfaces de repositorios
-* Interfaces de servicios
-* Casos de uso
-* Commands
-* Queries
-* Validaciones
-* AutoMapper
+- DTO
+- Interfaces de repositorios
+- Interfaces de servicios
+- Casos de uso
+- Commands
+- Queries
+- Validaciones
+- AutoMapper
 
 Ejemplo:
 
@@ -239,17 +188,17 @@ Todo lo relacionado con tecnología.
 
 Ejemplos:
 
-* Entity Framework Core
-* SQL Server
-* PostgreSQL
-* Oracle
-* MongoDB
-* JWT
-* Email
-* Azure
-* AWS
-* Redis
-* RabbitMQ
+- Entity Framework Core
+- SQL Server
+- PostgreSQL
+- Oracle
+- MongoDB
+- JWT
+- Email
+- Azure
+- AWS
+- Redis
+- RabbitMQ
 
 Ejemplo:
 
@@ -300,20 +249,20 @@ Es la entrada al sistema.
 
 Puede ser:
 
-* Web API
-* MVC
-* Blazor
-* MAUI
-* gRPC
+- Web API
+- MVC
+- Blazor
+- MAUI
+- gRPC
 
 Aquí viven:
 
-* Controllers
-* Endpoints
-* Middleware
-* Swagger
-* Filtros
-* Configuración
+- Controllers
+- Endpoints
+- Middleware
+- Swagger
+- Filtros
+- Configuración
 
 Ejemplo:
 
@@ -414,10 +363,10 @@ Infrastructure
 
 Es decir:
 
-* **Domain** no depende de nadie.
-* **Application** depende de **Domain**.
-* **Infrastructure** depende de **Application** y **Domain**.
-* **Presentation** depende de **Application** (y normalmente registra las implementaciones de Infrastructure mediante inyección de dependencias).
+- **Domain** no depende de nadie.
+- **Application** depende de **Domain**.
+- **Infrastructure** depende de **Application** y **Domain**.
+- **Presentation** depende de **Application** (y normalmente registra las implementaciones de Infrastructure mediante inyección de dependencias).
 
 ---
 
@@ -460,9 +409,9 @@ src/
 
 Sí. Para aplicaciones empresariales (APIs REST, sistemas de facturación, ERP, CRM, etc.), esta estructura es una de las más utilizadas porque:
 
-* Mantiene separadas las responsabilidades.
-* Facilita las pruebas unitarias al depender de interfaces.
-* Permite cambiar tecnologías (por ejemplo, SQL Server por PostgreSQL) con un impacto mínimo en la lógica de negocio.
-* Escala mejor a medida que crece el proyecto.
+- Mantiene separadas las responsabilidades.
+- Facilita las pruebas unitarias al depender de interfaces.
+- Permite cambiar tecnologías (por ejemplo, SQL Server por PostgreSQL) con un impacto mínimo en la lógica de negocio.
+- Escala mejor a medida que crece el proyecto.
 
 Dado que en conversaciones anteriores has comentado que estás desarrollando APIs REST en **.NET 8** con **Entity Framework Core**, **JWT**, **DTO** y **SQL Server/PostgreSQL**, esta arquitectura encaja muy bien con ese tipo de proyectos y es una excelente base para construir aplicaciones mantenibles y fáciles de evolucionar.

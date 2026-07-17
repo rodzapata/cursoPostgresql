@@ -699,7 +699,70 @@ o si quieres abrir en otra pestaña:
 </a>
 ```
 
----
+Pero despues me di cuenta que esta forma de enlace traia inconvenientes, a veces  
+Next no podia converir en Mdx porque se truncaba el Ancor, por lo que hice fue un
+componente personalizado donde se habra los enlaces de youtube.
+el componente nuevo llamado **components/mdx/CustomLink.jsx**.
+con el siguiente codigo:
+```js
+import Link from "next/link";
+
+export default function CustomLink({
+  href = "",
+  children,
+  ...props
+}) {
+  const isExternal =
+    href.startsWith("http://") ||
+    href.startsWith("https://");
+
+  if (isExternal) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        {...props}
+      >
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <Link href={href} {...props}>
+      {children}
+    </Link>
+  );
+}
+```
+
+ahora tenemos que modificar a **mdx-components.jsx** inportando nuestro nuevo
+compomente e inclurilo en los parte de los indice quedando asi:
+```js
+import Alert from './Alert'
+import CodeTitle from './CodeTitle'
+import Pre from './Pre'
+import { slugify } from '../../lib/utils'
+import CustomLink from './CustomLink'
+
+function Heading({ as: Tag, children }) {
+  const text = Array.isArray(children) ? children.join('') : String(children ?? '')
+  const id = slugify(text)
+  return <Tag id={id}>{children}</Tag>
+}
+
+export const mdxComponents = {
+  h1: (props) => <Heading as="h1" {...props} />,
+  h2: (props) => <Heading as="h2" {...props} />,
+  h3: (props) => <Heading as="h3" {...props} />,
+  pre: (props) => <Pre {...props} />,
+  a: CustomLink,
+  Alert,
+  CodeTitle
+}
+```
+
 
 # 22. Cómo usar un componente React dentro del MDX
 

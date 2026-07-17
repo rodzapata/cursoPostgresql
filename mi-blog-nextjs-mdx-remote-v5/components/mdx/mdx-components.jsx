@@ -2,6 +2,7 @@ import Alert from './Alert'
 import CodeTitle from './CodeTitle'
 import Pre from './Pre'
 import { slugify } from '../../lib/utils'
+import CustomLink from './CustomLink'
 
 function Heading({ as: Tag, children }) {
   const text = Array.isArray(children) ? children.join('') : String(children ?? '')
@@ -14,6 +15,7 @@ export const mdxComponents = {
   h2: (props) => <Heading as="h2" {...props} />,
   h3: (props) => <Heading as="h3" {...props} />,
   pre: (props) => <Pre {...props} />,
+  a: CustomLink,
   Alert,
   CodeTitle
 }

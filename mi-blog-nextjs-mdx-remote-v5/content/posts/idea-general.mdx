@@ -378,24 +378,24 @@ el paso a pado en webapi con postgresql en ingles es:
 
 y agregar al proyectos los siguientes paquetes: **Nuget**
 
-- 1. Microsoft.EntityFrameworkCore
-- 2. Microsoft.EntityFrameworkCore.Tools
-- 3. Microsoft.EntityFrameworkCore.Design
-- 4. Microsoft.EntityFrameworkCore.SqlServer
+* Microsoft.EntityFrameworkCore
+* Microsoft.EntityFrameworkCore.Tools
+* Microsoft.EntityFrameworkCore.Design
+* Microsoft.EntityFrameworkCore.SqlServer    
 
-- 5. Microsoft.EntityFrameworkCore.Relational
+* Microsoft.EntityFrameworkCore.Relational
 
-- 6. Npgsql.EntityFrameworkCore.PostgreSQL
-- 7. Npgsql.EntityFrameworkCore.PostgreSQL.Design
+* Npgsql.EntityFrameworkCore.PostgreSQL
+* Npgsql.EntityFrameworkCore.PostgreSQL.Design
 
-- 8. paquetes JWT
-- 9. FluentValidation.DependencyInjectionExtensions
-     recomendado para las validaciones de los DTO
+* paquetes JWT
+* FluentValidation.DependencyInjectionExtensions  
+  recomendado para las validaciones de los DTO
 
-- 10. Serilog.AspNetCore
-- 11. Serilog.Sinks.Console
-- 12. Serilog.Sinks.File
-      Esto 3 paquetes son muy utilizados para el **loggin**
+* Serilog.AspNetCore
+* Serilog.Sinks.Console
+* Serilog.Sinks.File  
+  Esto 3 paquetes son muy utilizados para el **loggin**
 
 # 6.2 Estructura del proyecto
 
@@ -624,14 +624,14 @@ namespace TribuSoft.Domain.Entities;
 public sealed class Departamento
 {
     // Usamos 'init' ya que el código suele ser la llave primaria natural y no cambia tras crearse.
-    public required string Codigo { get; init; }
-    public required string Nombre { get; set; }
+    public string Codigo { get; private init; }
+    public string Nombre { get; private set; }
 
     // Respaldamos la lista en un campo privado
     private readonly List<Municipio> _municipios = [];
 
     // Exponemos la colección como de solo lectura para proteger la consistencia del dominio
-    public IReadOnlyCollection<Municipio> Municipios => _municipios.AsReadOnly();
+    public IReadOnlyCollection<Municipio> Municipios => _municipios;
 
     // Constructor requerido por Entity Framework Core para la materialización
     private Departamento() { }
@@ -659,7 +659,7 @@ public sealed class Departamento
 
 y la configuracion seria:
 
-```sql
+```csharp
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TribuSoft.Domain.Entities;
@@ -765,3 +765,373 @@ Ejemplo de appsettings.json
 ```
 
 Si mañana decides migrar a SQL Server, solo cambias el valor de DatabaseProvider a "SqlServer" y tu código seguirá funcionando sin tocar el dominio ni los repositorios.
+
+# 12. Tips que se deben tener en cuenta al momento de crear las entidades:
+
+Si hablamos de **.NET 10 en 2026**, hay varias prácticas que hace unos años eran muy populares pero que hoy han perdido protagonismo o ya no se consideran la mejor opción. Te resumo las recomendaciones actuales centrándome en **entidades de dominio (DDD + Clean Architecture)**.
+
+---
+
+# 12.1. La entidad representa el negocio, no la base de datos ⭐⭐⭐⭐⭐
+
+Este es el principio más importante.
+
+Una entidad debe modelar el dominio, no la tabla de la base de datos.
+
+**Correcto**
+
+```csharp
+public sealed class Departamento
+{
+    public required string Codigo { get; init; }
+
+    public required string Nombre { get; private set; }
+
+    public void CambiarNombre(string nombre)
+    {
+        Nombre = nombre;
+    }
+}
+```
+
+No pienses:
+
+> "Tengo una tabla Departamento"
+
+Piensa:
+
+> "Tengo un Departamento del negocio."
+
+---
+
+# 12.2. No usar DataAnnotations en las entidades ⭐⭐⭐⭐⭐
+
+En 2026 prácticamente todos los proyectos nuevos usan **Fluent API**.
+
+Evita:
+
+```csharp
+[Table("Departamento")]
+[Key]
+[Required]
+[StringLength(100)]
+```
+
+Todo eso pertenece a Infrastructure.
+
+---
+
+# 12.3. Configurar EF Core mediante IEntityTypeConfiguration ⭐⭐⭐⭐⭐
+
+```text
+Infrastructure
+    Persistence
+        Configurations
+            DepartamentoConfiguration.cs
+```
+
+```csharp
+public sealed class DepartamentoConfiguration
+    : IEntityTypeConfiguration<Departamento>
+{
+    public void Configure(EntityTypeBuilder<Departamento> builder)
+    {
+        builder.HasKey(x => x.Codigo);
+
+        builder.Property(x => x.Nombre)
+               .HasMaxLength(100);
+    }
+}
+```
+
+Esta es la forma recomendada actualmente.
+
+---
+
+# 12.4. Usar `required` cuando el dato es obligatorio ⭐⭐⭐⭐⭐
+
+Desde C# 11 y .NET 10 es completamente válido.
+
+```csharp
+public required string Codigo { get; init; }
+
+public required string Nombre { get; private set; }
+```
+
+No hace falta escribir constructores solo para evitar `null`.
+
+---
+
+# 12.5. Preferir `init` para propiedades inmutables ⭐⭐⭐⭐⭐
+
+Si el dato nunca cambia:
+
+```csharp
+public required string Codigo { get; init; }
+```
+
+Ejemplos:
+
+* Código
+* Número de documento
+* Fecha de creación (si no cambia)
+
+---
+
+# 12.6. `private set` para propiedades modificables ⭐⭐⭐⭐⭐
+
+```csharp
+public required string Nombre { get; private set; }
+
+public void CambiarNombre(string nombre)
+{
+    Nombre = nombre;
+}
+```
+
+No permitir:
+
+```csharp
+departamento.Nombre = "...";
+```
+
+---
+
+# 12.7. No exponer `List<T>` ⭐⭐⭐⭐⭐
+
+En lugar de:
+
+```csharp
+public List<Ciudad> Ciudades { get; set; }
+```
+
+usar:
+
+```csharp
+private readonly List<Ciudad> _ciudades = [];
+
+public IReadOnlyCollection<Ciudad> Ciudades
+    => _ciudades;
+```
+
+---
+
+# 12.8. Encapsular el comportamiento ⭐⭐⭐⭐⭐
+
+Evita entidades "anémicas" con solo propiedades.
+
+Mal:
+
+```csharp
+public string Nombre { get; set; }
+```
+
+Mejor:
+
+```csharp
+public void CambiarNombre(string nombre)
+{
+    // Validaciones
+    Nombre = nombre;
+}
+```
+
+---
+
+# 12.9. Validar invariantes en la entidad ⭐⭐⭐⭐⭐
+
+```csharp
+public void CambiarNombre(string nombre)
+{
+    ArgumentException.ThrowIfNullOrWhiteSpace(nombre);
+
+    if (nombre.Length > 100)
+        throw new DomainException("Nombre inválido.");
+
+    Nombre = nombre;
+}
+```
+
+La entidad protege sus propias reglas de negocio.
+
+---
+
+# 12.10. No crear DTOs dentro del dominio ⭐⭐⭐⭐⭐
+
+Incorrecto:
+
+```text
+Domain
+    DTOs
+```
+
+Los DTO pertenecen a Application o a la API.
+
+---
+
+# 12.11. Evitar repositorios genéricos ⭐⭐⭐⭐⭐
+
+Hace algunos años era muy común:
+
+```csharp
+IGenericRepository<T>
+```
+
+Hoy suele considerarse una abstracción demasiado genérica para dominios ricos. Es preferible definir repositorios orientados al negocio cuando realmente se necesitan.
+
+Ejemplo:
+
+```csharp
+IDepartamentoRepository
+```
+
+---
+
+# 12.12. No agregar constructores innecesarios ⭐⭐⭐⭐⭐
+
+Hace años era habitual:
+
+```csharp
+private Departamento()
+{
+}
+```
+
+Hoy EF Core puede trabajar perfectamente con constructores parametrizados y propiedades `init` o con un constructor sin parámetros cuando sea necesario. No agregues un constructor vacío solo "porque EF lo necesita"; añádelo únicamente si realmente tu diseño lo requiere.
+
+---
+
+# 12.13. Evitar clases `partial` ⭐⭐⭐⭐⭐
+
+No uses:
+
+```csharp
+public partial class Departamento
+```
+
+Salvo cuando:
+
+* el código es generado automáticamente;
+* trabajas con WinForms, Razor u otra herramienta que lo requiera.
+
+Para entidades de dominio:
+
+```csharp
+public sealed class Departamento
+```
+
+es lo habitual.
+
+---
+
+# 12.14. Preferir `sealed` ⭐⭐⭐⭐⭐
+
+```csharp
+public sealed class Departamento
+```
+
+Si nadie va a heredar de la entidad, declara la clase `sealed`. Esto expresa claramente la intención del diseño.
+
+---
+
+# 12.15. No incluir lógica de acceso a datos ⭐⭐⭐⭐⭐
+
+Incorrecto:
+
+```csharp
+public async Task Guardar()
+```
+
+o
+
+```csharp
+public async Task Eliminar()
+```
+
+La entidad no conoce EF Core, SQL ni Dapper.
+
+---
+
+# 12.16. Usar Value Objects cuando corresponda ⭐⭐⭐⭐⭐
+
+En lugar de:
+
+```csharp
+public string Correo { get; set; }
+```
+
+preferir:
+
+```csharp
+public Email Email { get; private set; }
+```
+
+cuando el concepto tenga reglas propias.
+
+---
+
+# 12.17. No usar Lazy Loading ⭐⭐⭐⭐⭐
+
+Actualmente se suele evitar porque:
+
+* produce consultas inesperadas (N+1);
+* dificulta medir el rendimiento;
+* hace menos evidente cuándo se accede a la base de datos.
+
+Se prefieren consultas explícitas (`Include`, proyecciones o CQRS).
+
+---
+
+# 12.18. Separar claramente Domain de Infrastructure ⭐⭐⭐⭐⭐
+
+El proyecto Domain no debería referenciar:
+
+* EF Core
+* Dapper
+* Npgsql
+* SQL Server
+* AutoMapper
+
+Debe poder compilar sin ninguna dependencia de infraestructura.
+
+---
+
+# 12.19. Mantener las entidades pequeñas ⭐⭐⭐⭐⭐
+
+Una entidad con cientos de líneas suele indicar que conviene extraer Value Objects o servicios de dominio.
+
+---
+
+# 12.20. Evitar código generado dentro del dominio ⭐⭐⭐⭐⭐
+
+Si utilizas `Scaffold-DbContext`, no coloques las clases generadas dentro de `Domain`. Lo habitual es mantenerlas en `Infrastructure/Persistence` o usarlas solo como apoyo para el mapeo, dejando el dominio libre de código generado.
+
+---
+
+# Lo que hoy se considera desactualizado o menos recomendable
+
+```
+
+| Práctica                                    | Estado en 2026 | Alternativa recomendada                       |
+| ------------------------------------------- | -------------- | --------------------------------------------- |
+| DataAnnotations para mapear EF Core         | ❌             | Fluent API                                    |
+| Repositorio genérico para todo              | ⚠️             | Repositorios específicos cuando aporten valor |
+| Entidades anémicas (solo propiedades)       | ❌             | Entidades con comportamiento                  |
+| `List<T>` públicas                          | ❌             | `IReadOnlyCollection<T>` con respaldo privado |
+| `public set` en todas las propiedades       | ❌             | `private set` o `init`                        |
+| Constructores vacíos añadidos por costumbre | ⚠️             | Solo cuando el diseño lo requiera             |
+| Lógica SQL dentro de entidades              | ❌             | Infrastructure                                |
+| DTOs en Domain                              | ❌             | Application/API                               |
+| Lazy Loading como estrategia por defecto    | ❌             | Carga explícita                               |
+```
+
+## Para TribuSoft
+
+Por las preguntas que hemos venido trabajando, la arquitectura que considero más alineada con las prácticas actuales sería:
+
+* **Domain**: entidades ricas, `sealed`, `required`, `init` y `private set`, comportamiento encapsulado y Value Objects cuando aporten valor.
+* **Application**: casos de uso, DTOs, validaciones de entrada y orquestación.
+* **Infrastructure**: EF Core 10, `DbContext`, configuraciones con Fluent API, repositorios y migraciones.
+* **API**: endpoints, autenticación, serialización y composición de dependencias.
+
+Esa combinación refleja el enfoque que hoy es más habitual en proyectos profesionales modernos con **.NET 10**, evitando patrones que han quedado obsoletos o que ya no aportan beneficios claros.

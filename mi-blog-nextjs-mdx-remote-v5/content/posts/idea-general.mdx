@@ -378,23 +378,23 @@ el paso a pado en webapi con postgresql en ingles es:
 
 y agregar al proyectos los siguientes paquetes: **Nuget**
 
-* Microsoft.EntityFrameworkCore
-* Microsoft.EntityFrameworkCore.Tools
-* Microsoft.EntityFrameworkCore.Design
-* Microsoft.EntityFrameworkCore.SqlServer    
+- Microsoft.EntityFrameworkCore
+- Microsoft.EntityFrameworkCore.Tools
+- Microsoft.EntityFrameworkCore.Design
+- Microsoft.EntityFrameworkCore.SqlServer
 
-* Microsoft.EntityFrameworkCore.Relational
+- Microsoft.EntityFrameworkCore.Relational
 
-* Npgsql.EntityFrameworkCore.PostgreSQL
-* Npgsql.EntityFrameworkCore.PostgreSQL.Design
+- Npgsql.EntityFrameworkCore.PostgreSQL
+- Npgsql.EntityFrameworkCore.PostgreSQL.Design
 
-* paquetes JWT
-* FluentValidation.DependencyInjectionExtensions  
+- paquetes JWT
+- FluentValidation.DependencyInjectionExtensions  
   recomendado para las validaciones de los DTO
 
-* Serilog.AspNetCore
-* Serilog.Sinks.Console
-* Serilog.Sinks.File  
+- Serilog.AspNetCore
+- Serilog.Sinks.Console
+- Serilog.Sinks.File  
   Esto 3 paquetes son muy utilizados para el **loggin**
 
 # 6.2 Estructura del proyecto
@@ -442,6 +442,7 @@ TribuSoft.Domain
 ├── Entities
 ├── Enums
 ├── ValueObjects
+└── Exceptions
 └── Events
 
 TribuSoft.Infrastructure
@@ -768,7 +769,8 @@ Si mañana decides migrar a SQL Server, solo cambias el valor de DatabaseProvide
 
 # 12. Tips que se deben tener en cuenta al momento de crear las entidades:
 
-Si hablamos de **.NET 10 en 2026**, hay varias prácticas que hace unos años eran muy populares pero que hoy han perdido protagonismo o ya no se consideran la mejor opción. Te resumo las recomendaciones actuales centrándome en **entidades de dominio (DDD + Clean Architecture)**.
+Si hablamos de **.NET 10 en 2026**, hay varias prácticas que hace unos años eran muy populares pero que hoy han perdido protagonismo o ya no se consideran la mejor opción.  
+Te resumo las recomendaciones actuales centrándome en **entidades de dominio (DDD + Clean Architecture)**.
 
 ---
 
@@ -872,9 +874,9 @@ public required string Codigo { get; init; }
 
 Ejemplos:
 
-* Código
-* Número de documento
-* Fecha de creación (si no cambia)
+- Código
+- Número de documento
+- Fecha de creación (si no cambia)
 
 ---
 
@@ -997,7 +999,8 @@ private Departamento()
 }
 ```
 
-Hoy EF Core puede trabajar perfectamente con constructores parametrizados y propiedades `init` o con un constructor sin parámetros cuando sea necesario. No agregues un constructor vacío solo "porque EF lo necesita"; añádelo únicamente si realmente tu diseño lo requiere.
+Hoy EF Core puede trabajar perfectamente con constructores parametrizados y propiedades `init` o con un constructor sin parámetros cuando sea necesario.  
+No agregues un constructor vacío solo "porque EF lo necesita"; añádelo únicamente si realmente tu diseño lo requiere.
 
 ---
 
@@ -1011,8 +1014,8 @@ public partial class Departamento
 
 Salvo cuando:
 
-* el código es generado automáticamente;
-* trabajas con WinForms, Razor u otra herramienta que lo requiera.
+- el código es generado automáticamente;
+- trabajas con WinForms, Razor u otra herramienta que lo requiera.
 
 Para entidades de dominio:
 
@@ -1074,9 +1077,9 @@ cuando el concepto tenga reglas propias.
 
 Actualmente se suele evitar porque:
 
-* produce consultas inesperadas (N+1);
-* dificulta medir el rendimiento;
-* hace menos evidente cuándo se accede a la base de datos.
+- produce consultas inesperadas (N+1);
+- dificulta medir el rendimiento;
+- hace menos evidente cuándo se accede a la base de datos.
 
 Se prefieren consultas explícitas (`Include`, proyecciones o CQRS).
 
@@ -1086,11 +1089,11 @@ Se prefieren consultas explícitas (`Include`, proyecciones o CQRS).
 
 El proyecto Domain no debería referenciar:
 
-* EF Core
-* Dapper
-* Npgsql
-* SQL Server
-* AutoMapper
+- EF Core
+- Dapper
+- Npgsql
+- SQL Server
+- AutoMapper
 
 Debe poder compilar sin ninguna dependencia de infraestructura.
 
@@ -1104,7 +1107,8 @@ Una entidad con cientos de líneas suele indicar que conviene extraer Value Obje
 
 # 12.20. Evitar código generado dentro del dominio ⭐⭐⭐⭐⭐
 
-Si utilizas `Scaffold-DbContext`, no coloques las clases generadas dentro de `Domain`. Lo habitual es mantenerlas en `Infrastructure/Persistence` o usarlas solo como apoyo para el mapeo, dejando el dominio libre de código generado.
+Si utilizas `Scaffold-DbContext`, no coloques las clases generadas dentro de `Domain`. Lo habitual es mantenerlas en `Infrastructure/Persistence`  
+o usarlas solo como apoyo para el mapeo, dejando el dominio libre de código generado.
 
 ---
 
@@ -1129,9 +1133,643 @@ Si utilizas `Scaffold-DbContext`, no coloques las clases generadas dentro de `Do
 
 Por las preguntas que hemos venido trabajando, la arquitectura que considero más alineada con las prácticas actuales sería:
 
-* **Domain**: entidades ricas, `sealed`, `required`, `init` y `private set`, comportamiento encapsulado y Value Objects cuando aporten valor.
-* **Application**: casos de uso, DTOs, validaciones de entrada y orquestación.
-* **Infrastructure**: EF Core 10, `DbContext`, configuraciones con Fluent API, repositorios y migraciones.
-* **API**: endpoints, autenticación, serialización y composición de dependencias.
+- **Domain**: entidades ricas, `sealed`, `required`, `init` y `private set`, comportamiento encapsulado y Value Objects cuando aporten valor.
+- **Application**: casos de uso, DTOs, validaciones de entrada y orquestación.
+- **Infrastructure**: EF Core 10, `DbContext`, configuraciones con Fluent API, repositorios y migraciones.
+- **API**: endpoints, autenticación, serialización y composición de dependencias.
 
 Esa combinación refleja el enfoque que hoy es más habitual en proyectos profesionales modernos con **.NET 10**, evitando patrones que han quedado obsoletos o que ya no aportan beneficios claros.
+
+# 13. Refactorizacion de Tercero usando Object ValueObjects
+
+Hasta el momento nuesta entidad Tercero no tiene ninguna logica de Negocio, pero hoy en el 2026  
+al contrario de hace años se recomienda ciertas validaciones basicas en el contructor de la entidad,  
+anteriormente se consideraba que la entidad debia ser lo mas limpia posible, pero eso a cambiado.
+
+Como no se permite codigo HardCoding crearemos una clase dentro de Object para tipo de documento  
+donde nos permite escoger entre Cedula de ciudania o Nit.  
+por ahora para esto crearemos una clase tipo record muy utilizado en Dtos, y despues lo modificaremos  
+por un ValuesObject con logina mas compleja.
+
+```csharp
+namespace TribuSoft.Domain.ValueObjects;
+
+public sealed record TipoDocumento
+{
+    public static readonly TipoDocumento CedulaCiudadania = new("13");
+
+    public static readonly TipoDocumento Nit = new("31");
+
+    public string Codigo { get; }
+
+    private TipoDocumento(string codigo)
+    {
+        Codigo = codigo;
+    }
+
+    public static TipoDocumento From(string codigo)
+        => codigo switch
+        {
+            "13" => CedulaCiudadania,
+            "31" => Nit,
+            _ => throw new ArgumentException("Tipo de documento inválido.")
+        };
+}
+```
+
+y nuesta entidad quedaria de la siguiente forma:
+
+```csharp
+using TribuSoft.Domain.ValueObjects;
+
+namespace TribuSoft.Domain.Entities;
+
+public sealed class Tercero
+{
+    // Id autoincremental manejado por EF Core
+    public long Id { get; private set; }
+
+    // Propiedades de Solo Lectura tras la creación (Inmutabilidad de Identidad)
+    public TipoDocumento TipoDocumento { get; private set; }
+    public string NumeroDocumento { get; private set; }
+
+    // Propiedades de Estado (Encapsuladas)
+    public string? PrimerApellido { get; private set; }
+    public string? SegundoApellido { get; private set; }
+    public string? PrimerNombre { get; private set; }
+    public string? OtrosNombres { get; private set; }
+    public string? RazonSocial { get; private set; }
+    public string Direccion { get; private set; } = null!;
+    public string CodigoMunicipio { get; private set; } = null!;
+
+    // Relaciones EF Core
+    public Municipio Municipio { get; private set; } = null!;
+
+    // Constructor vacío para persistencia / ORM (EF Core)
+    [Obsolete("Usar solo para EF Core", error: false)]
+    private Tercero() { }
+
+    // Único Constructor Público: Fuerza un estado inicial válido según reglas de negocio
+    public Tercero(
+        TipoDocumento tipoDocumento,
+        string numeroDocumento,
+        string direccion,
+        string codigoMunicipio,
+        string? primerNombre = null,
+        string? primerApellido = null,
+        string? segundoApellido = null,
+        string? otrosNombres = null,
+        string? razonSocial = null)
+    {
+        // Validaciones transversales
+        ArgumentNullException.ThrowIfNull(tipoDocumento);
+        ArgumentException.ThrowIfNullOrWhiteSpace(numeroDocumento);
+        ArgumentException.ThrowIfNullOrWhiteSpace(direccion);
+        ArgumentException.ThrowIfNullOrWhiteSpace(codigoMunicipio);
+
+        // Validación de Reglas de Negocio Específicas
+        if (tipoDocumento == TipoDocumento.CedulaCiudadania) // Persona Natural (Cédula de Ciudadanía)
+        {
+            if (string.IsNullOrWhiteSpace(primerNombre) || string.IsNullOrWhiteSpace(primerApellido))
+            {
+                throw new ArgumentException("Para personas naturales (Tipo '13'), el Primer Nombre y Primer Apellido son obligatorios.");
+            }
+
+            PrimerNombre = primerNombre;
+            PrimerApellido = primerApellido;
+            SegundoApellido = segundoApellido;
+            OtrosNombres = otrosNombres;
+            RazonSocial = null; // No aplica
+        }
+        else if (tipoDocumento == TipoDocumento.Nit) // Persona Jurídica (NIT)
+        {
+            if (string.IsNullOrWhiteSpace(razonSocial))
+            {
+                throw new ArgumentException("Para personas jurídicas (Tipo '31'), la Razón Social es obligatoria.");
+            }
+
+            RazonSocial = razonSocial;
+            // Limpieza explícita de campos de persona natural
+            PrimerNombre = null;
+            PrimerApellido = null;
+            SegundoApellido = null;
+            OtrosNombres = null;
+        }
+        else
+        {
+            // Opcional: Manejo de otros tipos de documento intermedios o lanzar excepción
+            throw new ArgumentException($"Tipo de documento '{tipoDocumento}' no soportado.");
+        }
+
+        TipoDocumento = tipoDocumento;
+        NumeroDocumento = numeroDocumento;
+        Direccion = direccion;
+        CodigoMunicipio = codigoMunicipio;
+    }
+
+    // Métodos de Comportamiento (Cambio de estado seguro)
+
+    public void ActualizarUbicacion(string nuevaDireccion, string nuevoCodigoMunicipio)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nuevaDireccion);
+        ArgumentException.ThrowIfNullOrWhiteSpace(nuevoCodigoMunicipio);
+
+        Direccion = nuevaDireccion;
+        CodigoMunicipio = nuevoCodigoMunicipio;
+    }
+
+    // Si el tercero es Persona Natural, permitimos mutar sus nombres bajo validación
+    public void ModificarNombres(string primerNombre, string? otrosNombres, string primerApellido, string? segundoApellido)
+    {
+        if (TipoDocumento != TipoDocumento.CedulaCiudadania)
+        {
+            throw new InvalidOperationException("No se pueden modificar nombres individuales en una persona jurídica.");
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(primerNombre);
+        ArgumentException.ThrowIfNullOrWhiteSpace(primerApellido);
+
+        PrimerNombre = primerNombre;
+        OtrosNombres = otrosNombres;
+        PrimerApellido = primerApellido;
+        SegundoApellido = segundoApellido;
+    }
+
+    // Si el tercero es Persona Jurídica, permitimos mutar la Razón Social bajo validación
+    public void ModificarRazonSocial(string nuevaRazonSocial)
+    {
+        if (TipoDocumento != TipoDocumento.Nit)
+        {
+            throw new InvalidOperationException("No se puede asignar una razón social a una persona natural.");
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(nuevaRazonSocial);
+
+        RazonSocial = nuevaRazonSocial;
+    }
+
+
+}
+
+```
+
+# 13.1 Refactorizacion de Tercero Clases demasiado grandes
+
+Nuestro codigo esta bastante bien, pero ahun podemos mejorarlo mas.
+en nuestra codigo comparamos en varias partes si TipoDocumento==CedulaCiudaddania haga algo y si es nit haga otra coasa.  
+pero si no solomente hay estos dos tpos y luegos nos dicen que si es tarjeta de identidad y cedula extrangera aplica lo  
+mismo que cedula de ciudadania , se va complicando las condiciones.
+
+Lo que hay que identificar es si la persona es natura o juridica y segun el caso haga algo.  
+por otro lado el contructor tiene muchas propiedades es mejor separarlas y creamos 2 clases PersonaNatural y PersonaJuridica  
+que deriban una clase Abstracta base llamada Tercero, entonces el codigo quedaria:
+
+```csharp
+
+
+```
+
+# 14 Tips para el manejo de Excepciones
+
+Si estás desarrollando una **API con .NET 10** usando **Clean Architecture + DDD + EF Core 10** (como tu proyecto TribuSoft), hoy en 2026 la forma recomendada de manejar excepciones ha cambiado bastante respecto a los proyectos de .NET Core 3.1 o .NET 6.
+
+La recomendación actual de Microsoft es:
+
+- **`IExceptionHandler`** para manejo global de excepciones.
+- **`ProblemDetails` (RFC 9457/RFC 7807)** como formato estándar de respuesta.
+- **Excepciones personalizadas únicamente para errores excepcionales.**
+- **No usar excepciones para controlar el flujo normal del negocio.** ([Microsoft Learn][1])
+
+---
+
+# 14.1. No llenar el código de try/catch
+
+❌ Incorrecto
+
+```csharp
+public async Task CrearCliente(...)
+{
+    try
+    {
+        ...
+    }
+    catch(Exception ex)
+    {
+        throw;
+    }
+}
+```
+
+No aporta absolutamente nada.
+
+Solo agrega ruido.
+
+---
+
+# 14.2. Tener un único Global Exception Handler
+
+Hoy ya no se recomienda crear un Middleware personalizado si no es necesario.
+
+Se recomienda implementar
+
+```text
+IExceptionHandler
+```
+
+y registrarlo en Program.cs.
+
+Microsoft lo recomienda desde .NET 8 y continúa siendo el enfoque recomendado en .NET 10. ([Microsoft Learn][1])
+
+---
+
+# 14.3. Registrar ProblemDetails
+
+```csharp
+builder.Services.AddProblemDetails();
+
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+```
+
+y
+
+```csharp
+app.UseExceptionHandler();
+```
+
+Nada más.
+
+---
+
+# 14.4. Usar ProblemDetails
+
+No devolver esto
+
+```json
+{
+  "error": "Error inesperado"
+}
+```
+
+Ni esto
+
+```json
+{
+  "message": "..."
+}
+```
+
+La recomendación actual es
+
+```json
+{
+  "type": "...",
+  "title": "...",
+  "status": 404,
+  "detail": "...",
+  "instance": "/api/clientes/5"
+}
+```
+
+Ese formato lo entienden Swagger, OpenAPI y prácticamente cualquier cliente HTTP. ([Microsoft Learn][1])
+
+---
+
+# 14.5. Tener excepciones específicas
+
+Nunca hacer
+
+```csharp
+throw new Exception("...");
+```
+
+Mejor
+
+```csharp
+NotFoundException
+
+BusinessException
+
+ValidationException
+
+ConflictException
+
+UnauthorizedException
+
+ForbiddenException
+```
+
+Ejemplo
+
+```csharp
+public sealed class NotFoundException : Exception
+{
+    public NotFoundException(string message)
+        : base(message)
+    {
+    }
+}
+```
+
+---
+
+# 14.6. No usar excepciones para reglas de negocio comunes
+
+Esto es un error muy común.
+
+Incorrecto
+
+```csharp
+if(cliente == null)
+    throw new Exception();
+```
+
+o
+
+```csharp
+if(clienteExiste)
+    throw new Exception();
+```
+
+Si una situación puede ocurrir normalmente (por ejemplo, un cliente no existe o un correo ya está registrado), considera devolver un resultado de negocio (`Result<T>`, `ErrorOr`, `OneOf`, etc.) desde la capa de aplicación y reservar las excepciones para fallos realmente excepcionales. Muchos equipos siguen este enfoque para evitar usar excepciones como flujo de control. ([Reddit][2])
+
+---
+
+# 14.7. Lanzar excepciones únicamente cuando algo realmente falló
+
+Buenos ejemplos
+
+```text
+SQL Server no responde
+
+Timeout
+
+Archivo corrupto
+
+No existe la configuración
+
+Error al conectarse con DIAN
+
+Error de autenticación
+
+Error de infraestructura
+```
+
+---
+
+# 14.8. Registrar el Log una sola vez
+
+Nunca hacer
+
+```csharp
+catch(Exception ex)
+{
+    _logger.LogError(ex,...);
+
+    throw;
+}
+```
+
+y luego
+
+```csharp
+GlobalExceptionHandler
+```
+
+vuelve a registrar el mismo error.
+
+Terminas con
+
+```
+ERROR
+
+ERROR
+
+ERROR
+```
+
+en Serilog.
+
+Lo recomendado es registrar el error únicamente en el manejador global, salvo que necesites agregar contexto específico.
+
+---
+
+# 14.9. No mostrar detalles internos
+
+Nunca devolver
+
+```json
+{
+  "stackTrace": "..."
+}
+```
+
+ni
+
+```json
+{
+  "innerException": "..."
+}
+```
+
+ni
+
+```json
+{
+  "source": "Microsoft.Data.SqlClient"
+}
+```
+
+Eso queda únicamente en los logs.
+
+---
+
+# 14.10. Separar errores por capas
+
+Una arquitectura limpia normalmente queda así
+
+```
+API
+   ↓
+Application
+   ↓
+Domain
+   ↓
+Infrastructure
+```
+
+Cada capa lanza únicamente las excepciones que le corresponden.
+
+Por ejemplo
+
+Domain
+
+```
+BusinessRuleException
+```
+
+Application
+
+```
+ValidationException
+```
+
+Infrastructure
+
+```
+DatabaseException
+
+ExternalServiceException
+
+StorageException
+```
+
+La API convierte todas esas excepciones a códigos HTTP mediante el `GlobalExceptionHandler`.
+
+---
+
+# 14.11. No capturar Exception en todos lados
+
+Incorrecto
+
+```csharp
+catch(Exception)
+{
+}
+```
+
+Correcto
+
+```csharp
+catch(SqlException)
+```
+
+o
+
+```csharp
+catch(TimeoutException)
+```
+
+o simplemente dejar que el `GlobalExceptionHandler` haga su trabajo.
+
+---
+
+# 14.12. Mapear las excepciones a códigos HTTP
+
+| Excepción             | HTTP |
+| --------------------- | ---- |
+| ValidationException   | 400  |
+| UnauthorizedException | 401  |
+| ForbiddenException    | 403  |
+| NotFoundException     | 404  |
+| ConflictException     | 409  |
+| BusinessException     | 422  |
+| Exception             | 500  |
+
+---
+
+# 14.13. Mantener un catálogo pequeño
+
+No crear una excepción para cada entidad.
+
+❌
+
+```
+ClienteNoExisteException
+
+ProductoNoExisteException
+
+FacturaNoExisteException
+
+EmpleadoNoExisteException
+```
+
+Mejor
+
+```
+NotFoundException
+```
+
+con un mensaje descriptivo
+
+```csharp
+throw new NotFoundException(
+    $"Cliente {id} no existe");
+```
+
+---
+
+# 14.14. Registrar un CorrelationId o TraceId
+
+En cada error incluir
+
+```
+TraceId
+```
+
+o
+
+```
+CorrelationId
+```
+
+Así es posible encontrar rápidamente el error en los logs.
+
+---
+
+# 14.15. No usar excepciones para validar datos
+
+Incorrecto
+
+```csharp
+if(nombre.Length > 100)
+    throw new Exception();
+```
+
+Lo correcto es validar antes de ejecutar la lógica (por ejemplo, con validadores en la capa de aplicación) y devolver un error de validación cuando corresponda. Las excepciones deberían quedar para situaciones inesperadas o irrecuperables.
+
+---
+
+# Arquitectura recomendada para tu proyecto TribuSoft
+
+```text
+API
+│
+├── GlobalExceptionHandler
+│
+├── ProblemDetails
+│
+└── Logging
+
+Application
+│
+├── ValidationException
+├── Result<T> (opcional)
+└── Casos de uso
+
+Domain
+│
+├── BusinessRuleException
+└── Entidades
+
+Infrastructure
+│
+├── SqlException
+├── TimeoutException
+├── HttpRequestException
+└── etc.
+```
+
+## Recomendación
+
+Para una aplicación moderna en **.NET 10 + Clean Architecture + DDD + EF Core 10**, implementaría:
+
+- `IExceptionHandler` para el manejo global de excepciones.
+- `AddProblemDetails()` para respuestas HTTP estandarizadas.
+- Excepciones personalizadas solo para errores excepcionales.
+- Validaciones de negocio mediante validadores o un patrón `Result<T>` cuando el fallo es esperado.
+- Un único punto centralizado para registrar logs y mapear excepciones a respuestas HTTP. ([Microsoft Learn][1])
+
+Con ese enfoque obtienes un código más limpio, consistente y alineado con las recomendaciones actuales de Microsoft y las prácticas más adoptadas por la comunidad .NET.
+
+[1]: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling-api?view=aspnetcore-10.0&utm_source=chatgpt.com "Handle errors in ASP.NET Core APIs | Microsoft Learn"
+[2]: https://www.reddit.com/r/dotnet/comments/1dr866c/what_is_your_favorite_way_of_returning_errors/?utm_source=chatgpt.com "What is your favorite way of returning errors from handlers/services in ASP.NET Core?"

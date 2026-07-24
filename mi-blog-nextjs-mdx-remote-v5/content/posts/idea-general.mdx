@@ -428,22 +428,36 @@ TribuSoft.Api
 ├── Controllers
 ├── Middlewares
 ├── Extensions
+├── Filters              (opcional)
+├── OpenApi              (opcional)
 └── Program.cs
+
 
 TribuSoft.Application
 │
 ├── DTOs
+├── Interfaces
+│   ├── Repositories
+│   ├── Services
+│   └── UnitOfWork       (si la vas a utilizar)
 ├── Services
 ├── Validators
-└── Interfaces
+├── Commands             (si usas CQRS)
+├── Queries              (si usas CQRS)
+├── Mappings
+└── DependencyInjection
+
 
 TribuSoft.Domain
 │
 ├── Entities
-├── Enums
 ├── ValueObjects
-└── Exceptions
-└── Events
+├── Enums
+├── Events
+├── Exceptions
+├── Common
+└── Specifications       (opcional)
+
 
 TribuSoft.Infrastructure
 │
@@ -451,11 +465,14 @@ TribuSoft.Infrastructure
 │   ├── PostgreSqlDbContext
 │   ├── SqlServerDbContext
 │   ├── Configurations
+│   ├── Repositories
 │   ├── Migrations
 │   │   ├── PostgreSql
 │   │   └── SqlServer
 │   └── Seed
+│
 ├── Logging
+├── Services             (Email, Files, Cache, etc.)
 └── DependencyInjection
 ```
 
@@ -464,10 +481,11 @@ TribuSoft.Infrastructure
 en el proyecto de infraestructura
 
 - agregar referencia a Domain
+- agregar referencia a Application
 
 en el proyecto de Application
 
-- agregar referencia a infraestructura
+- agregar referemcia a Domain
 
 en el proyecto de Api
 
@@ -657,6 +675,7 @@ public sealed class Departamento
     }
 }
 ```
+En este video en el miniuto 40:56 explica la Configuracion [Configuracion](https://www.youtube.com/watch?v=rIqVDyHwmDE&t=169s)  
 
 y la configuracion seria:
 
@@ -694,6 +713,277 @@ public sealed class DepartamentoConfiguration : IEntityTypeConfiguration<Departa
 }
 ```
 
+
+**DBContext hecho con scallfolding**
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using TribuSoft.Infrastructure.Persistence.Entities;
+
+namespace TribuSoft.Infrastructure.Persistence;
+
+public partial class AppDbContext : DbContext
+{
+    public AppDbContext(DbContextOptions<AppDbContext> options)
+        : base(options)
+    {
+    }
+
+    public virtual DbSet<Departamento> Departamentos { get; set; }
+
+    public virtual DbSet<Municipio> Municipios { get; set; }
+
+    public virtual DbSet<Tercero> Terceros { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Departamento>(entity =>
+        {
+            entity.HasKey(e => e.Codigo).HasName("pk_departamento");
+
+            entity.ToTable("departamento");
+
+            entity.Property(e => e.Codigo)
+                .HasMaxLength(2)
+                .IsFixedLength()
+                .HasColumnName("codigo");
+            entity.Property(e => e.Nombre)
+                .HasMaxLength(80)
+                .HasColumnName("nombre");
+        });
+
+        modelBuilder.Entity<Municipio>(entity =>
+        {
+            entity.HasKey(e => e.Codigo).HasName("pk_municipio");
+
+            entity.ToTable("municipio");
+
+            entity.Property(e => e.Codigo)
+                .HasMaxLength(5)
+                .IsFixedLength()
+                .HasColumnName("codigo");
+            entity.Property(e => e.CodigoDepartamento)
+                .HasMaxLength(2)
+                .IsFixedLength()
+                .HasColumnName("codigo_departamento");
+            entity.Property(e => e.Nombre)
+                .HasMaxLength(120)
+                .HasColumnName("nombre");
+
+            entity.HasOne(d => d.CodigoDepartamentoNavigation).WithMany(p => p.Municipios)
+                .HasForeignKey(d => d.CodigoDepartamento)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("fk_municipio_departamento");
+        });
+
+        modelBuilder.Entity<Tercero>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("pk_tercero");
+
+            entity.ToTable("tercero");
+
+            entity.HasIndex(e => e.NumeroDocumento, "uq_tercero_documento").IsUnique();
+
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.CodigoMunicipio)
+                .HasMaxLength(5)
+                .IsFixedLength()
+                .HasColumnName("codigo_municipio");
+            entity.Property(e => e.Direccion)
+                .HasMaxLength(130)
+                .HasColumnName("direccion");
+            entity.Property(e => e.NumeroDocumento)
+                .HasMaxLength(20)
+                .HasColumnName("numero_documento");
+            entity.Property(e => e.OtrosNombres)
+                .HasMaxLength(120)
+                .HasColumnName("otros_nombres");
+            entity.Property(e => e.PrimerApellido)
+                .HasMaxLength(60)
+                .HasColumnName("primer_apellido");
+            entity.Property(e => e.PrimerNombre)
+                .HasMaxLength(60)
+                .HasColumnName("primer_nombre");
+            entity.Property(e => e.RazonSocial)
+                .HasMaxLength(200)
+                .HasColumnName("razon_social");
+            entity.Property(e => e.SegundoApellido)
+                .HasMaxLength(60)
+                .HasColumnName("segundo_apellido");
+            entity.Property(e => e.TipoDocumento)
+                .HasMaxLength(2)
+                .IsFixedLength()
+                .HasColumnName("tipo_documento");
+
+            entity.HasOne(d => d.CodigoMunicipioNavigation).WithMany(p => p.Terceros)
+                .HasForeignKey(d => d.CodigoMunicipio)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("fk_tercero_municipio");
+        });
+
+        OnModelCreatingPartial(modelBuilder);
+    }
+
+    partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
+}
+
+
+```
+
+**DBContext Refactorizado**
+Ahora lo refactorizamos dividiendo cada entidad por su archivo de configuracion independiente que dando asi: 
+```csharp
+using Microsoft.EntityFrameworkCore;
+using TribuSoft.Domain.Entities;
+
+namespace TribuSoft.Infrastructure.Persistence;
+
+public sealed class AppDbContext : DbContext
+{
+    public AppDbContext(DbContextOptions<AppDbContext> options)
+        : base(options)
+    {
+    }
+
+    public DbSet<Departamento> Departamentos => Set<Departamento>();
+
+    public DbSet<Municipio> Municipios => Set<Municipio>();
+
+    public  DbSet<Tercero> Terceros => Set<Tercero>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfigurationsFromAssembly(
+            typeof(AppDbContext).Assembly);
+
+        base.OnModelCreating(modelBuilder);
+    }
+}
+
+```
+
+**Analisis de la refactorizacion de DBContext**
+
+1. Quitamos las clases partial
+2. Eliminamos los virtual
+cambiamos esto 
+```csharp
+public virtual DbSet<Departamento> Departamentos { get; set; }
+```
+y lo correcto es 
+```csharp
+public DbSet<Departamento> Departamentos => Set<Departamento>();
+```
+**Configuracion de Tercero**
+```csharp
+using TribuSoft.Domain.Entities;
+using TribuSoft.Domain.ValueObjects;
+
+namespace TribuSoft.Infrastructure.Persistence.Configurations
+{
+    public sealed class TerceroConfiguration : IEntityTypeConfiguration<Tercero>
+    {
+        public void Configure(EntityTypeBuilder<Tercero> builder)
+        {
+            builder.ToTable("tercero");
+
+            builder.HasKey(t => t.Id)
+                .HasName("pk_tercero");
+
+            builder.Property(t => t.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+
+            builder.Property(t => t.NumeroDocumento)
+                .HasColumnName("numero_documento")
+                .HasMaxLength(20);
+
+            builder.HasIndex(t => t.NumeroDocumento)
+                .IsUnique()
+                .HasDatabaseName("uq_tercero_documento");
+
+            builder.Property(t => t.Direccion)
+                .HasColumnName("direccion")
+                .HasMaxLength(130);
+
+            builder.Property(t => t.CodigoMunicipio)
+                .HasColumnName("codigo_municipio")
+                .HasMaxLength(5)
+                .IsFixedLength();
+
+            builder.Property(t => t.TipoDocumento)
+                .HasConversion(
+                    td => td.Codigo,
+                    codigo => TipoDocumento.FromCodigo(codigo))
+                .HasColumnName("tipo_documento")
+                .HasMaxLength(2)
+                .IsFixedLength();
+
+            builder.HasOne(t => t.Municipio)
+                .WithMany(m => m.Terceros)
+                .HasForeignKey(t => t.CodigoMunicipio)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasDiscriminator<string>("tipo_persona")
+                .HasValue<PersonaNatural>("N")
+                .HasValue<PersonaJuridica>("J");
+
+
+        }
+    }
+}
+
+```
+**Configuracion de la Persona Natural**
+```csharp
+using TribuSoft.Domain.Entities;
+
+namespace TribuSoft.Infrastructure.Persistence.Configurations
+{
+    internal sealed class PersonaNaturalConfiguration : IEntityTypeConfiguration<PersonaNatural>
+    {
+        public void Configure(EntityTypeBuilder<PersonaNatural> builder)
+        {
+            builder.Property(p => p.PrimerNombre)
+                .HasColumnName("primer_nombre")
+                .HasMaxLength(60);
+
+            builder.Property(p => p.OtrosNombres)
+                .HasColumnName("otros_nombres")
+                .HasMaxLength(120);
+
+            builder.Property(p => p.PrimerApellido)
+                .HasColumnName("primer_apellido")
+                .HasMaxLength(60);
+
+            builder.Property(p => p.SegundoApellido)
+                .HasColumnName("segundo_apellido")
+                .HasMaxLength(60);
+        }
+    }
+}
+
+```
+**Configuracion de la Persona Juridica**
+```csharp
+using TribuSoft.Domain.Entities;
+
+namespace TribuSoft.Infrastructure.Persistence.Configurations
+{
+    internal sealed class PersonaJuridicaConfiguration : IEntityTypeConfiguration<PersonaJuridica>
+    {
+        public void Configure(EntityTypeBuilder<PersonaJuridica> builder)
+        {
+            builder.Property(p => p.RazonSocial)
+                .HasColumnName("razon_social")
+                .HasMaxLength(200);
+        }
+    }
+}
+
+```
 **Mejorias aplicadas**
 
 ```sql
@@ -1773,3 +2063,43 @@ Con ese enfoque obtienes un código más limpio, consistente y alineado con las 
 
 [1]: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling-api?view=aspnetcore-10.0&utm_source=chatgpt.com "Handle errors in ASP.NET Core APIs | Microsoft Learn"
 [2]: https://www.reddit.com/r/dotnet/comments/1dr866c/what_is_your_favorite_way_of_returning_errors/?utm_source=chatgpt.com "What is your favorite way of returning errors from handlers/services in ASP.NET Core?"
+
+
+## ¿Qué hacen proyectos como eShop, Clean Architecture, Ardalis, etc.?
+
+La mayoría **ni siquiera tienen `BusinessException`**.
+
+Usan una de estas alternativas:
+
+* `DomainException` para reglas del dominio.
+* Result Pattern (`Result<T>`, `ErrorOr<T>`, `FluentResults`, `OneOf`).
+* ValidationException (FluentValidation).
+* UnauthorizedException.
+* NotFoundException.
+* ConflictException.
+
+Es decir, cada error representa una situación específica.
+
+---
+
+# Mi recomendación para un proyecto nuevo en .NET 10 (2026)
+
+Si estás construyendo una arquitectura DDD como la de **TribuSoft**, utilizaría:
+
+```
+Domain
+ └── DomainException
+```
+
+```
+Application
+ ├── ValidationException
+ ├── NotFoundException
+ ├── ConflictException
+ ├── UnauthorizedException
+ └── ForbiddenException
+```
+
+**No crearía `BusinessException`**, porque suele ser demasiado genérica y termina mezclando errores de dominio, validación y aplicación. Es más mantenible expresar cada tipo de error con una excepción específica o, mejor aún, utilizar un patrón de resultados (`Result<T>` o `ErrorOr<T>`) para los errores esperados y reservar las excepciones para situaciones realmente excepcionales.
+
+Para el proyecto que has venido diseñando (DDD + Clean Architecture + .NET 10), esa separación hace que cada capa tenga responsabilidades claras y que el manejo global de errores sea más sencillo y consistente.

@@ -1,0 +1,622 @@
+---
+title: "asincrona"
+date: "2026-07-23"
+description: "programacion asincrona en CSharp"
+slug: "asincrona"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+tutorial asincronia [programacion Asincrona por Felipe Gavilan](https://www.youtube.com/watch?v=XtsJiFpkBqI)  
+Curbernetes [Curbernetes](https://www.youtube.com/watch?v=SbFbQ-Eie-U)  
+
+Si estás usando **.NET 10 (2026)**, la programación asíncrona ya no es una característica opcional: es la forma recomendada de escribir aplicaciones web, APIs, acceso a bases de datos, archivos y servicios externos.
+
+Voy a explicarlo desde cero hasta las mejores prácticas que hoy siguen Microsoft y la comunidad.
+
+---
+
+# ¿Qué es la programación asíncrona?
+
+Supongamos que tu API necesita consultar SQL Server.
+
+Consulta síncrona:
+
+```text
+Cliente
+   |
+   |------> API
+               |
+               |------> SQL Server
+                         (espera 2 segundos)
+               |
+               |<------ Resultado
+   |
+Respuesta
+```
+
+Durante esos 2 segundos **el hilo queda bloqueado**.
+
+Mientras espera, no puede atender otra petición.
+
+---
+
+Ahora veamos asincronía.
+
+```text
+Cliente
+   |
+   |------> API
+               |
+               |------> SQL Server
+               |
+               |   (libera el hilo)
+               |
+      otro usuario usa ese hilo
+               |
+               |
+SQL responde
+               |
+      recupera un hilo libre
+               |
+Respuesta
+```
+
+Aquí el hilo **no se queda esperando**.
+
+Por eso ASP.NET Core puede atender miles de usuarios con pocos hilos.
+
+---
+
+# ¿Qué NO significa asincronía?
+
+Muchos creen que significa:
+
+> "hacer varias cosas al mismo tiempo"
+
+No.
+
+Eso es **paralelismo**.
+
+La asincronía significa:
+
+> "No bloquear mientras esperas una operación externa."
+
+Ejemplos:
+
+* Base de datos
+* HTTP
+* Leer archivos
+* Escribir archivos
+* Azure Storage
+* Amazon S3
+* Redis
+* RabbitMQ
+
+Todos estos tienen tiempos de espera.
+
+---
+
+# Operaciones I/O
+
+Todo esto debería ser async.
+
+```csharp
+await context.Clientes.ToListAsync();
+
+await httpClient.GetAsync(...);
+
+await File.ReadAllTextAsync(...);
+
+await stream.CopyToAsync(...);
+```
+
+---
+
+# Operaciones CPU
+
+En cambio esto:
+
+```csharp
+for(...)
+{
+   // millones de cálculos
+}
+```
+
+No necesita async.
+
+Porque no está esperando nada.
+
+Está usando CPU.
+
+---
+
+# async y await
+
+Cuando escribes
+
+```csharp
+public async Task<List<Cliente>> Obtener()
+{
+    return await context.Clientes.ToListAsync();
+}
+```
+
+Sucede esto:
+
+1. entra al método
+
+2. llega al await
+
+```csharp
+await context.Clientes.ToListAsync();
+```
+
+3. EF Core envía la consulta
+
+4. el hilo queda libre
+
+5. SQL responde
+
+6. el método continúa
+
+Todo eso ocurre automáticamente.
+
+---
+
+# Task
+
+Representa una operación futura.
+
+```csharp
+Task<int>
+
+Task<string>
+
+Task
+
+Task<List<Cliente>>
+```
+
+No es el resultado.
+
+Es la promesa del resultado.
+
+---
+
+Ejemplo
+
+```csharp
+Task<int> tarea = ObtenerNumeroAsync();
+```
+
+Todavía no tienes el entero.
+
+Tienes una tarea.
+
+Cuando haces
+
+```csharp
+int numero = await tarea;
+```
+
+Obtienes el valor.
+
+---
+
+# async
+
+Marca un método que puede usar await.
+
+```csharp
+public async Task GuardarAsync()
+```
+
+Sin async no puedes escribir
+
+```csharp
+await
+```
+
+---
+
+# await
+
+Espera una tarea sin bloquear.
+
+```csharp
+await servicio.GuardarAsync();
+```
+
+No hace:
+
+```
+Thread.Sleep(...)
+```
+
+No hace
+
+```
+while(...)
+```
+
+No bloquea.
+
+---
+
+# Ejemplo real
+
+Servicio
+
+```csharp
+public sealed class ClienteService
+{
+    private readonly AppDbContext _context;
+
+    public ClienteService(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<List<Cliente>> ObtenerTodosAsync()
+    {
+        return await _context.Clientes.ToListAsync();
+    }
+}
+```
+
+Controller
+
+```csharp
+[HttpGet]
+public async Task<ActionResult<List<ClienteDto>>> Obtener()
+{
+    var clientes = await _service.ObtenerTodosAsync();
+
+    return Ok(clientes);
+}
+```
+
+Todo es async.
+
+---
+
+# Nunca hagas esto
+
+```csharp
+var clientes = _service.ObtenerTodosAsync().Result;
+```
+
+Tampoco
+
+```csharp
+.Wait();
+```
+
+Ni
+
+```csharp
+GetAwaiter().GetResult();
+```
+
+Porque bloqueas el hilo.
+
+Aunque ASP.NET Core ya no tiene SynchronizationContext como ASP.NET clásico, sigue siendo una mala práctica y reduce la escalabilidad.
+
+---
+
+# Cancelación
+
+En .NET 10 debes usar CancellationToken.
+
+Controller
+
+```csharp
+[HttpGet]
+public async Task<IActionResult> Obtener(
+    CancellationToken cancellationToken)
+{
+    var datos = await _service.ObtenerAsync(cancellationToken);
+
+    return Ok(datos);
+}
+```
+
+Servicio
+
+```csharp
+public async Task<List<Cliente>> ObtenerAsync(
+    CancellationToken cancellationToken)
+{
+    return await _context.Clientes
+        .ToListAsync(cancellationToken);
+}
+```
+
+Si el usuario cancela la petición:
+
+* SQL puede cancelar la consulta.
+* No desperdicias recursos.
+
+---
+
+# ValueTask
+
+No siempre debes usar Task.
+
+Microsoft recomienda ValueTask cuando muchas llamadas completan de forma síncrona.
+
+Ejemplo:
+
+```csharp
+public ValueTask<int> ObtenerCacheAsync()
+```
+
+Si el dato está en memoria:
+
+```csharp
+return ValueTask.FromResult(5);
+```
+
+No crea un Task nuevo.
+
+Ahorra memoria.
+
+Pero:
+
+**No reemplaza Task en todos los métodos.**
+
+Regla práctica:
+
+* 95% → Task
+* Casos muy optimizados → ValueTask
+
+---
+
+# IAsyncEnumerable
+
+Muy recomendado en .NET 10.
+
+En lugar de:
+
+```csharp
+List<Cliente>
+```
+
+Puedes transmitir resultados poco a poco.
+
+```csharp
+public async IAsyncEnumerable<Cliente> Obtener()
+{
+    await foreach(var c in context.Clientes.AsAsyncEnumerable())
+    {
+        yield return c;
+    }
+}
+```
+
+Ideal para:
+
+* millones de registros
+* streaming
+* exportaciones
+
+---
+
+# Ejecutar varias tareas
+
+Incorrecto
+
+```csharp
+await servicio1();
+
+await servicio2();
+
+await servicio3();
+```
+
+Tiempo
+
+```
+2s
+
+2s
+
+2s
+
+Total = 6s
+```
+
+Mejor
+
+```csharp
+var t1 = servicio1();
+
+var t2 = servicio2();
+
+var t3 = servicio3();
+
+await Task.WhenAll(t1, t2, t3);
+```
+
+Tiempo
+
+```
+2s
+```
+
+Siempre que las operaciones sean independientes.
+
+---
+
+# ConfigureAwait(false)
+
+En 2026:
+
+Para **ASP.NET Core**:
+
+No hace falta.
+
+```csharp
+await servicio();
+```
+
+es suficiente.
+
+Solo suele ser útil en bibliotecas reutilizables que pueden ejecutarse en distintos tipos de aplicaciones.
+
+---
+
+# AsNoTracking
+
+Cuando consultas datos:
+
+```csharp
+await context.Clientes
+    .AsNoTracking()
+    .ToListAsync();
+```
+
+Consume menos memoria.
+
+Es más rápido.
+
+---
+
+# Siempre usar métodos Async de EF Core
+
+Correcto
+
+```csharp
+FirstOrDefaultAsync()
+
+AnyAsync()
+
+CountAsync()
+
+ToListAsync()
+
+SaveChangesAsync()
+```
+
+No
+
+```csharp
+FirstOrDefault()
+
+Count()
+
+SaveChanges()
+```
+
+---
+
+# Evita async void
+
+Incorrecto
+
+```csharp
+public async void Guardar()
+```
+
+Correcto
+
+```csharp
+public async Task Guardar()
+```
+
+`async void` solo se reserva para manejadores de eventos (por ejemplo, en aplicaciones de escritorio).
+
+---
+
+# ¿Todo debe ser async?
+
+No.
+
+Si el método solo realiza lógica en memoria, déjalo síncrono.
+
+```csharp
+public decimal CalcularTotal(List<Item> items)
+{
+    ...
+}
+```
+
+No escribas:
+
+```csharp
+public async Task<decimal> CalcularTotal()
+```
+
+si no hay ninguna operación asíncrona.
+
+---
+
+# Ejemplo de flujo completo en una API
+
+```text
+HTTP Request
+      │
+      ▼
+Controller (async)
+      │
+      ▼
+Application Service (async)
+      │
+      ▼
+Repository (async)
+      │
+      ▼
+EF Core (ToListAsync)
+      │
+      ▼
+SQL Server
+```
+
+Cada capa espera con `await` y propaga el `CancellationToken`, sin bloquear hilos.
+
+---
+
+# Mejores prácticas en .NET 10 (2026)
+
+1. Usa `Task` como tipo de retorno por defecto para operaciones asíncronas.
+2. Usa `async` y `await` de extremo a extremo ("async all the way").
+3. Propaga `CancellationToken` desde el controlador hasta la infraestructura.
+4. Utiliza los métodos `*Async` de EF Core, `HttpClient`, `Stream`, `File`, etc.
+5. No uses `.Result`, `.Wait()` ni `GetAwaiter().GetResult()` en código de aplicación.
+6. Ejecuta tareas independientes en paralelo con `Task.WhenAll`.
+7. Usa `AsNoTracking()` en consultas de solo lectura.
+8. Emplea `IAsyncEnumerable<T>` cuando necesites transmitir grandes volúmenes de datos.
+9. Reserva `ValueTask` para escenarios de alto rendimiento donde exista un beneficio medible.
+10. No conviertas en asíncronos métodos que solo realizan cálculos en memoria.
+
+## Cómo aplicarlo a tu arquitectura (TribuSoft)
+
+En una arquitectura por capas como la que estás construyendo (**Api → Application → Infrastructure → EF Core**), la recomendación es que la asincronía sea consistente:
+
+```csharp
+// API
+public async Task<IActionResult> Obtener(CancellationToken ct)
+{
+    var terceros = await _terceroService.ObtenerTodosAsync(ct);
+    return Ok(terceros);
+}
+
+// Application
+public async Task<IReadOnlyList<TerceroDto>> ObtenerTodosAsync(CancellationToken ct)
+{
+    return await _repository.ObtenerTodosAsync(ct);
+}
+
+// Infrastructure
+public async Task<IReadOnlyList<Tercero>> ObtenerTodosAsync(CancellationToken ct)
+{
+    return await _context.Terceros
+        .AsNoTracking()
+        .ToListAsync(ct);
+}
+```
+
+Este patrón es el que mejor se alinea con las recomendaciones actuales para aplicaciones ASP.NET Core de alta concurrencia y buena escalabilidad.

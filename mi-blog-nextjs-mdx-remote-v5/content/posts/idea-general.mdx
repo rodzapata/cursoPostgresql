@@ -2103,3 +2103,13 @@ Application
 **No crearía `BusinessException`**, porque suele ser demasiado genérica y termina mezclando errores de dominio, validación y aplicación. Es más mantenible expresar cada tipo de error con una excepción específica o, mejor aún, utilizar un patrón de resultados (`Result<T>` o `ErrorOr<T>`) para los errores esperados y reservar las excepciones para situaciones realmente excepcionales.
 
 Para el proyecto que has venido diseñando (DDD + Clean Architecture + .NET 10), esa separación hace que cada capa tenga responsabilidades claras y que el manejo global de errores sea más sencillo y consistente.
+
+
+# 15. validaciones usando FluetValidation
+
+Segun las mejores practicas en una arquitectura de software se recomiendas que las validaciones deben ir en la capa **Aplication**,  
+ya no se recomienda usar **anotation** en cambio se usa la libreria FlueValidation.  
+
+Lo primero que debemos hacer es instalar los paquetes **FluentValidation** y **FluentValidation.DependencyInjectionExtensions** en mi caso   
+uso la version 12.1.1 para ambos.
+

@@ -1,0 +1,1675 @@
+---
+title: "Fluent Validation"
+date: "2026-07-27"
+description: "validaciones usando Fluent Validation, ya no es recomendable DataAnnotations"
+slug: "fluent-validation"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Excelente tema. De hecho, si tu objetivo es convertirte en un **Arquitecto de Software en .NET 10 (2026)**, FluentValidation es una de las librerías que más vas a utilizar en la **capa Application**, especialmente cuando implementas **Clean Architecture, DDD, CQRS y Casos de Uso**.
+
+También es importante conocer el contexto actual:
+
+* **FluentValidation 12** es compatible con **.NET 8, 9 y 10**. ([FluentValidation][1])
+* El paquete **FluentValidation.AspNetCore** ya **no está recomendado para proyectos nuevos**. Hoy se recomienda usar **FluentValidation** junto con **validación manual** o mediante un **Pipeline Behavior de MediatR**, porque es más flexible, soporta validaciones asíncronas y funciona mejor con Clean Architecture. ([FluentValidation][2])  
+
+---
+FluentValidation condigo profesional de validaciones [FluentValidation por Comba Code Lab](https://www.youtube.com/watch?v=ZZwOZyWi8e4)  
+Reglas de validaciones [Reglas de validacion por Felipe Gavilan](https://www.youtube.com/watch?v=IRtpX3dMyl4)  
+DataAnotation vs FluentValidation [FluentValidation por el eterno estudiante](https://www.youtube.com/watch?v=7IqyDGGDXG8)
+
+
+# Lo que aprenderemos
+
+Te propongo este orden (el mismo que seguiría un arquitecto senior):
+
+1. ¿Qué es FluentValidation?
+2. ¿Por qué existe?
+3. ¿Dónde ubicarlo en Clean Architecture?
+4. Instalación
+5. Tu primer Validator
+6. Reglas básicas
+7. Validar objetos complejos
+8. Validar colecciones
+9. Reglas condicionales
+10. Validaciones personalizadas
+11. Validaciones asincrónicas
+12. Reutilización de reglas
+13. Integración con Casos de Uso
+14. Pipeline de MediatR
+15. Buenas prácticas
+16. Errores comunes
+
+---
+
+# 1. ¿Qué es FluentValidation?
+
+Es una librería que permite escribir reglas de validación utilizando C# en lugar de atributos.
+
+En lugar de esto:
+
+```csharp
+public class CrearClienteDto
+{
+    [Required]
+    [StringLength(100)]
+    public string Nombre { get; set; }
+
+    [EmailAddress]
+    public string Email { get; set; }
+}
+```
+
+escribes:
+
+```csharp
+public class CrearClienteValidator : AbstractValidator<CrearClienteDto>
+{
+    public CrearClienteValidator()
+    {
+        RuleFor(x => x.Nombre)
+            .NotEmpty()
+            .MaximumLength(100);
+
+        RuleFor(x => x.Email)
+            .EmailAddress();
+    }
+}
+```
+
+Mucho más limpio.
+
+---
+
+# 2. ¿Por qué no usar DataAnnotations?
+
+Porque DataAnnotations tiene muchas limitaciones.
+
+Por ejemplo:
+
+```csharp
+[Required]
+[StringLength(100)]
+```
+
+Funciona bien...
+
+Pero...
+
+¿Cómo validas que un cliente exista en la base de datos?
+
+No puedes.
+
+¿Cómo validas dos propiedades juntas?
+
+Difícil.
+
+¿Cómo haces consultas?
+
+No puedes.
+
+¿Cómo reutilizas reglas?
+
+Muy complicado.
+
+FluentValidation nació precisamente para solucionar esos problemas. ([FluentValidation][1])
+
+---
+
+# 3. ¿Dónde vive FluentValidation?
+
+En una arquitectura limpia:
+
+```
+Presentation
+      │
+      ▼
+Application
+│
+├── Commands
+├── Queries
+├── Validators   ← AQUÍ
+├── DTOs
+├── Interfaces
+└── Services
+
+Domain
+
+Infrastructure
+```
+
+Nunca en Domain.
+
+Nunca en Infrastructure.
+
+Siempre en **Application**.
+
+¿Por qué?
+
+Porque valida la entrada de un caso de uso.
+
+No valida reglas del negocio.
+
+---
+
+# 4. Instalación
+
+```bash
+dotnet add package FluentValidation
+```
+
+Eso es todo. ([FluentValidation][3])
+
+---
+
+# 5. Primer ejemplo
+
+Supongamos este DTO.
+
+```csharp
+public class CrearProductoDto
+{
+    public string Nombre { get; set; }
+
+    public decimal Precio { get; set; }
+
+    public int Stock { get; set; }
+}
+```
+
+Creamos:
+
+```csharp
+public class CrearProductoValidator
+    : AbstractValidator<CrearProductoDto>
+{
+    public CrearProductoValidator()
+    {
+        RuleFor(x => x.Nombre)
+            .NotEmpty();
+
+        RuleFor(x => x.Precio)
+            .GreaterThan(0);
+
+        RuleFor(x => x.Stock)
+            .GreaterThanOrEqualTo(0);
+    }
+}
+```
+
+Muy sencillo.
+
+---
+
+# 6. Entendiendo RuleFor
+
+Todo empieza así:
+
+```csharp
+RuleFor(x => x.Propiedad)
+```
+
+Después encadenas reglas.
+
+```csharp
+RuleFor(x => x.Nombre)
+    .NotEmpty()
+    .MaximumLength(100)
+    .MinimumLength(3);
+```
+
+Es un patrón Fluent.
+
+---
+
+# 7. Reglas más usadas
+
+## Obligatorio
+
+```csharp
+.NotEmpty()
+```
+
+---
+
+## No nulo
+
+```csharp
+.NotNull()
+```
+
+---
+
+## Longitud máxima
+
+```csharp
+.MaximumLength(100)
+```
+
+---
+
+## Longitud mínima
+
+```csharp
+.MinimumLength(3)
+```
+
+---
+
+## Entre dos valores
+
+```csharp
+.Length(5,20)
+```
+
+---
+
+## Número mayor
+
+```csharp
+.GreaterThan(0)
+```
+
+---
+
+## Mayor o igual
+
+```csharp
+.GreaterThanOrEqualTo(0)
+```
+
+---
+
+## Menor
+
+```csharp
+.LessThan(100)
+```
+
+---
+
+## Email
+
+```csharp
+.EmailAddress()
+```
+
+---
+
+## Regex
+
+```csharp
+.Matches("[A-Z]{3}")
+```
+
+---
+
+## Igual
+
+```csharp
+.Equal("CO")
+```
+
+---
+
+## Diferente
+
+```csharp
+.NotEqual("000")
+```
+
+---
+
+## Enum
+
+```csharp
+.IsInEnum()
+```
+
+---
+
+# 8. Personalizar mensajes
+
+```csharp
+RuleFor(x => x.Nombre)
+    .NotEmpty()
+    .WithMessage("El nombre es obligatorio.");
+```
+
+---
+
+Puedes usar parámetros.
+
+```csharp
+.WithMessage("{PropertyName} es obligatorio");
+```
+
+Resultado:
+
+```
+Nombre es obligatorio
+```
+
+---
+
+# 9. Cascade
+
+Sin Cascade:
+
+```csharp
+RuleFor(x => x.Nombre)
+    .NotEmpty()
+    .MinimumLength(5)
+    .MaximumLength(100);
+```
+
+Si está vacío obtendrás varios errores.
+
+Con:
+
+```csharp
+.Cascade(CascadeMode.Stop)
+```
+
+Se detiene en el primero.
+
+```csharp
+RuleFor(x => x.Nombre)
+    .Cascade(CascadeMode.Stop)
+    .NotEmpty()
+    .MinimumLength(5);
+```
+
+---
+
+# 10. Validar un objeto
+
+Supongamos:
+
+```csharp
+public class DireccionDto
+{
+    public string Ciudad { get; set; }
+
+    public string Pais { get; set; }
+}
+```
+
+y
+
+```csharp
+public class ClienteDto
+{
+    public DireccionDto Direccion { get; set; }
+}
+```
+
+Creamos:
+
+```csharp
+public class DireccionValidator
+    : AbstractValidator<DireccionDto>
+{
+}
+```
+
+Luego:
+
+```csharp
+RuleFor(x => x.Direccion)
+    .SetValidator(new DireccionValidator());
+```
+
+---
+
+# 11. Validar listas
+
+```csharp
+public class PedidoDto
+{
+    public List<ItemDto> Items { get; set; }
+}
+```
+
+```csharp
+RuleForEach(x => x.Items)
+    .SetValidator(new ItemValidator());
+```
+
+Muy utilizado en facturación.
+
+---
+
+# 12. Validaciones condicionales
+
+Solo si es empresa:
+
+```csharp
+RuleFor(x => x.Nit)
+    .NotEmpty()
+    .When(x => x.EsEmpresa);
+```
+
+---
+
+# 13. Validaciones personalizadas
+
+```csharp
+RuleFor(x => x.Documento)
+    .Must(DocumentoValido);
+```
+
+```csharp
+private bool DocumentoValido(string documento)
+{
+    return documento.StartsWith("CC");
+}
+```
+
+---
+
+# 14. Validaciones asincrónicas
+
+Muy utilizadas.
+
+Ejemplo:
+
+```
+¿Existe ese NIT?
+
+¿Existe ese municipio?
+
+¿Existe ese correo?
+
+¿Ya existe ese usuario?
+```
+
+```csharp
+RuleFor(x => x.Email)
+    .MustAsync(async (email,cancellation) =>
+    {
+        return !await repository.ExisteEmail(email);
+    });
+```
+
+Esta es una de las razones por las que hoy se recomienda la validación manual o mediante Pipeline en lugar del antiguo paquete `FluentValidation.AspNetCore`, que no soporta correctamente este escenario de auto-validación. ([FluentValidation][2])
+
+---
+
+# 15. Inyección de dependencias
+
+Puedes inyectar repositorios.
+
+```csharp
+public class CrearClienteValidator
+    : AbstractValidator<CrearClienteCommand>
+{
+    public CrearClienteValidator(
+        IClienteRepository repository)
+    {
+
+    }
+}
+```
+
+Esto es completamente válido.
+
+---
+
+# 16. Flujo recomendado en Clean Architecture
+
+```
+HTTP Request
+        │
+        ▼
+Controller
+        │
+        ▼
+Command
+        │
+        ▼
+Validator
+        │
+        ▼
+Use Case
+        │
+        ▼
+Repository
+        │
+        ▼
+Database
+```
+
+Observa que el **Validator** se ejecuta **antes** del caso de uso.
+
+---
+
+# 17. Buenas prácticas (2026)
+
+✅ Un validator por cada Command.
+
+```
+CrearClienteValidator
+
+ActualizarClienteValidator
+
+EliminarClienteValidator
+```
+
+No reutilizar un único validator para todo.
+
+---
+
+✅ Validar DTO o Command, no la entidad del dominio.
+
+---
+
+✅ Mantener el validator enfocado en la validación de entrada.
+
+No colocar lógica de negocio compleja.
+
+Por ejemplo:
+
+❌
+
+```csharp
+if(cliente.TieneDeudas())
+```
+
+Eso pertenece al dominio.
+
+---
+
+✅ Colocar todos los validators en
+
+```
+Application
+   Validators
+```
+
+---
+
+# Ejemplo aplicado a tu proyecto TribuSoft
+
+```
+Application
+
+Commands
+
+CrearPersonaNatural
+
+ActualizarPersonaNatural
+
+EliminarPersonaNatural
+
+Validators
+
+CrearPersonaNaturalValidator
+
+ActualizarPersonaNaturalValidator
+
+EliminarPersonaNaturalValidator
+```
+
+Cada caso de uso tiene su propio validator.
+
+---
+
+## Mi recomendación para tu aprendizaje
+
+Como ya estás construyendo **TribuSoft** con **.NET 10**, **DDD**, **Clean Architecture** y planeas usar **Casos de Uso**, te recomiendo aprender FluentValidation en este orden:
+
+1. Reglas básicas (`NotEmpty`, `MaximumLength`, `EmailAddress`, etc.).
+2. Mensajes personalizados y `CascadeMode`.
+3. Validación de objetos y colecciones (`SetValidator`, `RuleForEach`).
+4. Reglas condicionales (`When`, `Unless`).
+5. Validaciones personalizadas (`Must` y `Custom`).
+6. Validaciones asíncronas con repositorios (`MustAsync`).
+7. Integración con MediatR mediante un `ValidationBehavior`, que es el enfoque más utilizado en arquitecturas modernas basadas en CQRS. ([FluentValidation][2])
+
+Creo que podemos convertir este tema en un **curso completo** de unas **12 lecciones**, construyendo paso a paso los validadores de tu ERP TribuSoft (PersonaNatural, PersonaJuridica, Municipio, Departamento, Factura, etc.), utilizando las prácticas que actualmente emplean equipos senior en proyectos .NET modernos.
+
+[1]: https://docs.fluentvalidation.net/en/latest/index.html?utm_source=chatgpt.com "FluentValidation — FluentValidation documentation"
+[2]: https://docs.fluentvalidation.net/en/latest/aspnet.html?highlight=injectvalidator&utm_source=chatgpt.com "ASP.NET Core — FluentValidation documentation"
+[3]: https://docs.fluentvalidation.net/en/latest/installation.html?utm_source=chatgpt.com "Installation — FluentValidation documentation" 
+
+
+Excelente. Dado todo lo que hemos trabajado en **TribuSoft** (.NET 10, EF Core 10, Clean Architecture, DDD, Casos de Uso, Repository Pattern, Value Objects, etc.), creo que lo mejor es hacer un curso que no sea únicamente sobre FluentValidation, sino sobre **cómo se utiliza FluentValidation dentro de una arquitectura profesional**.
+
+Al finalizar este curso, tendrás un proyecto con una estructura muy similar a la que utilizan empresas que desarrollan APIs con .NET 10 en 2026.
+
+---
+
+# Curso Profesional de FluentValidation en .NET 10 (2026)
+
+## Nivel 1 - Fundamentos
+
+### Lección 1 - ¿Qué es FluentValidation?
+
+Aprenderás:
+
+* Qué problema resuelve.
+* Diferencias con DataAnnotations.
+* Arquitectura de FluentValidation.
+* Cuándo usarlo.
+* Cuándo NO usarlo.
+
+Proyecto práctico
+
+```
+CrearProductoDto
+CrearProductoValidator
+```
+
+Duración
+
+**1 hora**
+
+---
+
+## Lección 2 - Reglas básicas
+
+Aprenderás todas las reglas.
+
+```
+NotEmpty()
+
+NotNull()
+
+Empty()
+
+Null()
+
+Length()
+
+MaximumLength()
+
+MinimumLength()
+
+GreaterThan()
+
+LessThan()
+
+InclusiveBetween()
+
+ExclusiveBetween()
+
+EmailAddress()
+
+Matches()
+
+CreditCard()
+
+Equal()
+
+NotEqual()
+
+PrecisionScale()
+
+IsInEnum()
+```
+
+Proyecto
+
+Validar un Cliente.
+
+---
+
+## Lección 3 - Mensajes personalizados
+
+Aprenderás
+
+```
+WithMessage()
+
+WithName()
+
+OverridePropertyName()
+
+ErrorCode()
+
+Severity()
+
+CustomState()
+```
+
+Proyecto
+
+Errores personalizados para una API REST.
+
+---
+
+## Lección 4 - Cascade Mode
+
+Aprenderás
+
+```
+CascadeMode.Stop
+
+CascadeMode.Continue
+```
+
+y cuándo usar cada uno.
+
+---
+
+# Nivel 2 - Validaciones Avanzadas
+
+## Lección 5 - Validaciones condicionales
+
+```
+When()
+
+Unless()
+
+Otherwise()
+```
+
+Ejemplo
+
+```
+Persona Natural
+
+Persona Jurídica
+```
+
+Si es Jurídica:
+
+```
+NIT obligatorio
+```
+
+Si es Natural
+
+```
+Cédula obligatoria
+```
+
+---
+
+## Lección 6 - Validaciones entre propiedades
+
+Ejemplo
+
+```
+FechaInicio
+
+FechaFin
+```
+
+Regla
+
+```
+FechaFin > FechaInicio
+```
+
+---
+
+## Lección 7 - Validaciones Personalizadas
+
+Aprenderás
+
+```
+Must()
+
+MustAsync()
+
+Custom()
+
+CustomAsync()
+```
+
+Ejemplo
+
+Validar un NIT colombiano.
+
+---
+
+## Lección 8 - Objetos complejos
+
+Ejemplo
+
+```
+Persona
+
+↓
+
+Dirección
+
+↓
+
+Municipio
+
+↓
+
+Departamento
+```
+
+Con
+
+```
+SetValidator()
+```
+
+---
+
+## Lección 9 - Colecciones
+
+```
+Facturas
+
+↓
+
+DetalleFactura
+
+↓
+
+Impuestos
+
+↓
+
+Retenciones
+```
+
+Usando
+
+```
+RuleForEach()
+```
+
+---
+
+# Nivel 3 - Arquitectura Profesional
+
+Aquí es donde normalmente muchos cursos se quedan cortos. Nosotros iremos más allá.
+
+---
+
+## Lección 10 - FluentValidation + Clean Architecture
+
+Veremos exactamente dónde debe ubicarse.
+
+```
+Presentation
+
+↓
+
+Application
+
+↓
+
+Domain
+
+↓
+
+Infrastructure
+```
+
+y por qué.
+
+---
+
+## Lección 11 - FluentValidation + Casos de Uso
+
+Ejemplo
+
+```
+CrearClienteCommand
+```
+
+↓
+
+```
+CrearClienteValidator
+```
+
+↓
+
+```
+CrearClienteHandler
+```
+
+---
+
+## Lección 12 - FluentValidation + MediatR
+
+Construiremos un
+
+```
+ValidationBehavior
+```
+
+que valide automáticamente todos los Commands.
+
+Así el controlador no tendrá que preocuparse por las validaciones.
+
+---
+
+## Lección 13 - FluentValidation + Dependency Injection
+
+Aprenderás a registrar automáticamente todos los Validators.
+
+```
+builder.Services
+       .AddValidatorsFromAssembly(...)
+```
+
+También veremos el ciclo de vida recomendado y cómo mantener los validadores desacoplados.
+
+---
+
+## Lección 14 - Validaciones Asíncronas
+
+Ejemplo
+
+```
+¿Existe el municipio?
+
+¿Existe el departamento?
+
+¿Existe el NIT?
+
+¿Existe el correo?
+```
+
+Usaremos
+
+```
+MustAsync()
+```
+
+con repositorios.
+
+---
+
+## Lección 15 - Reutilización
+
+Cómo evitar duplicar reglas.
+
+Por ejemplo:
+
+```
+Nombre
+
+Correo
+
+Documento
+
+Teléfono
+```
+
+que aparecen en muchas entidades.
+
+---
+
+## Lección 16 - Testing
+
+Aprenderás a probar Validators con pruebas unitarias.
+
+```
+xUnit
+
+FluentValidation.TestHelper
+```
+
+Esto es muy importante para mantener la calidad del código.
+
+---
+
+# Nivel 4 - Proyecto Real (TribuSoft)
+
+Aquí construiremos exactamente tu ERP.
+
+## Persona Natural
+
+```
+CrearPersonaNaturalValidator
+```
+
+Validará
+
+* Nombre
+* Apellidos
+* Documento
+* Municipio
+* Dirección
+* Email
+
+---
+
+## Persona Jurídica
+
+```
+CrearPersonaJuridicaValidator
+```
+
+Validará
+
+* Razón Social
+* NIT
+* Municipio
+* Dirección
+* Representante
+
+---
+
+## Municipio
+
+```
+CrearMunicipioValidator
+```
+
+Validará
+
+* Código DANE
+* Nombre
+* Departamento existente
+
+---
+
+## Departamento
+
+```
+CrearDepartamentoValidator
+```
+
+---
+
+## Factura
+
+Validaremos
+
+* Cliente
+* Detalles
+* IVA
+* Retenciones
+* Totales
+* Reglas de negocio
+
+---
+
+# Nivel 5 - Arquitectura Empresarial
+
+Aquí aprenderás lo que normalmente utilizan arquitectos y equipos senior.
+
+### Validation Pipeline
+
+```
+HTTP
+
+↓
+
+Controller
+
+↓
+
+Validation Pipeline
+
+↓
+
+Logging Pipeline
+
+↓
+
+Performance Pipeline
+
+↓
+
+Authorization Pipeline
+
+↓
+
+Handler
+
+↓
+
+Repository
+```
+
+Esta arquitectura permite que el controlador permanezca muy limpio, ya que la validación, el registro de eventos, la autorización y otras responsabilidades transversales se ejecutan antes de llegar al caso de uso.
+
+---
+
+# Nivel 6 - Buenas prácticas 2026
+
+Veremos:
+
+* Cuándo usar FluentValidation.
+* Cuándo usar Value Objects.
+* Cuándo lanzar una `DomainException`.
+* Cuándo devolver un `ValidationResult`.
+* Cuándo lanzar una `BusinessException`.
+* Cómo integrar FluentValidation con Problem Details (`RFC 9457`) para respuestas HTTP consistentes.
+* Cómo evitar consultas innecesarias a la base de datos durante la validación.
+* Cómo organizar validadores en soluciones grandes.
+
+---
+
+# El resultado final
+
+Al terminar el curso habrás construido una solución profesional como esta:
+
+```text
+TribuSoft.sln
+
+TribuSoft.Api
+│
+├── Controllers
+├── Middlewares
+├── Extensions
+└── Program.cs
+
+TribuSoft.Application
+│
+├── Behaviors
+│   └── ValidationBehavior.cs
+│
+├── Commands
+│
+├── Queries
+│
+├── Validators
+│   ├── CrearPersonaNaturalValidator.cs
+│   ├── CrearPersonaJuridicaValidator.cs
+│   ├── CrearDepartamentoValidator.cs
+│   ├── CrearMunicipioValidator.cs
+│   └── ...
+│
+├── DTOs
+├── Interfaces
+└── Services
+
+TribuSoft.Domain
+│
+├── Entities
+├── ValueObjects
+├── Exceptions
+└── Events
+
+TribuSoft.Infrastructure
+│
+├── Persistence
+├── Repositories
+└── Configurations
+```
+
+## Mi propuesta
+
+En lugar de hacer ejemplos genéricos, construiremos todo sobre **TribuSoft**, usando tus entidades (`PersonaNatural`, `PersonaJuridica`, `Departamento`, `Municipio`, etc.). Así cada lección se convertirá en una pieza reutilizable de tu ERP y, al finalizar el curso, tendrás validaciones listas para un proyecto real y alineadas con las prácticas modernas de .NET 10 y Clean Architecture.
+
+¡Perfecto! Me alegra que continuemos de esta forma. Conociendo las preguntas que me has hecho durante las últimas semanas sobre **.NET 10**, **DDD**, **Clean Architecture**, **EF Core 10** y **TribuSoft**, creo que podemos hacer un curso con un nivel muy cercano al que se espera de un **Software Architect** o un **Senior Backend Developer**.
+
+Mi objetivo no será únicamente enseñarte **FluentValidation**, sino enseñarte **por qué** se hace de esa manera y **qué decisiones arquitectónicas hay detrás**.
+
+---
+
+# Curso: FluentValidation Profesional con .NET 10 (2026)
+
+# Lección 1 - Introducción y Fundamentos
+
+Antes de escribir una sola línea de código, quiero que entiendas **qué problema intenta resolver FluentValidation**.
+
+Muchos desarrolladores aprenden la sintaxis:
+
+```csharp
+RuleFor(x => x.Nombre)
+    .NotEmpty();
+```
+
+Pero nunca entienden el motivo por el cual existe.
+
+Un arquitecto primero entiende el problema y luego la herramienta.
+
+---
+
+# El problema
+
+Supongamos que tienes un API para crear personas.
+
+```
+POST /api/personas
+```
+
+El cliente envía:
+
+```json
+{
+    "nombre": "",
+    "email": "abc",
+    "edad": -10
+}
+```
+
+¿Qué debería pasar?
+
+La API debería responder:
+
+```json
+{
+    "errors": {
+        "nombre": [
+            "El nombre es obligatorio."
+        ],
+        "email": [
+            "El correo no es válido."
+        ],
+        "edad": [
+            "La edad debe ser mayor que cero."
+        ]
+    }
+}
+```
+
+La pregunta es:
+
+> **¿Quién debe detectar esos errores?**
+
+---
+
+# Primera idea (incorrecta)
+
+Muchos programadores hacen esto:
+
+```csharp
+public async Task CrearPersona(CrearPersonaDto dto)
+{
+    if (string.IsNullOrWhiteSpace(dto.Nombre))
+        throw new Exception("Nombre obligatorio");
+
+    if (dto.Edad < 0)
+        throw new Exception("Edad inválida");
+
+    if (!dto.Email.Contains("@"))
+        throw new Exception("Email inválido");
+
+    // guardar...
+}
+```
+
+Parece sencillo.
+
+Pero imagina un ERP como TribuSoft.
+
+---
+
+Crear Persona
+
+```text
+8 validaciones
+```
+
+Actualizar Persona
+
+```text
+9 validaciones
+```
+
+Crear Cliente
+
+```text
+12 validaciones
+```
+
+Crear Proveedor
+
+```text
+15 validaciones
+```
+
+Crear Factura
+
+```text
+25 validaciones
+```
+
+Ahora imagina 300 casos de uso.
+
+Terminarías con miles de líneas de código repetidas.
+
+---
+
+# Segunda idea (tampoco recomendable)
+
+Usar DataAnnotations.
+
+```csharp
+public class PersonaDto
+{
+    [Required]
+    [StringLength(100)]
+    public string Nombre { get; set; }
+
+    [EmailAddress]
+    public string Email { get; set; }
+}
+```
+
+Funciona.
+
+Pero tiene limitaciones.
+
+Por ejemplo...
+
+¿Cómo validas que el municipio exista?
+
+Necesitas consultar la base de datos.
+
+No puedes hacerlo con un atributo.
+
+---
+
+¿Cómo validas que el NIT no exista?
+
+Tampoco.
+
+---
+
+¿Cómo validas que el Departamento exista?
+
+Tampoco.
+
+---
+
+¿Cómo validas usando un Repository?
+
+No puedes.
+
+---
+
+# Entonces aparece FluentValidation
+
+FluentValidation separa completamente las validaciones.
+
+En lugar de mezclar todo:
+
+```
+Controller
+
+↓
+
+Handler
+
+↓
+
+if
+
+↓
+
+if
+
+↓
+
+if
+
+↓
+
+if
+
+↓
+
+if
+
+↓
+
+Repository
+```
+
+Ahora tenemos:
+
+```
+Controller
+      │
+      ▼
+Validator
+      │
+      ▼
+Handler
+      │
+      ▼
+Repository
+```
+
+Esto parece un cambio pequeño.
+
+Pero arquitectónicamente es enorme.
+
+---
+
+# El principio que está respetando
+
+Aquí aparece uno de los principios SOLID.
+
+## SRP (Single Responsibility Principle)
+
+Cada clase debe tener una sola responsabilidad.
+
+Entonces:
+
+### Controller
+
+Responsabilidad
+
+```
+Recibir HTTP
+```
+
+Nada más.
+
+---
+
+### Validator
+
+Responsabilidad
+
+```
+Validar datos de entrada
+```
+
+Nada más.
+
+---
+
+### Handler
+
+Responsabilidad
+
+```
+Ejecutar el caso de uso
+```
+
+Nada más.
+
+---
+
+### Repository
+
+Responsabilidad
+
+```
+Persistir información
+```
+
+Nada más.
+
+Observa cómo cada pieza tiene un objetivo único. Esto hace que el código sea más fácil de mantener, probar y extender.
+
+---
+
+# Flujo correcto en una arquitectura moderna
+
+En TribuSoft construiremos exactamente este flujo:
+
+```text
+                HTTP Request
+                     │
+                     ▼
+             PersonaController
+                     │
+                     ▼
+          CrearPersonaCommand
+                     │
+                     ▼
+     CrearPersonaValidator
+                     │
+        ¿Es válido?
+          │        │
+         No       Sí
+          │        │
+          ▼        ▼
+400 Bad Request   CrearPersonaHandler
+                      │
+                      ▼
+               PersonaRepository
+                      │
+                      ▼
+                  SQL Server
+```
+
+Este flujo tiene una ventaja muy importante.
+
+El `Handler` **nunca recibe datos inválidos**.
+
+Eso simplifica mucho el código del caso de uso.
+
+---
+
+# ¿Qué valida FluentValidation?
+
+Esta es una de las dudas más importantes del curso.
+
+Muchos desarrolladores intentan validar absolutamente todo con FluentValidation.
+
+Eso es un error.
+
+Debemos separar dos conceptos:
+
+## Validaciones de entrada (Application)
+
+Son las que hace FluentValidation.
+
+Ejemplos:
+
+* El nombre es obligatorio.
+* El correo tiene un formato válido.
+* La edad es mayor que cero.
+* El NIT tiene una longitud válida.
+* El código DANE tiene exactamente 5 caracteres.
+* El municipio fue informado.
+* La lista de detalles no está vacía.
+
+Estas validaciones verifican que la solicitud tenga la forma esperada antes de ejecutar el caso de uso.
+
+---
+
+## Reglas del negocio (Domain)
+
+Estas pertenecen al dominio.
+
+Ejemplos:
+
+* Un cliente bloqueado no puede generar facturas.
+* Una factura cerrada no puede modificarse.
+* Un producto descontinuado no puede venderse.
+* Un empleado no puede aprobar su propia solicitud.
+* Una persona jurídica debe tener representante legal.
+
+Estas reglas protegen la consistencia del negocio y deben vivir en las entidades o servicios del dominio, no en los validadores.
+
+---
+
+# Ejemplo aplicado a TribuSoft
+
+Supongamos este comando.
+
+```csharp
+public sealed class CrearPersonaNaturalCommand
+{
+    public string Nombre { get; init; }
+
+    public string PrimerApellido { get; init; }
+
+    public string NumeroDocumento { get; init; }
+
+    public string Email { get; init; }
+
+    public string CodigoMunicipio { get; init; }
+}
+```
+
+¿Qué validará FluentValidation?
+
+✔ Nombre obligatorio.
+
+✔ Apellido obligatorio.
+
+✔ Documento obligatorio.
+
+✔ Documento con longitud válida.
+
+✔ Email válido.
+
+✔ Municipio informado.
+
+¿Qué **no** debería validar?
+
+❌ Si la persona puede celebrar contratos.
+
+❌ Si el cliente tiene cartera vencida.
+
+❌ Si el tercero está suspendido.
+
+❌ Si la empresa está activa.
+
+Esas son reglas del dominio.
+
+---
+
+# ¿Dónde vive el Validator?
+
+En tu solución actual de TribuSoft:
+
+```text
+TribuSoft.Application
+│
+├── Commands
+├── Queries
+├── DTOs
+├── Validators
+│   ├── CrearPersonaNaturalValidator.cs
+│   ├── ActualizarPersonaNaturalValidator.cs
+│   ├── CrearMunicipioValidator.cs
+│   ├── CrearDepartamentoValidator.cs
+│   └── ...
+├── Interfaces
+└── Behaviors
+```
+
+Esta ubicación mantiene la capa **Application** responsable de validar la entrada de los casos de uso, mientras que **Domain** permanece libre de dependencias de FluentValidation.
+
+---
+
+# Lo que aprenderás en la próxima lección
+
+En la **Lección 2** empezaremos a escribir código real.
+
+Construiremos el primer `CrearPersonaNaturalValidator` para TribuSoft y aprenderás en profundidad:
+
+* `AbstractValidator<T>`
+* `RuleFor()`
+* `NotEmpty()`
+* `NotNull()`
+* `Length()`
+* `MinimumLength()`
+* `MaximumLength()`
+* `EmailAddress()`
+* `Matches()`
+* `InclusiveBetween()`
+* `Cascade(CascadeMode.Stop)`
+* `WithMessage()`
+* `WithName()`
+
+No solo veremos la sintaxis: entenderás cuándo usar cada regla, cuándo evitarla y cómo combinarlas para crear validadores limpios, reutilizables y alineados con las mejores prácticas actuales de .NET 10. Con ese conocimiento construiremos el primer validador profesional de **TribuSoft**.
+

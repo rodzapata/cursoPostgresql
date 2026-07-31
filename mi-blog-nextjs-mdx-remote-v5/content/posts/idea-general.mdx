@@ -189,7 +189,7 @@ protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 ```csharp
 public class Tercero
 {
-    public long Id { get; set; }
+    public long Id { get; private set; }
     public string Nit { get; set; } = null!;
     public string PrimerNombre { get; set; } = null!; // Se mapea automáticamente a primer_nombre
     public string? SegundoNombre { get; set; }
@@ -596,6 +596,29 @@ public sealed class Tercero
     public Municipio? Municipio { get; set; }
 }
 ```
+Cuando el Id es una entidad o en Aggregate Root, se recomienda usar:
+
+```csharp
+public long Id { get; private set; }
+
+```
+pero si es un DTO se recomienda,
+Request/Response, Options/Configuration.
+
+```csharp
+public long Id { get; init;}
+```
+
+el codigo completo en Dto seria:
+```csharp
+public record ProductDto
+{
+    public long Id { get; init; }
+
+    public string Name { get; init; } = default!;
+}
+```
+
 
 ¿Y dónde van las restricciones de tamaño (StringLength)?
 Persistence/Configurations

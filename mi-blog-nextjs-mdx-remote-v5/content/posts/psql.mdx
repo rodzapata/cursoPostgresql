@@ -1,0 +1,176 @@
+---
+title: "consola PSQL de Postgres version 18"
+date: "2026-08-05"
+description: "consola PSQL para subir carga masiva"
+slug: "psql"
+category: "postgres"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+# 1. Carga masiva desde la consola
+ejecutamos los siguientes comando desde PSQL para poblar mis tablas
+
+```sql
+\copy state(code, name)
+FROM 'C:\tribusoft\excel\dptos.csv'
+DELIMITER ';'
+CSV HEADER;
+
+\COPY city(
+    code,
+    name,
+	state_code
+)
+FROM 'C:\tribusoft\excel\municipios.csv'
+DELIMITER ';'
+CSV HEADER;
+```
+
+En **psql** (la consola de PostgreSQL), tienes varias formas de limpiar la pantalla según el sistema operativo.
+
+### En Windows
+
+Escribe:
+
+```sql
+\! cls
+```
+
+### En Linux o macOS
+
+Escribe:
+
+```sql
+\! clear
+```
+
+El comando `\!` ejecuta un comando del sistema operativo desde `psql`.
+
+---
+
+### Otra opción (atajo del terminal)
+
+Si estás usando:
+
+* **Windows CMD**: `cls`
+* **PowerShell**: `cls` o `Clear-Host`
+* **Windows Terminal**: `Ctrl + L` (en algunos perfiles)
+* **Git Bash**: `clear` o `Ctrl + L`
+
+> Estos comandos funcionan si no estás dentro de una consulta de `psql`. Si estás en el prompt `postgres=>`, utiliza `\! cls`.
+
+---
+
+### Si quieres cancelar una consulta que quedó incompleta
+
+Si el prompt cambió de:
+
+```text
+postgres=>
+```
+
+a algo como:
+
+```text
+postgres-#
+```
+
+o
+
+```text
+postgres'#
+```
+
+significa que dejaste una sentencia sin terminar. Para cancelarla escribe:
+
+```sql
+\r
+```
+
+Esto limpia el búfer de la consulta y vuelve al prompt normal.
+
+---
+
+Si estás usando **Neon**, **DBeaver** y **psql** en Windows, el comando más útil es:
+
+```sql
+\! cls
+```
+
+que limpia completamente la pantalla de la consola.
+
+
+Lo que quieres desactivar es el **pager** de `psql`, que muestra el mensaje **`--More--`** cuando la salida es más grande que la pantalla.
+
+Tienes varias opciones:
+
+### Opción 1. Desactivar el pager para la sesión actual (recomendado)
+
+Dentro de `psql` ejecuta:
+
+```sql
+\pset pager off
+```
+
+A partir de ese momento, todos los resultados se mostrarán de corrido, sin detenerse en `--More--`.
+
+Para volver a activarlo:
+
+```sql
+\pset pager on
+```
+
+---
+
+### Opción 2. Desactivarlo al iniciar `psql`
+
+En Linux:
+
+```bash
+psql -P pager=off
+```
+
+En Windows (CMD o PowerShell):
+
+```cmd
+psql -P pager=off
+```
+
+---
+
+### Opción 3. Hacerlo permanente
+
+Edita el archivo **`.psqlrc`** y agrega:
+
+```sql
+\pset pager off
+```
+
+Cada vez que abras `psql`, el paginador estará desactivado.
+
+---
+
+## Verificar el estado
+
+Puedes consultar la configuración actual con:
+
+```sql
+\pset
+```
+
+Si el paginador está desactivado, verás algo similar a:
+
+```text
+Pager usage is off.
+```
+
+La opción que normalmente usan los desarrolladores es:
+
+```sql
+\pset pager off
+```
+
+porque evita que aparezca `--More--` mientras consultas tablas con muchos registros.
+

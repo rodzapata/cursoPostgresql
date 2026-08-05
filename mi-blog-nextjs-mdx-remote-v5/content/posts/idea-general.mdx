@@ -287,6 +287,72 @@ CREATE TABLE tercero
 
 ```
 
+La misma estructura pero en ingles seria
+```sql
+-- ===========================================
+-- Table: state
+-- ===========================================
+
+CREATE TABLE state
+(
+    code CHAR(2) NOT NULL,
+    name VARCHAR(80) NOT NULL,
+
+    CONSTRAINT pk_state
+        PRIMARY KEY (code)
+);
+
+-- ===========================================
+-- Table: city
+-- ===========================================
+
+CREATE TABLE city
+(
+    code CHAR(5) NOT NULL,
+    name VARCHAR(120) NOT NULL,
+    state_code CHAR(2) NOT NULL,
+
+    CONSTRAINT pk_city
+        PRIMARY KEY (code),
+
+    CONSTRAINT fk_city_state
+        FOREIGN KEY (state_code)
+        REFERENCES state(code)
+);
+
+-- ===========================================
+-- Table: party
+-- ===========================================
+CREATE TABLE party
+(
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+
+    document_type CHAR(2) NOT NULL,
+    document_number VARCHAR(20) NOT NULL,
+
+    first_last_name VARCHAR(60),
+    second_last_name VARCHAR(60),
+    first_name VARCHAR(60),
+    middle_names VARCHAR(120),
+
+    business_name VARCHAR(200),
+
+    address VARCHAR(130),
+
+    city_code CHAR(5) NOT NULL,
+
+    CONSTRAINT pk_party
+        PRIMARY KEY (id),
+
+    CONSTRAINT uq_party_document
+        UNIQUE (document_number),
+
+    CONSTRAINT fk_party_city
+        FOREIGN KEY (city_code)
+        REFERENCES city(code)
+);
+
+```
 ## escrip de insercion masiva
 
 insertamos de los depatamentos

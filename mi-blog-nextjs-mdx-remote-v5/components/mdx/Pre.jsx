@@ -1,42 +1,44 @@
 'use client'
 
 import { useState } from 'react'
+import { Children, isValidElement } from 'react'
 import { Copy, Check } from 'lucide-react'
 
-function extractCode(children) {
-  if (!children) return ''
-
-  const codeChild = children?.props?.children
-
-  if (typeof codeChild === 'string') return codeChild
-
-  if (Array.isArray(codeChild)) {
-    return codeChild
-      .map((item) => {
-        if (typeof item === 'string') return item
-        if (typeof item?.props?.children === 'string') return item.props.children
-        return ''
-      })
-      .join('')
+function extractCode(node) {
+  if (node == null) {
+    return ''
   }
 
-  if (typeof children === 'string') return children
+  if (typeof node === 'string') {
+    return node
+  }
+
+  if (typeof node === 'number') {
+    return String(node)
+  }
+
+  if (Array.isArray(node)) {
+    return node.map(extractCode).join('')
+  }
+
+  if (isValidElement(node)) {
+    return extractCode(node.props.children)
+  }
 
   return ''
 }
 
 export default function Pre({ children, ...props }) {
   const [copied, setCopied] = useState(false)
-  //console.log(children)
-  console.log(children.props.children)
+
   const code = extractCode(children)
-  console.log(JSON.stringify(code))
 
   async function handleCopy() {
-    if (!code) return
+    if (!code.trim()) return
 
     try {
       await navigator.clipboard.writeText(code)
+
       setCopied(true)
 
       setTimeout(() => {

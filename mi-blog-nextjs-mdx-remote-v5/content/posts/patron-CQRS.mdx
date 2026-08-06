@@ -1,0 +1,2363 @@
+---
+title: "Patron CQRS"
+date: "2026-08-06"
+description: "Patron CQRS y MediatR no es lo mismo"
+slug: "patron-CQRS"
+category: "clean Arquitecture"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+**Referencia de estudio en CQRS**
+Patron CQRS explicado faci [CQRS por NetMentor](https://www.youtube.com/watch?v=DJCWpUVf5E0)
+
+
+Si hoy vas a desarrollar una **API REST con .NET 10**, **CQRS + MediatR** sigue siendo uno de los patrones más utilizados, especialmente en proyectos que usan **Clean Architecture**.
+
+Sin embargo, hay algo importante que debes saber:
+
+> **CQRS y MediatR NO son lo mismo.**
+
+Mucha gente los confunde porque normalmente se usan juntos.
+
+---
+
+# Primero entendamos el problema
+
+Supongamos que tienes una API para un ERP.
+
+Tienes este controlador:
+
+```csharp
+[ApiController]
+[Route("api/customers")]
+public class CustomersController : ControllerBase
+{
+    private readonly AppDbContext _context;
+
+    public CustomersController(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Get()
+    {
+        var customers = await _context.Customers.ToListAsync();
+
+        return Ok(customers);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create(CreateCustomerDto dto)
+    {
+        var customer = new Customer(dto.Name);
+
+        _context.Customers.Add(customer);
+
+        await _context.SaveChangesAsync();
+
+        return Ok(customer);
+    }
+}
+```
+
+Parece sencillo.
+
+Pero imagina que después agregas:
+
+* Validaciones
+* Logging
+* Auditoría
+* Cache
+* Envío de emails
+* Eventos de dominio
+* Autorización
+* Reglas de negocio
+
+Ahora el controlador termina con 400 líneas.
+
+Aquí aparece CQRS.
+
+---
+
+# ¿Qué significa CQRS?
+
+CQRS significa
+
+> **Command Query Responsibility Segregation**
+
+Fue propuesto por Greg Young.
+
+La idea es muy simple.
+
+Separar completamente:
+
+* Escritura (Commands)
+* Lectura (Queries)
+
+No mezclar ambas responsabilidades.
+
+---
+
+## Sin CQRS
+
+```
+Controller
+
+      │
+      ▼
+
+ CustomerService
+
+   ├── Get()
+   ├── GetById()
+   ├── Create()
+   ├── Update()
+   ├── Delete()
+```
+
+Todo termina dentro del mismo servicio.
+
+---
+
+## Con CQRS
+
+```
+Controller
+
+      │
+
+      ▼
+
+Mediator
+
+      │
+
+ ┌───────────────┐
+ │               │
+ ▼               ▼
+
+Commands      Queries
+
+(Create)      (Get)
+
+(Update)      (GetById)
+
+(Delete)
+```
+
+Cada operación vive en su propio archivo.
+
+---
+
+# ¿Qué es un Command?
+
+Un Command representa una acción.
+
+Nunca devuelve listas enormes.
+
+Normalmente devuelve:
+
+* bool
+* Guid
+* int
+* Result
+
+Ejemplo:
+
+```
+Crear Cliente
+```
+
+Eso modifica la base de datos.
+
+Por lo tanto es un Command.
+
+---
+
+# ¿Qué es una Query?
+
+Una Query solamente consulta información.
+
+Nunca modifica datos.
+
+Ejemplo:
+
+```
+Obtener cliente
+
+Obtener factura
+
+Obtener productos
+```
+
+---
+
+# Estructura típica
+
+```
+Application
+
+    Customers
+
+        Commands
+
+            CreateCustomer
+
+                CreateCustomerCommand.cs
+
+                CreateCustomerHandler.cs
+
+                CreateCustomerValidator.cs
+
+        Queries
+
+            GetCustomer
+
+                GetCustomerQuery.cs
+
+                GetCustomerHandler.cs
+```
+
+Cada caso de uso queda completamente aislado.
+
+---
+
+# ¿Dónde entra MediatR?
+
+Aquí es donde muchos se confunden.
+
+**MediatR NO implementa CQRS.**
+
+MediatR implementa el patrón **Mediator**.
+
+Su trabajo es recibir un mensaje y encontrar quién debe procesarlo.
+
+Piensa en un recepcionista.
+
+```
+Cliente
+
+   │
+
+   ▼
+
+Recepcionista
+
+   │
+
+   ▼
+
+Empleado correcto
+```
+
+El controlador nunca conoce el Handler.
+
+Solo conoce al Mediator.
+
+---
+
+# Flujo completo
+
+```
+Cliente HTTP
+
+      │
+
+      ▼
+
+Controller
+
+      │
+
+      ▼
+
+IMediator.Send()
+
+      │
+
+      ▼
+
+CreateCustomerHandler
+
+      │
+
+      ▼
+
+Repository
+
+      │
+
+      ▼
+
+SQL Server
+```
+
+---
+
+# Ejemplo práctico
+
+Supongamos esta petición.
+
+```
+POST
+
+/api/customers
+```
+
+Body
+
+```json
+{
+    "name":"Juan"
+}
+```
+
+---
+
+## Paso 1
+
+Creamos el Command.
+
+```csharp
+using MediatR;
+
+public record CreateCustomerCommand(string Name)
+    : IRequest<int>;
+```
+
+El `IRequest<int>` significa que el Handler devolverá un `int` (por ejemplo, el Id del cliente creado).
+
+---
+
+## Paso 2
+
+Creamos el Handler.
+
+```csharp
+using MediatR;
+
+public class CreateCustomerHandler
+    : IRequestHandler<CreateCustomerCommand, int>
+{
+    private readonly AppDbContext _context;
+
+    public CreateCustomerHandler(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<int> Handle(
+        CreateCustomerCommand request,
+        CancellationToken cancellationToken)
+    {
+        var customer = new Customer(request.Name);
+
+        _context.Customers.Add(customer);
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return customer.Id;
+    }
+}
+```
+
+Toda la lógica del caso de uso vive aquí.
+
+---
+
+## Paso 3
+
+El controlador queda extremadamente limpio.
+
+```csharp
+[HttpPost]
+public async Task<IActionResult> Create(
+    CreateCustomerCommand command)
+{
+    var id = await _mediator.Send(command);
+
+    return Ok(id);
+}
+```
+
+Eso es todo.
+
+El controlador no sabe:
+
+* EF Core
+* SQL
+* Repository
+* Validaciones
+
+Solo envía el mensaje.
+
+---
+
+# Ejemplo de Query
+
+```csharp
+public record GetCustomerQuery(int Id)
+    : IRequest<CustomerDto>;
+```
+
+Handler
+
+```csharp
+public class GetCustomerHandler
+    : IRequestHandler<GetCustomerQuery, CustomerDto>
+{
+    private readonly AppDbContext _context;
+
+    public GetCustomerHandler(AppDbContext context)
+    {
+    _context = context;
+    }
+
+    public async Task<CustomerDto> Handle(
+        GetCustomerQuery request,
+        CancellationToken cancellationToken)
+    {
+        return await _context.Customers
+            .Where(x => x.Id == request.Id)
+            .Select(x => new CustomerDto
+            {
+                Id = x.Id,
+                Name = x.Name
+            })
+            .FirstAsync(cancellationToken);
+    }
+}
+```
+
+---
+
+Controller
+
+```csharp
+[HttpGet("{id}")]
+public async Task<IActionResult> Get(int id)
+{
+    var customer = await _mediator.Send(
+        new GetCustomerQuery(id));
+
+    return Ok(customer);
+}
+```
+
+---
+
+# ¿Cómo sabe MediatR qué Handler ejecutar?
+
+Porque ambos implementan la misma interfaz.
+
+```
+CreateCustomerCommand
+
+↓
+
+IRequest<int>
+```
+
+y
+
+```
+CreateCustomerHandler
+
+↓
+
+IRequestHandler<CreateCustomerCommand,int>
+```
+
+Cuando llamas:
+
+```csharp
+await _mediator.Send(command);
+```
+
+MediatR busca automáticamente el `IRequestHandler<CreateCustomerCommand, int>` registrado en el contenedor de dependencias y ejecuta su método `Handle`.
+
+---
+
+# Lo mejor de MediatR: Pipeline Behaviors
+
+Aquí está la verdadera potencia.
+
+Puedes ejecutar lógica **antes** y **después** de cada Handler.
+
+```
+Controller
+
+      │
+
+      ▼
+
+Logging
+
+      │
+
+      ▼
+
+Validation
+
+      │
+
+      ▼
+
+Performance
+
+      │
+
+      ▼
+
+Authorization
+
+      │
+
+      ▼
+
+Handler
+
+      │
+
+      ▼
+
+Response
+```
+
+Ninguno de los Handlers necesita repetir esa lógica.
+
+---
+
+## Ejemplo
+
+```csharp
+public class LoggingBehavior<TRequest, TResponse>
+    : IPipelineBehavior<TRequest, TResponse>
+{
+    public async Task<TResponse> Handle(
+        TRequest request,
+        RequestHandlerDelegate<TResponse> next,
+        CancellationToken cancellationToken)
+    {
+        Console.WriteLine($"Inicio: {typeof(TRequest).Name}");
+
+        var response = await next();
+
+        Console.WriteLine($"Fin: {typeof(TRequest).Name}");
+
+        return response;
+    }
+}
+```
+
+Cada vez que envíes un Command o Query, el comportamiento registrará el inicio y el fin de la ejecución, sin modificar los Handlers.
+
+---
+
+# ¿Dónde viven los archivos en Clean Architecture?
+
+Una estructura habitual sería:
+
+```text
+Solution
+│
+├── Api
+│     CustomersController
+│
+├── Application
+│     Customers
+│         Commands
+│             CreateCustomer
+│                 CreateCustomerCommand.cs
+│                 CreateCustomerHandler.cs
+│                 CreateCustomerValidator.cs
+│
+│         Queries
+│             GetCustomer
+│                 GetCustomerQuery.cs
+│                 GetCustomerHandler.cs
+│
+│     Behaviors
+│         ValidationBehavior.cs
+│         LoggingBehavior.cs
+│         PerformanceBehavior.cs
+│
+├── Domain
+│     Customer.cs
+│
+└── Infrastructure
+      AppDbContext.cs
+      CustomerRepository.cs
+```
+
+---
+
+# ¿Es obligatorio usar MediatR para aplicar CQRS?
+
+No.
+
+Puedes implementar CQRS sin MediatR, llamando directamente a servicios o clases de caso de uso. Sin embargo, MediatR simplifica el desacoplamiento entre los controladores y la lógica de aplicación, además de facilitar la incorporación de comportamientos transversales mediante *pipeline behaviors*.
+
+---
+
+# ¿Sigue siendo recomendable en .NET 10?
+
+Sí, pero con criterio:
+
+* **Proyectos pequeños o CRUD sencillos**: usar solo servicios de aplicación suele ser suficiente; introducir CQRS + MediatR puede añadir complejidad innecesaria.
+* **ERPs, sistemas empresariales, APIs grandes o con reglas de negocio complejas**: CQRS + MediatR ofrece una organización mucho más clara, facilita las pruebas unitarias y permite escalar el código con menor acoplamiento.
+
+Dado que en conversaciones anteriores has mencionado que estás construyendo un **ERP en .NET 10 con Clean Architecture**, esta combinación encaja muy bien con ese tipo de proyecto.
+
+En ese contexto, una pila moderna y muy utilizada sería:
+
+* **ASP.NET Core 10**
+* **CQRS**
+* **MediatR**
+* **FluentValidation**
+* **EF Core 10**
+* **Repository (solo si aporta valor; no es obligatorio sobre EF Core)**
+* **Pipeline Behaviors** para validación, logging, manejo de excepciones y métricas
+* **Domain Events** cuando la lógica de negocio lo requiera
+
+Esta arquitectura mantiene cada caso de uso aislado, facilita el mantenimiento y hace que el proyecto crezca de forma ordenada.
+
+# 2. Patron Mediator
+
+El patrón **Mediator** es uno de los patrones de comportamiento (*Behavioral Design Patterns*) definidos por el **Gang of Four (GoF)**.
+
+Su objetivo es muy sencillo:
+
+> **Permitir que varios objetos se comuniquen entre sí sin conocerse directamente.**
+
+En lugar de que los objetos hablen entre ellos, **todos hablan con un intermediario (Mediator)**.
+
+Una analogía muy útil es la de una **torre de control en un aeropuerto**.
+
+* Los aviones **no se comunican entre sí**.
+* Todos se comunican con la **torre de control**.
+* La torre decide qué hacer con cada mensaje.
+
+---
+
+# Problema sin Mediator
+
+Supongamos un sistema de pedidos.
+
+Tenemos estas clases:
+
+* OrderService
+* InventoryService
+* PaymentService
+* EmailService
+* InvoiceService
+
+Cuando se crea un pedido, ocurre esto:
+
+```text
+OrderService
+     │
+     ├────────► InventoryService
+     │
+     ├────────► PaymentService
+     │
+     ├────────► InvoiceService
+     │
+     └────────► EmailService
+```
+
+Ahora imagina que cambias el proceso.
+
+Por ejemplo:
+
+Después del pago quieres enviar un SMS.
+
+Entonces debes modificar:
+
+* OrderService
+* PaymentService
+* EmailService
+
+Cada servicio termina conociendo demasiadas cosas.
+
+Eso genera:
+
+* Alto acoplamiento
+* Código difícil de mantener
+* Muchas dependencias
+
+---
+
+# Con Mediator
+
+Ahora todos hablan con un intermediario.
+
+```text
+                 Mediator
+              /     |      \
+             /      |       \
+            /       |        \
+ Inventory  Payment Email  Invoice
+
+              ▲
+              │
+        OrderService
+```
+
+Ahora **OrderService no conoce** a:
+
+* PaymentService
+* EmailService
+* InventoryService
+* InvoiceService
+
+Solo conoce al Mediator.
+
+---
+
+# Ejemplo cotidiano
+
+Imagina una empresa.
+
+Sin Mediator:
+
+```text
+Empleado A
+
+↓
+
+Empleado B
+
+↓
+
+Empleado C
+
+↓
+
+Empleado D
+```
+
+Todos llaman a todos.
+
+Después de unos meses nadie entiende quién habla con quién.
+
+---
+
+Con Mediator.
+
+```text
+Empleado
+
+↓
+
+Recepcionista
+
+↓
+
+Persona correcta
+```
+
+El empleado únicamente habla con la recepcionista.
+
+La recepcionista decide quién atiende la solicitud.
+
+Eso mismo hace MediatR.
+
+---
+
+# Ejemplo práctico en .NET 10
+
+Supongamos un API.
+
+Tenemos este controlador.
+
+```csharp
+public class CustomerController : ControllerBase
+{
+    private readonly CustomerService _service;
+
+    public CustomerController(CustomerService service)
+    {
+        _service = service;
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create(CreateCustomerDto dto)
+    {
+        await _service.Create(dto);
+
+        return Ok();
+    }
+}
+```
+
+Hasta aquí no hay Mediator.
+
+---
+
+## ¿Qué hace CustomerService?
+
+```text
+CustomerService
+
+│
+
+├── Repository
+
+├── EmailService
+
+├── SmsService
+
+├── AuditService
+
+├── Logger
+
+├── Cache
+
+├── EventBus
+```
+
+Tiene demasiadas responsabilidades.
+
+---
+
+# Ahora usando Mediator
+
+El controlador cambia.
+
+```csharp
+public class CustomerController : ControllerBase
+{
+    private readonly IMediator _mediator;
+
+    public CustomerController(IMediator mediator)
+    {
+        _mediator = mediator;
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create(CreateCustomerCommand command)
+    {
+        await _mediator.Send(command);
+
+        return Ok();
+    }
+}
+```
+
+El controlador ya no conoce ningún servicio.
+
+Solo conoce:
+
+```text
+IMediator
+```
+
+---
+
+# ¿Qué ocurre cuando llamamos Send()?
+
+```csharp
+await _mediator.Send(command);
+```
+
+Internamente ocurre algo parecido a esto.
+
+```text
+Controller
+
+    │
+
+    ▼
+
+Mediator
+
+    │
+
+Busca quién maneja
+
+CreateCustomerCommand
+
+    │
+
+    ▼
+
+CreateCustomerHandler
+
+    │
+
+    ▼
+
+Ejecuta Handle()
+```
+
+El controlador nunca crea el Handler.
+
+Nunca lo instancia.
+
+Nunca sabe que existe.
+
+---
+
+# El Command
+
+```csharp
+public record CreateCustomerCommand(string Name)
+    : IRequest<int>;
+```
+
+Este objeto representa una petición.
+
+No tiene lógica.
+
+Solo datos.
+
+---
+
+# El Handler
+
+```csharp
+public class CreateCustomerHandler
+    : IRequestHandler<CreateCustomerCommand, int>
+{
+    private readonly AppDbContext _context;
+
+    public CreateCustomerHandler(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<int> Handle(
+        CreateCustomerCommand request,
+        CancellationToken cancellationToken)
+    {
+        var customer = new Customer(request.Name);
+
+        _context.Customers.Add(customer);
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return customer.Id;
+    }
+}
+```
+
+Toda la lógica vive aquí.
+
+---
+
+# Entonces...
+
+Cuando haces:
+
+```csharp
+await _mediator.Send(command);
+```
+
+MediatR busca automáticamente este Handler.
+
+```text
+CreateCustomerCommand
+
+↓
+
+CreateCustomerHandler
+```
+
+Y ejecuta:
+
+```csharp
+Handle()
+```
+
+---
+
+# Otro ejemplo
+
+Supongamos una consulta.
+
+```csharp
+var customer =
+    await _mediator.Send(
+        new GetCustomerQuery(15));
+```
+
+¿Qué hace MediatR?
+
+Busca.
+
+```text
+GetCustomerQuery
+
+↓
+
+GetCustomerHandler
+```
+
+Ejecuta:
+
+```text
+Handle()
+```
+
+Devuelve el resultado.
+
+---
+
+# ¿Cómo sabe MediatR qué Handler usar?
+
+Porque ambos implementan interfaces relacionadas.
+
+```csharp
+public record GetCustomerQuery(int Id)
+    : IRequest<CustomerDto>;
+```
+
+y
+
+```csharp
+public class GetCustomerHandler
+    : IRequestHandler<GetCustomerQuery, CustomerDto>
+{
+}
+```
+
+La relación entre el tipo de la solicitud (`GetCustomerQuery`) y el tipo del `Handler` permite que MediatR encuentre automáticamente el manejador correcto mediante el contenedor de inyección de dependencias.
+
+---
+
+# Otro ejemplo muy claro
+
+Piensa en WhatsApp.
+
+Cuando escribes:
+
+```text
+Hola Juan
+```
+
+No envías el mensaje directamente al celular de Juan.
+
+Sucede algo parecido a esto.
+
+```text
+Tú
+
+↓
+
+Servidor de WhatsApp
+
+↓
+
+Juan
+```
+
+El servidor actúa como Mediator.
+
+---
+
+# Otro ejemplo: un restaurante
+
+Sin Mediator.
+
+```text
+Cliente
+
+↓
+
+Cocinero
+
+↓
+
+Caja
+
+↓
+
+Mesero
+```
+
+Todos hablan con todos.
+
+Es un caos.
+
+---
+
+Con Mediator.
+
+```text
+Cliente
+
+↓
+
+Mesero
+
+↓
+
+Cocina
+
+↓
+
+Caja
+```
+
+El cliente solo habla con el mesero.
+
+El mesero coordina todo.
+
+El mesero es el Mediator.
+
+---
+
+# Ventajas del patrón Mediator
+
+* **Reduce el acoplamiento:** las clases no necesitan conocerse entre sí.
+* **Facilita el mantenimiento:** cambiar una clase suele afectar menos al resto.
+* **Mejora la organización:** cada acción tiene un único responsable.
+* **Facilita las pruebas unitarias:** puedes probar cada `Handler` de forma aislada.
+* **Permite añadir comportamientos transversales:** logging, validación, autorización, métricas o manejo de excepciones mediante *pipeline behaviors* sin modificar la lógica de negocio.
+
+---
+
+# ¿Mediator es igual a MediatR?
+
+No.
+
+**Mediator** es un **patrón de diseño**.
+
+**MediatR** es una **biblioteca para .NET** que implementa ese patrón.
+
+La relación es similar a estas:
+
+| Patrón               | Implementación                             |
+| -------------------- | ------------------------------------------ |
+| Dependency Injection | `Microsoft.Extensions.DependencyInjection` |
+| Logging              | `Microsoft.Extensions.Logging`             |
+| Mediator             | **MediatR**                                |
+
+---
+
+# ¿Cuándo conviene usar Mediator?
+
+Es una excelente opción cuando tienes aplicaciones con muchos casos de uso y quieres mantener los controladores muy delgados. En proyectos con **Clean Architecture**, DDD o CQRS (como un ERP desarrollado en .NET 10), es habitual que cada caso de uso tenga su propio `Command` o `Query` y su correspondiente `Handler`.
+
+Para un CRUD muy pequeño, un servicio de aplicación puede ser suficiente. Pero a medida que la aplicación crece, el patrón Mediator ayuda a evitar clases gigantes y dependencias innecesarias.
+
+## La idea clave que debes recordar
+
+El patrón **Mediator** no ejecuta la lógica de negocio por sí mismo.
+
+Su única responsabilidad es **recibir una solicitud y entregarla al objeto adecuado**.
+
+```text
+Sin Mediator
+
+Controller
+      │
+      ├── CustomerService
+      ├── EmailService
+      ├── AuditService
+      ├── CacheService
+      └── Logger
+
+Con Mediator
+
+Controller
+      │
+      ▼
+   IMediator
+      │
+      ▼
+CreateCustomerHandler
+```
+
+Ese desacoplamiento es precisamente la razón por la que MediatR se ha convertido en una pieza muy común en aplicaciones modernas de ASP.NET Core.
+
+# 3. Handler
+
+El **Handler** es el corazón de MediatR y de CQRS. Si entiendes qué hace un `Handler`, prácticamente habrás entendido cómo funciona MediatR.
+
+---
+
+# ¿Qué es un Handler?
+
+Un **Handler** es simplemente una clase cuya única responsabilidad es **ejecutar un caso de uso**.
+
+Por ejemplo:
+
+* Crear un cliente
+* Eliminar un producto
+* Obtener una factura
+* Actualizar un empleado
+
+Cada acción de tu sistema tiene su propio Handler.
+
+Piensa en él como un **especialista**.
+
+---
+
+## Analogía de un hospital
+
+Imagina un hospital.
+
+Llega un paciente.
+
+No lo atienden todos los médicos.
+
+Primero pasa por recepción.
+
+```text
+Paciente
+
+    │
+
+Recepción
+
+    │
+
+Busca especialista
+
+    │
+
+Cardiólogo
+```
+
+El paciente no sabe quién es el cardiólogo.
+
+Solo llega a recepción.
+
+Eso mismo ocurre con MediatR.
+
+```text
+Controller
+
+    │
+
+Mediator
+
+    │
+
+Handler
+```
+
+El Controller nunca conoce el Handler.
+
+---
+
+**Veamos un ejemplo real**
+
+Supongamos que tienes una API.
+
+Quieres crear un cliente.
+
+El usuario envía:
+
+```http
+POST /api/customers
+```
+
+con este JSON.
+
+```json
+{
+    "name":"Rodney"
+}
+```
+
+---
+
+# Paso 1
+
+El Controller recibe la petición.
+
+```csharp
+[HttpPost]
+public async Task<IActionResult> Create(
+    CreateCustomerCommand command)
+{
+    var id = await _mediator.Send(command);
+
+    return Ok(id);
+}
+```
+
+Hasta aquí no hay ninguna lógica.
+
+Solo recibe el Command.
+
+---
+
+# Paso 2
+
+El Controller llama a MediatR.
+
+```csharp
+await _mediator.Send(command);
+```
+
+Aquí ocurre la magia.
+
+---
+
+# Paso 3
+
+MediatR busca el Handler correspondiente.
+
+```text
+CreateCustomerCommand
+
+↓
+
+CreateCustomerHandler
+```
+
+¿Cómo lo sabe?
+
+Porque el Handler implementa esta interfaz.
+
+```csharp
+IRequestHandler<CreateCustomerCommand, int>
+```
+
+---
+
+# Paso 4
+
+MediatR ejecuta automáticamente
+
+```csharp
+Handle(...)
+```
+
+Aquí empieza realmente el trabajo.
+
+---
+
+# Analicemos el Handler
+
+```csharp
+public class CreateCustomerHandler
+    : IRequestHandler<CreateCustomerCommand, int>
+{
+}
+```
+
+Veamos cada parte.
+
+---
+
+## Primera línea
+
+```csharp
+public class CreateCustomerHandler
+```
+
+Es una clase normal.
+
+No tiene nada especial.
+
+---
+
+## Segunda línea
+
+```csharp
+IRequestHandler<CreateCustomerCommand, int>
+```
+
+Aquí le estás diciendo a MediatR:
+
+> "Yo soy el encargado de procesar CreateCustomerCommand."
+
+Y además:
+
+```text
+Devuelvo un int
+```
+
+Ese `int` será el Id del nuevo cliente.
+
+---
+
+# Constructor
+
+```csharp
+private readonly AppDbContext _context;
+
+public CreateCustomerHandler(
+    AppDbContext context)
+{
+    _context = context;
+}
+```
+
+Aquí usamos Inyección de Dependencias.
+
+El Handler recibe lo que necesita.
+
+Puede recibir:
+
+* DbContext
+* Repository
+* Logger
+* EmailService
+* Cache
+* etc.
+
+No necesita conocer al Controller.
+
+---
+
+# El método Handle()
+
+Aquí ocurre todo.
+
+```csharp
+public async Task<int> Handle(
+    CreateCustomerCommand request,
+    CancellationToken cancellationToken)
+{
+}
+```
+
+Veamos parámetro por parámetro.
+
+---
+
+## request
+
+```csharp
+CreateCustomerCommand request
+```
+
+Aquí llega toda la información enviada por el usuario.
+
+Si el usuario envía
+
+```json
+{
+    "name":"Rodney"
+}
+```
+
+Entonces
+
+```csharp
+request.Name
+```
+
+vale
+
+```text
+Rodney
+```
+
+---
+
+## cancellationToken
+
+```csharp
+CancellationToken
+```
+
+Sirve para cancelar operaciones largas.
+
+Por ejemplo.
+
+Si el usuario cierra el navegador.
+
+ASP.NET cancela la petición.
+
+Entonces EF Core también cancela el SQL.
+
+---
+
+# Ahora viene la lógica
+
+```csharp
+var customer =
+    new Customer(request.Name);
+```
+
+Aquí estamos creando la entidad.
+
+Antes.
+
+```text
+No existía ningún Customer.
+```
+
+Ahora sí.
+
+```text
+Customer
+
+Id = 0
+
+Name = Rodney
+```
+
+---
+
+Después.
+
+```csharp
+_context.Customers.Add(customer);
+```
+
+Esto NO guarda en la base de datos.
+
+Solo le dice a EF.
+
+```text
+Este objeto será insertado.
+```
+
+---
+
+Finalmente.
+
+```csharp
+await _context.SaveChangesAsync();
+```
+
+Aquí sí ocurre el INSERT.
+
+```sql
+INSERT INTO Customers
+(
+    Name
+)
+VALUES
+(
+    'Rodney'
+)
+```
+
+---
+
+Después.
+
+```csharp
+return customer.Id;
+```
+
+EF obtiene el Id generado.
+
+Por ejemplo.
+
+```text
+15
+```
+
+Ese valor vuelve al Controller.
+
+---
+
+**Todo el recorrido**
+
+Veámoslo completo.
+
+**El usuario**
+
+```text
+POST
+
+/api/customers
+```
+
+↓
+
+Controller
+
+```csharp
+_mediator.Send(command);
+```
+
+↓
+
+Mediator
+
+```text
+Busca
+
+CreateCustomerHandler
+```
+
+↓
+
+Handler
+
+```csharp
+Handle(...)
+```
+
+↓
+
+EF Core
+
+```sql
+INSERT
+```
+
+↓
+
+SQL Server
+
+↓
+
+Handler
+
+```text
+Id = 15
+```
+
+↓
+
+Mediator
+
+↓
+
+Controller
+
+↓
+
+Cliente
+
+```json
+15
+```
+
+---
+
+**Otro ejemplo**
+
+Supongamos ahora un Query.
+
+```http
+GET
+
+/api/customers/15
+```
+
+El Controller.
+
+```csharp
+var customer =
+    await _mediator.Send(
+        new GetCustomerQuery(15));
+```
+
+MediatR hace.
+
+```text
+GetCustomerQuery
+
+↓
+
+GetCustomerHandler
+```
+
+El Handler.
+
+```csharp
+public class GetCustomerHandler
+    : IRequestHandler<GetCustomerQuery, CustomerDto>
+{
+    private readonly AppDbContext _context;
+
+    public GetCustomerHandler(
+        AppDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<CustomerDto> Handle(
+        GetCustomerQuery request,
+        CancellationToken cancellationToken)
+    {
+        return await _context.Customers
+            .Where(x => x.Id == request.Id)
+            .Select(x => new CustomerDto
+            {
+                Id = x.Id,
+                Name = x.Name
+            })
+            .FirstAsync(cancellationToken);
+    }
+}
+```
+
+Aquí el Handler no inserta.
+
+Solo consulta.
+
+---
+
+# ¿Por qué cada Handler hace una sola cosa?
+
+Imagina este Handler.
+
+```csharp
+public class CustomerHandler
+{
+    public void Create(){}
+
+    public void Update(){}
+
+    public void Delete(){}
+
+    public void Get(){}
+
+    public void GetAll(){}
+
+    public void Login(){}
+
+    public void ExportExcel(){}
+
+    public void ImportExcel(){}
+}
+```
+
+Después de unos meses tendrá cientos o miles de líneas y será difícil de mantener.
+
+Con MediatR cada caso de uso vive en un Handler independiente:
+
+```text
+CreateCustomerHandler
+
+↓
+
+Una sola responsabilidad
+```
+
+```text
+UpdateCustomerHandler
+
+↓
+
+Otra responsabilidad
+```
+
+```text
+DeleteCustomerHandler
+
+↓
+
+Otra responsabilidad
+```
+
+```text
+GetCustomerHandler
+
+↓
+
+Otra responsabilidad
+```
+
+Cada clase suele tener entre 20 y 80 líneas, lo que facilita leer, probar y modificar el código.
+
+---
+
+# Una analogía que ayuda mucho
+
+Piensa en un restaurante.
+
+**El cliente** hace un pedido:
+
+> "Quiero una hamburguesa."
+
+El cliente no entra a la cocina ni habla con el cocinero.
+
+El flujo es:
+
+```text
+Cliente
+
+↓
+
+Mesero
+
+↓
+
+Cocinero
+
+↓
+
+Mesero
+
+↓
+
+Cliente
+```
+
+En MediatR:
+
+* **Cliente** → Usuario de la API.
+* **Mesero** → `IMediator`.
+* **Pedido** → `CreateCustomerCommand`.
+* **Cocinero** → `CreateCustomerHandler`.
+
+El mesero no cocina; solo entrega el pedido al cocinero correcto. De la misma forma, **MediatR no contiene la lógica de negocio**, solo localiza el `Handler` adecuado y ejecuta su método `Handle()`.
+
+## ¿Qué aprenderemos después?
+
+Una vez que entiendes el `Handler`, el siguiente paso natural es comprender los **Pipeline Behaviors**, porque en realidad **MediatR ejecuta varios `Handle()` en cadena** (validación, logging, autorización, manejo de excepciones, etc.) antes de llegar al `Handler` principal. Esa es una de las características más potentes de MediatR en aplicaciones empresariales con .NET 10.
+
+dame ejemplos prácticos de  Integración con la API (ProblemDetails)
+ mapeando el objeto Error al estándar RFC 7807
+
+Si estás desarrollando una **Web API con .NET 10 + Clean Architecture + CQRS**, una de las mejores prácticas actuales es **no devolver excepciones directamente al cliente**.
+
+En su lugar:
+
+1. El dominio devuelve un objeto `Error`.
+2. La capa API convierte ese `Error` a un **ProblemDetails**.
+3. El cliente recibe una respuesta compatible con el estándar **RFC 7807**.
+
+Esto hace que tu API sea consistente, fácil de consumir y compatible con herramientas como Swagger, Postman y clientes frontend.
+
+---
+
+**¿Qué es RFC 7807?**
+
+RFC 7807 define un formato estándar para representar errores HTTP.
+
+En lugar de responder:
+
+```json
+{
+    "message": "Customer not found"
+}
+```
+
+Se responde:
+
+```json
+{
+    "type": "https://httpstatuses.com/404",
+    "title": "Customer not found",
+    "status": 404,
+    "detail": "Customer with Id 25 does not exist.",
+    "instance": "/api/customers/25"
+}
+```
+
+ASP.NET Core ya tiene una clase para esto.
+
+```csharp
+ProblemDetails
+```
+
+---
+
+# Ejemplo 1
+
+## Cliente no encontrado
+
+Supongamos este endpoint.
+
+```http
+GET /api/customers/50
+```
+
+Pero el cliente no existe.
+
+---
+
+## En el Dominio
+
+Creamos un Error.
+
+```csharp
+public record Error(
+    string Code,
+    string Description);
+```
+
+Y una clase de errores.
+
+```csharp
+public static class CustomerErrors
+{
+    public static readonly Error NotFound =
+        new(
+            "Customer.NotFound",
+            "Customer was not found.");
+}
+```
+
+---
+
+## El Handler
+
+```csharp
+public async Task<Result<CustomerDto>> Handle(
+    GetCustomerQuery request,
+    CancellationToken cancellationToken)
+{
+    var customer = await _context.Customers
+        .FindAsync(request.Id);
+
+    if (customer is null)
+        return Result.Failure<CustomerDto>(
+            CustomerErrors.NotFound);
+
+    return customer.ToDto();
+}
+```
+
+Observa que:
+
+No lanza
+
+```csharp
+throw new Exception();
+```
+
+Devuelve un Error.
+
+---
+
+## En la API
+
+Ahora convertimos ese Error.
+
+```csharp
+public static IResult ToProblem(Result result)
+{
+    if (result.IsSuccess)
+        return Results.Ok();
+
+    return Results.Problem(
+        title: result.Error.Code,
+        detail: result.Error.Description,
+        statusCode: StatusCodes.Status404NotFound);
+}
+```
+
+---
+
+## El cliente recibe
+
+```json
+{
+    "type":"https://tools.ietf.org/html/rfc9110#section-15.5.5",
+    "title":"Customer.NotFound",
+    "status":404,
+    "detail":"Customer was not found."
+}
+```
+
+Eso es RFC 7807.
+
+---
+
+# Ejemplo 2
+
+## Producto duplicado
+
+Supongamos.
+
+```http
+POST
+
+/api/products
+```
+
+Body.
+
+```json
+{
+    "code":"P001"
+}
+```
+
+Pero ese código ya existe.
+
+---
+
+## Error
+
+```csharp
+public static class ProductErrors
+{
+    public static readonly Error DuplicateCode =
+        new(
+            "Product.DuplicateCode",
+            "Product code already exists.");
+}
+```
+
+---
+
+Handler.
+
+```csharp
+if (exists)
+{
+    return Result.Failure(
+        ProductErrors.DuplicateCode);
+}
+```
+
+---
+
+API.
+
+```csharp
+return Results.Problem(
+    title: result.Error.Code,
+    detail: result.Error.Description,
+    statusCode: StatusCodes.Status409Conflict);
+```
+
+---
+
+Respuesta.
+
+```json
+{
+    "title":"Product.DuplicateCode",
+    "status":409,
+    "detail":"Product code already exists."
+}
+```
+
+HTTP
+
+```text
+409 Conflict
+```
+
+---
+
+# Ejemplo 3
+
+## Error de validación
+
+Supongamos.
+
+```json
+{
+    "email":"abc"
+}
+```
+
+No es un correo válido.
+
+---
+
+FluentValidation detecta.
+
+```text
+Email inválido
+```
+
+---
+
+ProblemDetails.
+
+```json
+{
+    "type":"ValidationError",
+    "title":"Validation failed",
+    "status":400,
+    "detail":"One or more validation errors occurred.",
+    "errors":
+    {
+        "Email":
+        [
+            "Email is invalid."
+        ]
+    }
+}
+```
+
+Observa el campo
+
+```text
+errors
+```
+
+Ese pertenece a
+
+```text
+ValidationProblemDetails
+```
+
+que hereda de
+
+```text
+ProblemDetails
+```
+
+---
+
+# Ejemplo 4
+
+## Usuario sin permisos
+
+```http
+DELETE
+
+/api/users/10
+```
+
+---
+
+Dominio.
+
+```csharp
+public static readonly Error Forbidden =
+    new(
+        "Authorization.Forbidden",
+        "You do not have permission.");
+```
+
+API.
+
+```csharp
+return Results.Problem(
+    title: result.Error.Code,
+    detail: result.Error.Description,
+    statusCode:403);
+```
+
+Cliente.
+
+```json
+{
+    "title":"Authorization.Forbidden",
+    "status":403,
+    "detail":"You do not have permission."
+}
+```
+
+---
+
+# Ejemplo 5
+
+## Error inesperado
+
+Supongamos.
+
+SQL Server se cae.
+
+Se lanza.
+
+```text
+SqlException
+```
+
+Middleware.
+
+```csharp
+catch(Exception ex)
+{
+    return Results.Problem(
+        title:"Internal Server Error",
+        detail:"Unexpected error.",
+        statusCode:500);
+}
+```
+
+Cliente.
+
+```json
+{
+    "title":"Internal Server Error",
+    "status":500,
+    "detail":"Unexpected error."
+}
+```
+
+No expones.
+
+```text
+StackTrace
+
+ConnectionString
+
+Password
+
+SqlException
+```
+
+Eso es una buena práctica de seguridad.
+
+---
+
+# Mapeando Error → ProblemDetails
+
+Muchos proyectos crean una extensión.
+
+```csharp
+public static class ProblemDetailsExtensions
+{
+    public static IResult ToProblem(
+        this Result result)
+    {
+        if(result.IsSuccess)
+            return Results.Ok();
+
+        return Results.Problem(
+            title: result.Error.Code,
+            detail: result.Error.Description,
+            statusCode: GetStatusCode(result.Error));
+    }
+}
+```
+
+Después.
+
+```csharp
+var result =
+    await mediator.Send(command);
+
+return result.ToProblem();
+```
+
+Muy limpio.
+
+---
+
+# ¿Cómo saber el StatusCode?
+
+Una práctica común es mapear cada tipo de error.
+
+```csharp
+private static int GetStatusCode(Error error)
+{
+    return error.Code switch
+    {
+        "Customer.NotFound" => 404,
+
+        "Product.DuplicateCode" => 409,
+
+        "Validation" => 400,
+
+        "Unauthorized" => 401,
+
+        "Forbidden" => 403,
+
+        _ => 500
+    };
+}
+```
+
+Pero este enfoque tiene un problema: depende de cadenas de texto (`string`), que son fáciles de romper al renombrar códigos.
+
+Una alternativa más robusta es que el propio `Error` conozca su tipo.
+
+---
+
+# Una implementación moderna
+
+En lugar de esto:
+
+```csharp
+public record Error(
+    string Code,
+    string Description);
+```
+
+Muchos proyectos usan:
+
+```csharp
+public enum ErrorType
+{
+    Validation,
+    NotFound,
+    Conflict,
+    Unauthorized,
+    Forbidden,
+    Failure
+}
+
+public record Error(
+    string Code,
+    string Description,
+    ErrorType Type);
+```
+
+Ahora los errores son más expresivos.
+
+```csharp
+public static class CustomerErrors
+{
+    public static readonly Error NotFound =
+        new(
+            "Customer.NotFound",
+            "Customer was not found.",
+            ErrorType.NotFound);
+}
+```
+
+El mapeo queda mucho más seguro.
+
+```csharp
+private static int GetStatusCode(Error error)
+{
+    return error.Type switch
+    {
+        ErrorType.Validation => StatusCodes.Status400BadRequest,
+        ErrorType.Unauthorized => StatusCodes.Status401Unauthorized,
+        ErrorType.Forbidden => StatusCodes.Status403Forbidden,
+        ErrorType.NotFound => StatusCodes.Status404NotFound,
+        ErrorType.Conflict => StatusCodes.Status409Conflict,
+        _ => StatusCodes.Status500InternalServerError
+    };
+}
+```
+
+Ya no dependes de comparar textos y, si agregas nuevos errores, el compilador puede ayudarte a detectar casos sin manejar.
+
+---
+
+# Arquitectura completa
+
+En una aplicación con **Clean Architecture + CQRS + MediatR**, el flujo completo suele verse así:
+
+```text
+                    HTTP Request
+                         │
+                         ▼
+                 CustomersController
+                         │
+                         ▼
+                  IMediator.Send()
+                         │
+                         ▼
+              GetCustomerHandler
+                         │
+          ┌──────────────┴──────────────┐
+          │                             │
+     Cliente existe               Cliente no existe
+          │                             │
+          ▼                             ▼
+   Result.Success<T>           Result.Failure(Error)
+          │                             │
+          └──────────────┬──────────────┘
+                         ▼
+            ProblemDetails Mapper
+                         │
+                         ▼
+               RFC 7807 ProblemDetails
+                         │
+                         ▼
+                 HTTP Response
+```
+
+**¿Es esta la forma recomendada en 2026?**
+
+Sí. Para APIs modernas en **ASP.NET Core 10**, una combinación muy utilizada es:
+
+* **`Result<T>`** para representar éxito o fracaso sin usar excepciones para reglas de negocio.
+* **Error** como objeto de dominio con `Code`, `Description` y un `ErrorType`.
+* **MediatR** para ejecutar Commands y Queries.
+* **ProblemDetails** para transformar los errores en respuestas HTTP compatibles con **RFC 7807**.
+* **Middleware o Endpoint Filter** para convertir excepciones inesperadas en respuestas `500 Internal Server Error`.
+
+Esta separación mantiene el dominio independiente de HTTP, mientras que la API es la única responsable de traducir los errores de negocio al protocolo HTTP.

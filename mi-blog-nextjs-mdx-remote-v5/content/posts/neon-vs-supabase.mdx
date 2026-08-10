@@ -1,0 +1,546 @@
+---
+title: "copmarando hostin de Neon vs supabase"
+date: "2026-08-08"
+description: "Comparacion de que hostin es mas recomendable de forma gratis"
+slug: "neon-vs-supabase"
+category: "postgres"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+despues de revisar consultas comparando Neon vs Supabase, pude concluir que Neon es 36% mas rapido que 
+supabase, el comando para estable comparaciones de resultados es :
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT * from city;
+```
+
+y los resultados fueron:
+
+Sí, ahora sí podemos hacer una comparación mucho más precisa. Y hay un detalle **muy importante**: los tiempos que viste inicialmente en la interfaz (`684 ms` y `1.062 s`) no son los tiempos reales de ejecución de PostgreSQL.
+
+### Comparación real
+
+| Métrica        |       Caso 1 |   Caso 2 |
+| -------------- | -----------: | -------: |
+| Planning Time  | **0.042 ms** | 0.848 ms |
+| Execution Time | **0.137 ms** | 1.497 ms |
+| Filas          |        1,120 |    1,120 |
+| Buffers        |      13 hits |  13 hits |
+| Scan           |     Seq Scan | Seq Scan |
+
+**El caso 1 es claramente más rápido.**
+
+En ejecución:
+
+**1.497 ms / 0.137 ms ≈ 10.9×**
+
+Es decir, en esta ejecución el **caso 1 fue aproximadamente 11 veces más rápido**.
+
+---
+
+### ¿Qué está pasando?
+
+Lo interesante es que **las dos consultas están haciendo exactamente el mismo tipo de trabajo**:
+
+```text
+Seq Scan on city
+```
+
+Esto significa que PostgreSQL está recorriendo secuencialmente la tabla `city`.
+
+Además:
+
+```text
+Buffers: shared hit=13
+```
+
+en ambos casos significa que PostgreSQL encontró las páginas necesarias **en memoria (caché)**. No tuvo que leerlas desde disco.
+
+Por tanto, aquí no parece existir una diferencia de rendimiento causada por un índice o por acceso a disco.
+
+---
+
+### La diferencia principal está aquí
+
+Caso 1:
+
+```text
+Planning Time: 0.042 ms
+Execution Time: 0.137 ms
+```
+
+Caso 2:
+
+```text
+Planning Time: 0.848 ms
+Execution Time: 1.497 ms
+```
+
+El caso 2 tardó más tanto en **planificar** como en **ejecutar**.
+
+Pero hay algo que me llama especialmente la atención:
+
+```text
+actual time=0.012..0.079
+```
+
+en el caso 1.
+
+Mientras que:
+
+```text
+actual time=0.101..0.346
+```
+
+en el caso 2.
+
+Eso indica que incluso el procesamiento del `Seq Scan` fue más lento en esa ejecución.
+
+---
+
+## ¿Por qué la interfaz decía 684 ms y 1.062 s?
+
+Aquí está probablemente la parte que te estaba confundiendo.
+
+Tu:
+
+```text
+Execution Time: 0.137 ms
+```
+
+**no significa que toda la operación que tú percibes en DBeaver haya tardado 0.137 ms.**
+
+`EXPLAIN ANALYZE` está midiendo principalmente el procesamiento de la consulta dentro de PostgreSQL.
+
+La herramienta cliente puede agregar tiempo por:
+
+* enviar la consulta al servidor;
+* establecer/usar la conexión;
+* recibir los resultados;
+* transferir 1,120 filas;
+* convertir los datos para mostrarlos;
+* renderizar la tabla en DBeaver;
+* otras operaciones del cliente.
+
+Por eso puedes tener algo como:
+
+```text
+PostgreSQL:
+Execution Time = 0.137 ms
+
+DBeaver:
+Total query runtime = 684 ms
+```
+
+No son mediciones equivalentes.
+
+---
+
+## Y hay otro detalle importante
+
+Tu tabla `city` solamente tiene **1,120 registros**.
+
+PostgreSQL dice:
+
+```text
+Seq Scan on city
+rows=1120
+```
+
+Esto es perfectamente normal.
+
+No necesitas necesariamente un índice para hacer:
+
+```sql
+SELECT *
+FROM city;
+```
+
+De hecho, para devolver **todos los registros**, un `Seq Scan` suele ser precisamente lo apropiado.
+
+Un índice no necesariamente haría esta consulta más rápida porque PostgreSQL tendría que recorrer prácticamente toda la tabla de todas maneras.
+
+### En resumen
+
+Para estos resultados:
+
+**Caso 1 🏆**
+
+```text
+Execution Time: 0.137 ms
+```
+
+**Caso 2**
+
+```text
+Execution Time: 1.497 ms
+```
+
+Pero **no concluiría todavía que una consulta es estructuralmente 11 veces más eficiente que la otra**. Las dos están usando el mismo plan:
+
+```text
+Seq Scan → 1120 filas → 13 buffers
+```
+
+La diferencia probablemente es simplemente **variación de ejecución/carga/caché/entorno**, especialmente porque estamos hablando de tiempos extremadamente pequeños.
+
+Si me muestras **las dos consultas SQL originales**, puedo decirte si realmente existe una diferencia de diseño entre ellas o si simplemente estás viendo una variación normal de PostgreSQL.
+
+Sí. Para **tu caso concreto: ERP/web API nueva con .NET 10 + PostgreSQL**, yo elegiría **Neon**.
+
+Revisé los precios y límites actuales de agosto de 2026 porque han cambiado bastante desde 2025.
+
+### Comparación para tu ERP
+
+| Característica          | [Neon](https://neon.com?utm_source=chatgpt.com) | [Supabase](https://supabase.com?utm_source=chatgpt.com) |
+| ----------------------- | ----------------------------------------------- | ------------------------------------------------------- |
+| PostgreSQL              | ✅ PostgreSQL completo                           | ✅ PostgreSQL completo                                   |
+| Free DB                 | **0.5 GB/proyecto**                             | **0.5 GB/proyecto**                                     |
+| Escalado de CPU         | ⭐ Autoscaling                                   | Más tradicional                                         |
+| Scale-to-zero           | ✅                                               | ❌                                                       |
+| Branching               | ⭐⭐⭐⭐⭐                                           | ⭐⭐⭐                                                     |
+| .NET + EF Core          | ⭐⭐⭐⭐⭐                                           | ⭐⭐⭐⭐⭐                                                   |
+| Auth integrado          | Disponible, pero no es su fuerte histórico      | ⭐⭐⭐⭐⭐                                                   |
+| Storage de archivos     | Disponible                                      | ⭐⭐⭐⭐⭐                                                   |
+| Realtime                | Disponible                                      | ⭐⭐⭐⭐⭐                                                   |
+| API automática          | No es el enfoque principal                      | ⭐⭐⭐⭐⭐                                                   |
+| PostgreSQL administrado | ⭐⭐⭐⭐⭐                                           | ⭐⭐⭐⭐⭐                                                   |
+| Enfoque principal       | **PostgreSQL/serverless**                       | **Backend completo**                                    |
+
+Neon actualmente ofrece en Free **0.5 GB de almacenamiento por proyecto**, 100 CU-hours de cómputo por proyecto/mes y hasta 100 proyectos. ([Neon][1])
+
+Supabase también mantiene **0.5 GB de base de datos por proyecto** en Free. ([Supabase][2])
+
+---
+
+## 🏆 Para tu arquitectura .NET 10, escogería Neon
+
+Por cómo estás construyendo tu proyecto, tienes algo parecido a:
+
+```text
+                    ┌─────────────────┐
+                    │   Next.js       │
+                    │   Frontend      │
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │    ASP.NET      │
+                    │    Core 10      │
+                    │      API        │
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │     EF Core     │
+                    │       10        │
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │      Neon       │
+                    │   PostgreSQL    │
+                    └─────────────────┘
+```
+
+En ese escenario **Supabase te ofrece muchas cosas que probablemente no necesitas**, porque ya tienes tu propia API .NET.
+
+Supabase está pensado como una plataforma más completa:
+
+```text
+Supabase
+ ├── PostgreSQL
+ ├── Auth
+ ├── Storage
+ ├── Realtime
+ ├── Edge Functions
+ ├── APIs
+ └── Vector/AI
+```
+
+([Supabase][3])
+
+Mientras que Neon encaja muy bien cuando quieres que PostgreSQL sea simplemente **tu infraestructura de datos**:
+
+```text
+ASP.NET Core 10
+       │
+       │ Npgsql
+       ▼
+     Neon
+       │
+       ▼
+  PostgreSQL
+```
+
+Además, Neon tiene **autoscaling y scale-to-zero**, algo interesante para una aplicación que inicialmente tendrá poco tráfico. ([Neon][4])
+
+---
+
+# 🟢 Una característica de Neon que me gusta mucho para tu proyecto
+
+**Branching.**
+
+Puedes tener:
+
+```text
+production
+    │
+    ├── development
+    │
+    ├── testing
+    │
+    └── feature-nueva-facturacion
+```
+
+Cada branch parte de tu base de datos y puedes utilizarlo para desarrollo/pruebas sin estar modificando directamente producción.
+
+Esto encaja especialmente bien con tu forma de trabajar con **Git + .NET + EF Core**. Neon está diseñado precisamente alrededor de PostgreSQL branchable. ([Neon][5])
+
+---
+
+# 🟣 ¿Cuándo escogería Supabase?
+
+Cambiaría mi recomendación a **Supabase** si dijeras:
+
+> "Quiero que el backend prácticamente lo proporcione Supabase."
+
+Por ejemplo:
+
+```text
+Next.js
+   │
+   ├──── Supabase Auth
+   │
+   ├──── Supabase API
+   │
+   ├──── Supabase Realtime
+   │
+   ├──── Supabase Storage
+   │
+   └──── Supabase PostgreSQL
+```
+
+Ahí sí tiene muchísimo sentido.
+
+Supabase integra PostgreSQL con **Auth, Storage, Realtime, Edge Functions y APIs**, y su base de datos es un PostgreSQL completo. ([Supabase][6])
+
+---
+
+# 💰 ¿Y cuando el ERP crezca?
+
+Aquí también hay una diferencia interesante.
+
+Supabase actualmente permite configuraciones de almacenamiento de base de datos de hasta **60 TB** en sus configuraciones avanzadas. ([Supabase][7])
+
+Pero para un ERP pequeño/mediano, **60 TB no debería ser un factor decisivo**. Mucho antes de llegar a ese volumen tendrás otras preocupaciones de arquitectura.
+
+Por ejemplo:
+
+```text
+ERP pequeño
+     ↓
+500 MB
+     ↓
+2 GB
+     ↓
+10 GB
+     ↓
+50 GB
+     ↓
+100 GB
+     ↓
+¿Necesito particionamiento?
+¿réplicas?
+¿archivado?
+¿data warehouse?
+```
+
+Un ERP de facturación, inventario, terceros, órdenes de servicio, etc., puede funcionar durante bastante tiempo con unos pocos GB.
+
+---
+
+# ⚠️ Un detalle importante para tu ERP
+
+Yo **no almacenaría documentos PDF, imágenes, fotos de equipos, facturas XML, etc. directamente dentro de PostgreSQL** como `bytea`, salvo casos concretos.
+
+Preferiría:
+
+```text
+PostgreSQL
+    │
+    ├── clientes
+    ├── terceros
+    ├── facturas
+    ├── productos
+    ├── órdenes
+    └── documentos
+             │
+             └── URL/Key
+                    │
+                    ▼
+              Object Storage
+```
+
+Así tu PostgreSQL puede permanecer relativamente pequeño.
+
+Supabase tiene un sistema de Storage integrado muy bueno para esto. ([Supabase][8])
+
+Neon también está incorporando **Object Storage compatible con S3**, por lo que esta diferencia está disminuyendo. ([Neon][9])
+
+---
+
+# 🎯 Mi recomendación para TI
+
+Considerando que estás trabajando con:
+
+* **.NET 10**
+* **ASP.NET Core Web API**
+* **Clean Architecture**
+* **DDD**
+* **EF Core 10**
+* **PostgreSQL**
+* **Next.js**
+* Git
+* y quieres construir un ERP que pueda crecer
+
+yo haría:
+
+```text
+                 ┌───────────────┐
+                 │    Next.js    │
+                 └───────┬───────┘
+                         │
+                         ▼
+                 ┌───────────────┐
+                 │ ASP.NET Core  │
+                 │      10       │
+                 └───────┬───────┘
+                         │
+                         ▼
+                 ┌───────────────┐
+                 │    EF Core    │
+                 │      10       │
+                 └───────┬───────┘
+                         │
+                         ▼
+                 ┌───────────────┐
+                 │     Neon      │
+                 │  PostgreSQL   │
+                 └───────────────┘
+```
+
+**Mi elección: 🥇 Neon.**
+
+No porque Supabase sea peor, sino porque **para una API empresarial propia en .NET 10, Neon te da una infraestructura PostgreSQL más alineada con lo que realmente necesitas** y además su modelo de autoscaling/scale-to-zero y branching resulta muy atractivo para desarrollo y producción. ([Neon][10])
+
+Y si posteriormente necesitas autenticación, archivos, realtime, etc., puedes incorporarlos como servicios separados sin convertir tu base de datos en el centro de toda la plataforma.
+
+**Para tu TribuSoft, personalmente empezaría con Neon.**
+
+[1]: https://neon.com/faqs/free-plan-limits-and-quotas?utm_source=chatgpt.com "What are the limits and quotas for Neon's Free plan?"
+[2]: https://supabase.com/changelog?utm_source=chatgpt.com "Changelog"
+[3]: https://supabase.com/?utm_source=chatgpt.com "Supabase | The Postgres Development Platform"
+[4]: https://neon.com/docs/introduction?utm_source=chatgpt.com "Neon documentation - Neon Docs"
+[5]: https://neon.com/docs/introduction/branching?utm_source=chatgpt.com "Branching - Neon Docs"
+[6]: https://supabase.com/docs/guides/database/overview?utm_source=chatgpt.com "Database | Supabase Docs"
+[7]: https://supabase.com/pricing?utm_source=chatgpt.com "Pricing & Fees"
+[8]: https://supabase.com/docs/guides/storage?utm_source=chatgpt.com "Storage | Supabase Docs"
+[9]: https://neon.com/blog/building-neon-object-storage?utm_source=chatgpt.com "Building Neon Object Storage"
+[10]: https://neon.com/pricing?utm_source=chatgpt.com "Neon pricing"
+
+100 horas de computos, serian cuantos dias ?
+
+Si te refieres a **100 horas de cómputo**, la conversión es:
+
+**100 horas ÷ 24 = 4,17 días**
+
+Es decir:
+
+* **4 días**
+* **+ 4 horas**
+
+👉 **100 horas = 4 días y 4 horas** de ejecución continua.
+
+Pero ojo con Neon: esas **100 horas de cómputo no significan que tu base de datos solo pueda funcionar durante 4 días al mes**.
+
+Neon utiliza **compute hours**, que dependen de cuánto tiempo y qué recursos de CPU consume tu instancia. Además, con **scale-to-zero**, una instancia puede suspenderse cuando está inactiva.
+
+Por ejemplo, si tu aplicación solo utiliza la base de datos **8 horas al día**:
+
+**100 ÷ 8 = 12,5 días**
+
+Y si realmente solo tienes consultas ocasionales y la base de datos permanece suspendida cuando no se usa, esas 100 horas pueden alcanzar para bastante más tiempo.
+
+en supabase no hay restricion de tiempo en el plan gratis ?
+
+Sí, pero hay una **aclaración importante** respecto a lo que preguntabas antes.
+
+En **Supabase Free no existe un límite de "100 horas de cómputo al mes" como el que tiene Neon**. Supabase incluye un proyecto PostgreSQL con recursos compartidos y **500 MB de base de datos**, sin cobrar por horas de cómputo en el plan gratuito. ([Supabase][1])
+
+Pero **sí existe una restricción de actividad**:
+
+> 🔴 **Los proyectos Free de Supabase se pausan después de 1 semana de inactividad.** ([Supabase][1])
+
+### Entonces, comparándolo con Neon
+
+|                           |         Neon Free |                         Supabase Free |
+| ------------------------- | ----------------: | ------------------------------------: |
+| DB                        |            500 MB |                                500 MB |
+| Límite de cómputo mensual |  **100 CU-hours** | **No hay cuota equivalente de horas** |
+| Scale to zero             |                 ✅ |                                     — |
+| Pausa por inactividad     | Por scale-to-zero |               **Después de 1 semana** |
+| Proyectos activos         |         Hasta 100 |                                 **2** |
+| API                       |        PostgreSQL |                      PostgreSQL + API |
+| Auth                      |                 — |                                     ✅ |
+| Storage                   |                 — |                                     ✅ |
+| Realtime                  |                 — |                                     ✅ |
+
+([Supabase][1])
+
+### ¿Qué significa esto para tu ERP?
+
+Si tienes:
+
+```text
+ASP.NET Core 10
+       ↓
+    Supabase
+       ↓
+   PostgreSQL
+```
+
+y tu ERP recibe usuarios **todos los días**, probablemente **no tendrás el problema de la pausa por inactividad**, porque el proyecto estará siendo utilizado.
+
+En cambio, para un proyecto de desarrollo personal que puedes dejar **una o dos semanas sin tocar**, Supabase puede pausarlo.
+
+### Y aquí hay algo interesante para tu decisión
+
+Para **TribuSoft**, yo lo vería así:
+
+**Neon**
+
+* Excelente PostgreSQL.
+* Branching muy bueno.
+* Scale-to-zero.
+* Muy atractivo para desarrollo.
+* 100 CU-hours en Free.
+
+**Supabase**
+
+* 500 MB PostgreSQL.
+* Sin cuota de "100 horas".
+* Auth.
+* Storage.
+* Realtime.
+* APIs.
+* Pero pausa después de **7 días sin actividad**.
+
+Por eso, **si tu preocupación principal es "quiero que PostgreSQL esté disponible sin preocuparme por consumir 100 horas"**, Supabase Free resulta atractivo.
+
+Pero si quieres, puedo hacer una comparación mucho más interesante: **"¿Cuánto tiempo puedo mantener funcionando 24/7 un ERP pequeño en Neon Free vs Supabase Free?"** Ahí podemos calcularlo con ejemplos reales de uso.
+
+[1]: https://supabase.com/pricing?utm_source=chatgpt.com "Pricing & Fees"

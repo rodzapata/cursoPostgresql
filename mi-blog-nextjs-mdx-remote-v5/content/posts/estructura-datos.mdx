@@ -1,0 +1,776 @@
+---
+title: "Estructura de Datos en CSharp"
+date: "2026-07-08"
+description: "Aprender estructura de datos que se usan en el 2026"
+slug: "estructura-datos"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Sí. Te propongo estudiarlas **desde la perspectiva de un desarrollador .NET 10 en 2026**, no como un curso académico lleno de implementaciones que rara vez usarás en aplicaciones modernas.
+
+La idea será relacionar cada estructura de datos con **Clean Architecture, DDD, APIs, EF Core 10, CQRS y problemas reales**.
+
+### Ruta que te recomiendo
+
+1. **Arrays y `Span<T>`**
+
+   * Cuándo usar cada uno.
+   * Rendimiento y asignaciones de memoria.
+   * `Span<T>` / `ReadOnlySpan<T>` en escenarios donde realmente aportan valor.
+
+2. **`List<T>`**
+
+   * La estructura que más utilizarás en aplicaciones .NET.
+   * Búsquedas, ordenamiento, filtrado.
+   * Cuándo evitar convertir innecesariamente todo a `List<T>`.
+
+3. **`Dictionary<TKey,TValue>`**
+
+   * Búsquedas O(1).
+   * Caches en memoria.
+   * Índices y agrupaciones.
+   * Casos reales en Application/Infrastructure.
+
+4. **`HashSet<T>`**
+
+   * Evitar duplicados.
+   * Comparaciones eficientes.
+   * Autorizaciones, permisos, IDs procesados, etc.
+
+5. **`Queue<T>`**
+
+   * Procesamiento FIFO.
+   * Jobs y procesamiento secuencial.
+   * Cuándo utilizarla y cuándo **no** sustituye una cola distribuida como RabbitMQ/Azure Service Bus.
+
+6. **`Stack<T>`**
+
+   * Procesamiento LIFO.
+   * Algoritmos.
+   * Parsing y recorridos.
+
+7. **`PriorityQueue<TElement,TPriority>`**
+
+   * Una estructura especialmente interesante para conocer en .NET moderno.
+   * Procesamiento por prioridad.
+   * Scheduling y algoritmos.
+
+8. **Árboles**
+
+   * Conceptos fundamentales.
+   * `Tree`, `Binary Search Tree`, etc.
+   * Saber reconocer cuándo realmente necesitas uno en una aplicación empresarial.
+
+9. **Grafos**
+
+   * Relaciones entre entidades.
+   * Rutas, dependencias, redes.
+   * Ejemplos prácticos.
+
+10. **Estructuras concurrentes**
+
+* `ConcurrentDictionary`
+* `ConcurrentQueue`
+* `Channel<T>`
+* Diferencia entre estructuras thread-safe y mecanismos de comunicación entre productores/consumidores.
+
+11. **Complejidad algorítmica**
+
+* `O(1)`
+* `O(log n)`
+* `O(n)`
+* `O(n log n)`
+* `O(n²)`
+
+Pero siempre aplicada a **decisiones reales de código .NET**.
+
+---
+
+### Y algo muy importante
+
+No quiero enseñarte cosas como:
+
+```csharp
+var customers = new ArrayList();
+```
+
+o:
+
+```csharp
+Hashtable customers = new Hashtable();
+```
+
+como solución moderna.
+
+Tampoco quiero que implementemos manualmente una lista enlazada para después utilizarla en una API empresarial simplemente porque "así se aprende".
+
+Podemos estudiar **cómo funcionan internamente** para que entiendas estructuras de datos, pero distinguiré claramente:
+
+> **"Esto es importante para aprender"**
+> vs.
+> **"Esto es recomendable utilizar en una aplicación .NET 10 real".**
+
+Por ejemplo, una `LinkedList<T>` existe y debemos conocerla, pero no significa que sea automáticamente mejor que `List<T>`.
+
+---
+
+### Los ejemplos estarán integrados con Clean Architecture
+
+Por ejemplo, en lugar de:
+
+```csharp
+List<int> numbers = new();
+```
+
+sin contexto, construiremos algo como:
+
+```text
+TribuSoft
+│
+├── Domain
+│   ├── Entities
+│   ├── ValueObjects
+│   └── ...
+│
+├── Application
+│   ├── Orders
+│   │   ├── Queries
+│   │   └── Commands
+│   └── ...
+│
+├── Infrastructure
+│   ├── Persistence
+│   └── ...
+│
+└── Api
+```
+
+Y veremos preguntas reales como:
+
+**¿Debería mi caso de uso devolver `IEnumerable<T>`, `IReadOnlyList<T>` o `List<T>`?**
+
+**¿Cuándo un `Dictionary` mejora realmente el algoritmo?**
+
+**¿Dónde debería vivir una estructura auxiliar: Domain, Application o Infrastructure?**
+
+**¿Cuándo `HashSet<T>` es mejor que `List<T>`?**
+
+**¿Qué diferencia existe entre una colección de dominio y una colección utilizada por EF Core?**
+
+**¿Cuándo `Span<T>` tiene sentido y cuándo solamente complica el código?**
+
+Ese enfoque te va a servir mucho más como desarrollador profesional que memorizar 20 estructuras de datos aisladas.
+
+### Comencemos por la primera
+
+Te recomiendo empezar por **`Array`, `List<T>`, `IEnumerable<T>` e `IReadOnlyList<T>`**, porque entender correctamente estas cuatro te evitará muchos errores de diseño en APIs y Clean Architecture.
+
+Y después pasamos a `Dictionary<TKey,TValue>` y `HashSet<T>`, que son probablemente las dos estructuras más importantes para desarrollar aplicaciones empresariales eficientes en .NET.
+
+Perfecto. Vamos a hacerlo como una **formación práctica de estructuras de datos para .NET 10 en 2026**, orientada a Clean Architecture y aplicaciones empresariales reales.
+
+# 1. Arrays, `List<T>`, `IEnumerable<T>` e `IReadOnlyList<T>`
+
+Estas cuatro cosas parecen similares, pero **no tienen el mismo propósito**. Entender esta diferencia es fundamental para diseñar correctamente tus APIs, casos de uso y dominio.
+
+---
+
+## 1.1 `T[]` — Array
+
+Un array tiene un tamaño fijo.
+
+```csharp
+int[] numbers = [10, 20, 30, 40, 50];
+```
+
+Puedes acceder directamente por índice:
+
+```csharp
+int first = numbers[0];
+
+Console.WriteLine(first); // 10
+```
+
+Pero su tamaño no puede cambiar:
+
+```csharp
+int[] numbers = [10, 20, 30];
+
+// ❌ No puedes hacer:
+// numbers.Add(40);
+```
+
+### ¿Cuándo usarlo en .NET 10?
+
+Principalmente cuando:
+
+* conoces el tamaño de antemano;
+* necesitas trabajar con memoria contigua;
+* estás trabajando con datos de bajo nivel;
+* necesitas interoperabilidad con APIs que utilizan arrays;
+* estás realizando procesamiento intensivo de datos.
+
+Por ejemplo:
+
+```csharp
+byte[] buffer = new byte[1024];
+```
+
+Esto es bastante común para trabajar con archivos, streams, protocolos, etc.
+
+Pero para una colección de entidades de negocio:
+
+```csharp
+Customer[] customers;
+```
+
+normalmente **no sería mi primera opción**.
+
+---
+
+# 1.2 `List<T>` — La colección general más utilizada
+
+Aquí empieza lo realmente importante.
+
+```csharp
+List<Customer> customers = [];
+```
+
+Puedes agregar elementos:
+
+```csharp
+customers.Add(customer);
+```
+
+Eliminar:
+
+```csharp
+customers.Remove(customer);
+```
+
+Consultar:
+
+```csharp
+Customer? customer = customers.FirstOrDefault();
+```
+
+Y acceder por índice:
+
+```csharp
+Customer customer = customers[0];
+```
+
+Su tamaño es dinámico.
+
+Internamente, `List<T>` utiliza un array que puede crecer cuando necesita más capacidad.
+
+Conceptualmente:
+
+```text
+List<Customer>
+       │
+       ▼
+┌─────────────────────────────┐
+│ Customer │ Customer │ ...   │
+└─────────────────────────────┘
+```
+
+Cuando se queda sin espacio, internamente puede crear un array mayor y copiar los elementos.
+
+Por eso:
+
+```csharp
+customers.Add(customer);
+```
+
+normalmente es muy eficiente.
+
+---
+
+# 1.3 `List<T>` en una aplicación real
+
+Imagina nuestro sistema de órdenes de servicio.
+
+Tenemos:
+
+```csharp
+public class ServiceOrder
+{
+    public Guid Id { get; private set; }
+
+    private readonly List<ServiceOrderItem> _items = [];
+
+    public IReadOnlyList<ServiceOrderItem> Items => _items;
+}
+```
+
+Aquí aparece una idea **muy importante para Clean Architecture y DDD**.
+
+Internamente utilizamos:
+
+```csharp
+List<ServiceOrderItem>
+```
+
+pero no exponemos directamente la lista.
+
+Exponemos:
+
+```csharp
+IReadOnlyList<ServiceOrderItem>
+```
+
+¿Por qué?
+
+Porque queremos controlar quién puede modificar la colección.
+
+---
+
+## 1.4 El problema de exponer `List<T>`
+
+Esto:
+
+```csharp
+public List<ServiceOrderItem> Items { get; set; } = [];
+```
+
+permite:
+
+```csharp
+order.Items.Add(item);
+order.Items.Clear();
+order.Items.Remove(item);
+```
+
+Cualquier código externo podría modificar directamente el estado de la entidad.
+
+Eso puede ser problemático en un modelo de dominio.
+
+Preferimos:
+
+```csharp
+public class ServiceOrder
+{
+    private readonly List<ServiceOrderItem> _items = [];
+
+    public IReadOnlyList<ServiceOrderItem> Items => _items;
+
+    public void AddItem(ServiceOrderItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        _items.Add(item);
+    }
+
+    public void RemoveItem(Guid itemId)
+    {
+        _items.RemoveAll(x => x.Id == itemId);
+    }
+}
+```
+
+Ahora el dominio controla cómo se modifica la colección.
+
+```text
+             ServiceOrder
+                  │
+                  ▼
+        ┌──────────────────┐
+        │ private List<T>  │
+        └────────┬─────────┘
+                 │
+                 ▼
+          IReadOnlyList<T>
+                 │
+                 ▼
+          código externo
+          solo puede leer
+```
+
+Esto es mucho más interesante desde el punto de vista de **encapsulamiento y DDD**.
+
+---
+
+# 1.5 `IReadOnlyList<T>`
+
+`IReadOnlyList<T>` representa una colección que permite leer mediante índice, pero no modificarla mediante esa interfaz.
+
+Por ejemplo:
+
+```csharp
+IReadOnlyList<int> numbers = [10, 20, 30];
+
+Console.WriteLine(numbers[0]);
+Console.WriteLine(numbers.Count);
+```
+
+Pero:
+
+```csharp
+// ❌ No existe Add()
+numbers.Add(40);
+```
+
+Esto es útil cuando queremos decir:
+
+> "Te entrego una colección, pero no quiero que seas responsable de modificarla."
+
+---
+
+# 1.6 ¿Entonces por qué no devolver siempre `IReadOnlyList<T>`?
+
+Buena pregunta.
+
+Porque depende de lo que realmente necesites expresar.
+
+Por ejemplo, un método podría devolver:
+
+```csharp
+public IReadOnlyList<Customer> GetCustomers()
+```
+
+si conceptualmente estás devolviendo una colección materializada que puede ser indexada.
+
+Pero si simplemente quieres permitir que el consumidor **recorra los elementos**, podrías utilizar:
+
+```csharp
+IEnumerable<Customer>
+```
+
+Y aquí aparece una diferencia fundamental.
+
+---
+
+# 1.7 `IEnumerable<T>`
+
+`IEnumerable<T>` representa algo que puedes recorrer.
+
+```csharp
+IEnumerable<Customer> customers = GetCustomers();
+
+foreach (Customer customer in customers)
+{
+    Console.WriteLine(customer.Name);
+}
+```
+
+Pero `IEnumerable<T>` **no significa necesariamente que tengas todos los elementos cargados en memoria**.
+
+Por ejemplo, con LINQ:
+
+```csharp
+IEnumerable<Customer> customers =
+    context.Customers
+        .Where(x => x.IsActive)
+        .OrderBy(x => x.Name);
+```
+
+Aquí tenemos una consulta.
+
+Y esto es extremadamente importante cuando trabajas con EF Core.
+
+---
+
+# 1.8 `IEnumerable<T>` y ejecución diferida
+
+Considera:
+
+```csharp
+var query = context.Customers
+    .Where(x => x.IsActive);
+```
+
+La consulta todavía no necesariamente ha sido ejecutada contra PostgreSQL o SQL Server.
+
+Cuando haces:
+
+```csharp
+var customers = await query.ToListAsync();
+```
+
+entonces materializas el resultado.
+
+Conceptualmente:
+
+```text
+IQueryable
+    │
+    │ LINQ
+    ▼
+Consulta SQL
+    │
+    │ ToListAsync()
+    ▼
+Base de datos
+    │
+    ▼
+List<Customer>
+```
+
+Por eso en aplicaciones modernas con EF Core debemos comprender muy bien la diferencia entre:
+
+```text
+IQueryable<T>
+IEnumerable<T>
+List<T>
+IReadOnlyList<T>
+```
+
+---
+
+# 1.9 Algo importante: no materializar innecesariamente
+
+Un error bastante común es:
+
+```csharp
+var customers = await context.Customers
+    .ToListAsync();
+
+var activeCustomers = customers
+    .Where(x => x.IsActive)
+    .ToList();
+```
+
+Aquí posiblemente estamos trayendo **todos los clientes desde la base de datos** para después filtrar en memoria.
+
+Es mejor:
+
+```csharp
+var activeCustomers = await context.Customers
+    .Where(x => x.IsActive)
+    .ToListAsync();
+```
+
+Ahora el filtro puede ejecutarse en la base de datos.
+
+Esto es una diferencia importante entre:
+
+```text
+❌ Base de datos → todos los registros → memoria → filtro
+```
+
+y:
+
+```text
+✅ Base de datos → filtro SQL → memoria
+```
+
+---
+
+# 1.10 ¿Cuál utilizamos entonces?
+
+Una regla práctica para .NET 10:
+
+| Tipo               | Utilidad principal                                                      |
+| ------------------ | ----------------------------------------------------------------------- |
+| `T[]`              | Datos de tamaño fijo / bajo nivel                                       |
+| `List<T>`          | Colección mutable general                                               |
+| `IReadOnlyList<T>` | Colección materializada que exponemos solo para lectura                 |
+| `IEnumerable<T>`   | Recorrer una secuencia                                                  |
+| `IQueryable<T>`    | Construir consultas sobre una fuente consultable, especialmente EF Core |
+
+Pero cuidado:
+
+**No existe una regla de "siempre devuelve X".**
+
+El tipo debe expresar la intención.
+
+---
+
+# 1.11 Ejemplo con Clean Architecture
+
+Supongamos que tenemos:
+
+```text
+Application
+    └── ServiceOrders
+        └── GetServiceOrders
+```
+
+Nuestro caso de uso podría tener:
+
+```csharp
+public sealed record GetServiceOrdersQuery;
+
+public sealed class GetServiceOrdersHandler
+{
+    private readonly IServiceOrderRepository _repository;
+
+    public GetServiceOrdersHandler(
+        IServiceOrderRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<IReadOnlyList<ServiceOrderDto>> Handle(
+        GetServiceOrdersQuery query,
+        CancellationToken cancellationToken)
+    {
+        return await _repository.GetAllAsync(cancellationToken);
+    }
+}
+```
+
+Y el repositorio:
+
+```csharp
+public interface IServiceOrderRepository
+{
+    Task<IReadOnlyList<ServiceOrderDto>> GetAllAsync(
+        CancellationToken cancellationToken);
+}
+```
+
+Aquí estamos diciendo:
+
+> El caso de uso devuelve una colección materializada que el consumidor puede leer, pero no modificar.
+
+Eso es mucho más expresivo que:
+
+```csharp
+Task<List<ServiceOrderDto>>
+```
+
+aunque ambos podrían funcionar.
+
+---
+
+# 1.12 ¿Y `IQueryable<T>`?
+
+Aquí hay una consideración arquitectónica importante.
+
+No recomendaría hacer esto en una abstracción de dominio:
+
+```csharp
+public interface IServiceOrderRepository
+{
+    IQueryable<ServiceOrder> GetAll();
+}
+```
+
+Porque estarías exponiendo detalles de infraestructura/persistencia hacia capas superiores.
+
+Por ejemplo:
+
+```text
+Domain
+   ↑
+Application
+   ↑
+Infrastructure
+```
+
+Queremos evitar que Application tenga que conocer que debajo estamos utilizando EF Core.
+
+Por eso normalmente es preferible que el repositorio exponga operaciones que representen **necesidades de la aplicación**, por ejemplo:
+
+```csharp
+Task<IReadOnlyList<ServiceOrder>> GetByCustomerAsync(
+    Guid customerId,
+    CancellationToken cancellationToken);
+```
+
+o incluso consultas específicas mediante un patrón de queries.
+
+---
+
+# 1.13 Una regla que quiero que recuerdes
+
+Cuando estés diseñando una aplicación .NET 10, piensa:
+
+```text
+¿Quién puede modificar esta colección?
+             │
+       ┌─────┴─────┐
+       │           │
+      Sí           No
+       │           │
+    List<T>   IReadOnlyList<T>
+```
+
+Y:
+
+```text
+¿Necesito representar una secuencia
+que simplemente voy a recorrer?
+
+          │
+          ▼
+
+    IEnumerable<T>
+```
+
+Mientras que:
+
+```text
+¿Estoy construyendo una consulta
+sobre EF Core?
+
+          │
+          ▼
+
+      IQueryable<T>
+```
+
+Pero **no conviertas automáticamente `IQueryable` en `IEnumerable` demasiado pronto**, porque podrías provocar que operaciones que podrían ejecutarse en la base de datos terminen ejecutándose en memoria.
+
+---
+
+# 🧠 Ejercicio práctico
+
+Quiero que intentes resolver este problema antes de que avancemos a `Dictionary<TKey,TValue>`.
+
+Tenemos:
+
+```csharp
+public class Customer
+{
+    public Guid Id { get; set; }
+
+    public string Name { get; set; } = null!;
+
+    public bool IsActive { get; set; }
+}
+```
+
+Y:
+
+```csharp
+public class CustomerService
+{
+    private readonly List<Customer> _customers = [];
+
+    public void Add(Customer customer)
+    {
+        _customers.Add(customer);
+    }
+
+    public List<Customer> GetCustomers()
+    {
+        return _customers;
+    }
+}
+```
+
+### Preguntas
+
+**1.** ¿Qué problema tiene este método?
+
+```csharp
+public List<Customer> GetCustomers()
+```
+
+**2.** ¿Qué tipo utilizarías en su lugar?
+
+```csharp
+public ????? GetCustomers()
+```
+
+**3.** ¿Cómo protegerías `_customers` para evitar que código externo pueda modificarlo directamente?
+
+**4.** Si los clientes vienen de EF Core, ¿en qué momento usarías `ToListAsync()`?
+
+Intenta responderlas tú primero. Después te corrijo como si estuviéramos haciendo una **revisión de código profesional (.NET 10 + Clean Architecture)** y seguimos con `Dictionary<TKey,TValue>`.

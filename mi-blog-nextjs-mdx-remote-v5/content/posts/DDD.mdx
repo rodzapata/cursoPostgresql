@@ -1,0 +1,746 @@
+---
+title: "DDD"
+date: "2026-08-12"
+description: "DDDo"
+slug: "DDD"
+category: "clean Arquitecture"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+enseñame DDD, CQRS y EF Core  en .net 10, paso a paso con ejemplos practicos, empieza desglosando un como ejemplo un programa de ordenes de trabajo de mantenimiento de aires acondicionado  
+
+Sí. Vamos a aprenderlo **desde un proyecto real**, no como conceptos aislados.
+
+Tomaremos como proyecto guía:
+
+> **Sistema de órdenes de trabajo para mantenimiento de aires acondicionados**
+
+Y lo construiremos progresivamente con **.NET 10 + DDD + CQRS + EF Core 10 + PostgreSQL**.
+
+### Ruta que seguiremos
+
+1. **Entender el negocio** y descubrir el dominio.
+2. Diseñar las **entidades y agregados DDD**.
+3. Crear **Value Objects** y enums.
+4. Definir **Aggregate Roots** y reglas de negocio.
+5. Separar **Domain / Application / Infrastructure / API**.
+6. Introducir **CQRS**: Commands y Queries.
+7. Implementar casos de uso.
+8. Implementar **EF Core 10**.
+9. Configurar entidades con `IEntityTypeConfiguration`.
+10. Crear repositorios donde realmente aporten valor.
+11. Integrar **ProblemDetails / Result**.
+12. Crear endpoints REST.
+13. Consultas eficientes con EF Core.
+14. Transacciones y consistencia.
+15. Finalmente veremos qué partes de DDD/CQRS **no conviene sobreingenierizar**.
+
+---
+
+# Paso 1 — Primero entendamos el negocio
+
+Antes de crear una clase `Customer`, `Order` o `DbContext`, vamos a pensar como desarrolladores de software **y no como programadores que empiezan directamente por la base de datos**.
+
+Nuestro sistema debe permitir algo como:
+
+```text
+Cliente
+   │
+   └── Solicita mantenimiento
+            │
+            ▼
+     Orden de trabajo
+            │
+            ├── Equipo
+            ├── Técnico
+            ├── Actividades
+            ├── Repuestos
+            ├── Refrigerante
+            └── Observaciones
+```
+
+Por ejemplo:
+
+**Cliente:** Hotel ABC
+
+Tiene un equipo:
+
+```text
+Aire acondicionado
+Marca: LG
+Modelo: S4-W12JA3
+Serial: ABC123456
+Tipo: Split
+Capacidad: 12000 BTU
+```
+
+El cliente solicita:
+
+> "El aire acondicionado no está enfriando correctamente."
+
+El sistema crea una **Orden de Trabajo**.
+
+La orden inicialmente podría estar:
+
+```text
+OT-000125
+Estado: Pendiente
+```
+
+Después se asigna un técnico:
+
+```text
+Técnico: Carlos Pérez
+```
+
+El técnico visita al cliente y realiza:
+
+```text
+Actividades:
+- Diagnóstico del equipo
+- Limpieza de filtros
+- Medición de presión
+- Revisión eléctrica
+```
+
+Puede utilizar:
+
+```text
+Repuestos:
+- Capacitor 35 µF
+```
+
+Y registrar:
+
+```text
+Refrigerante:
+R410A
+Cantidad: 0.5 kg
+```
+
+Finalmente:
+
+```text
+Estado: Finalizada
+```
+
+---
+
+# 2. ¿Dónde aparece DDD?
+
+Aquí comienza lo importante.
+
+DDD significa **Domain-Driven Design**.
+
+No significa simplemente:
+
+> "Crear carpetas llamadas Domain, Application e Infrastructure."
+
+DDD empieza por **entender el negocio y modelarlo correctamente**.
+
+Por ejemplo, alguien podría comenzar haciendo esto:
+
+```csharp
+public class WorkOrder
+{
+    public int Id { get; set; }
+    public string Status { get; set; }
+    public int CustomerId { get; set; }
+}
+```
+
+Eso es simplemente un modelo de datos.
+
+DDD nos hace preguntar:
+
+> ¿Qué significa realmente una Orden de Trabajo?
+
+Y aparecen reglas.
+
+Por ejemplo:
+
+* Una orden debe pertenecer a un cliente.
+* Una orden debe tener un estado.
+* Una orden pendiente puede asignarse a un técnico.
+* Una orden finalizada no debería poder recibir nuevas actividades.
+* No se puede finalizar una orden que no tenga actividades.
+* Una orden cancelada no puede finalizarse.
+* Una orden solamente puede tener determinado tipo de transición de estado.
+
+Ahora tenemos **comportamiento de negocio**.
+
+Eso es mucho más interesante.
+
+---
+
+# 3. Nuestro primer agregado
+
+En DDD vamos a identificar **Aggregates**.
+
+Para nuestro ejemplo, inicialmente podemos considerar:
+
+```text
+WorkOrder
+   │
+   ├── WorkOrderActivity
+   ├── WorkOrderPart
+   └── RefrigerantUsage
+```
+
+Y `WorkOrder` será el **Aggregate Root**.
+
+Conceptualmente:
+
+```text
+                ┌─────────────────────────┐
+                │       WorkOrder         │
+                │   Aggregate Root        │
+                │                         │
+                │ Id                      │
+                │ Status                  │
+                │ CreatedAt               │
+                │                         │
+                │ ┌─────────────────────┐ │
+                │ │ WorkOrderActivity   │ │
+                │ └─────────────────────┘ │
+                │                         │
+                │ ┌─────────────────────┐ │
+                │ │ WorkOrderPart       │ │
+                │ └─────────────────────┘ │
+                │                         │
+                │ ┌─────────────────────┐ │
+                │ │ RefrigerantUsage    │ │
+                │ └─────────────────────┘ │
+                └─────────────────────────┘
+```
+
+La idea importante es:
+
+> **Los objetos que pertenecen al mismo agregado deben protegerse mediante las reglas del Aggregate Root.**
+
+Por ejemplo, no queremos que desde cualquier lugar de la aplicación alguien haga:
+
+```csharp
+workOrder.Status = WorkOrderStatus.Completed;
+```
+
+Porque podría violar reglas.
+
+Preferimos algo como:
+
+```csharp
+workOrder.Complete();
+```
+
+Y que `WorkOrder` decida si realmente puede completarse.
+
+---
+
+# 4. Nuestro primer modelo de dominio
+
+Podríamos comenzar con algo parecido a:
+
+```csharp
+public sealed class WorkOrder
+{
+    private readonly List<WorkOrderActivity> _activities = [];
+
+    public int Id { get; private set; }
+
+    public WorkOrderStatus Status { get; private set; }
+
+    public IReadOnlyCollection<WorkOrderActivity> Activities =>
+        _activities.AsReadOnly();
+
+    public void AddActivity(
+        string description,
+        decimal hours)
+    {
+        if (Status == WorkOrderStatus.Completed)
+            throw new DomainException(
+                "A completed work order cannot receive activities.");
+
+        if (hours <= 0)
+            throw new DomainException(
+                "Activity hours must be greater than zero.");
+
+        _activities.Add(
+            new WorkOrderActivity(description, hours));
+    }
+
+    public void Complete()
+    {
+        if (_activities.Count == 0)
+            throw new DomainException(
+                "A work order cannot be completed without activities.");
+
+        if (Status == WorkOrderStatus.Cancelled)
+            throw new DomainException(
+                "A cancelled work order cannot be completed.");
+
+        Status = WorkOrderStatus.Completed;
+    }
+}
+```
+
+Aquí ya tenemos algo fundamental de DDD:
+
+### El dominio protege sus propias reglas.
+
+No estamos dependiendo de:
+
+```text
+Controller
+    ↓
+if (...)
+```
+
+ni de:
+
+```text
+Service
+    ↓
+if (...)
+```
+
+Las reglas importantes pertenecen al **modelo de dominio**.
+
+---
+
+# 5. ¿Y dónde entra CQRS?
+
+Ahora imaginemos que queremos finalizar una orden.
+
+Sin CQRS podríamos terminar con:
+
+```text
+POST /api/work-orders/125/complete
+```
+
+y un servicio:
+
+```csharp
+public async Task CompleteAsync(int id)
+{
+    var workOrder = await repository.GetByIdAsync(id);
+
+    workOrder.Complete();
+
+    await repository.SaveAsync();
+}
+```
+
+Con CQRS vamos a pensar:
+
+> **Finalizar una orden es un Command.**
+
+Porque estamos modificando el estado del sistema.
+
+Entonces tendremos conceptualmente:
+
+```text
+CompleteWorkOrderCommand
+```
+
+y su handler:
+
+```text
+CompleteWorkOrderCommand
+            │
+            ▼
+CompleteWorkOrderCommandHandler
+            │
+            ▼
+      WorkOrder
+            │
+            ▼
+      workOrder.Complete()
+```
+
+Mientras que una consulta sería:
+
+```text
+GetWorkOrderByIdQuery
+```
+
+porque solamente queremos obtener información.
+
+Entonces:
+
+```text
+             CQRS
+
+        ┌───────────────┐
+        │    Command    │
+        │  Modifica     │
+        │    estado     │
+        └───────┬───────┘
+                ▼
+          Domain Model
+                │
+                ▼
+            Database
+
+
+        ┌───────────────┐
+        │     Query     │
+        │    Consulta   │
+        │     datos     │
+        └───────┬───────┘
+                ▼
+           Read Model
+                │
+                ▼
+            Database
+```
+
+Pero **no vamos a introducir CQRS todavía en todo el proyecto**.
+
+Primero necesitamos comprender correctamente el dominio.
+
+---
+
+# 6. ¿Y EF Core dónde entra?
+
+EF Core es otra preocupación.
+
+EF Core **no es DDD**.
+
+EF Core es nuestra herramienta de persistencia.
+
+Tenemos:
+
+```text
+              DOMAIN
+                 │
+                 │
+          reglas de negocio
+                 │
+                 ▼
+          WorkOrder
+                 ▲
+                 │
+                 │ persiste
+                 │
+          ┌──────┴──────┐
+          │   EF Core   │
+          └──────┬──────┘
+                 │
+                 ▼
+             PostgreSQL
+```
+
+Por eso queremos evitar diseñar nuestro dominio pensando primero en:
+
+```csharp
+[Key]
+[Column("codigo")]
+[MaxLength(100)]
+[ForeignKey(...)]
+```
+
+Nuestro dominio debería representar **el negocio**.
+
+EF Core se encargará de decirle a PostgreSQL cómo almacenar ese dominio.
+
+Ahí es donde `IEntityTypeConfiguration<T>` será muy importante.
+
+---
+
+# 7. Arquitectura que construiremos
+
+Nuestro proyecto terminará aproximadamente así:
+
+```text
+TribuSoft
+│
+├── TribuSoft.Domain
+│   │
+│   ├── Entities
+│   ├── ValueObjects
+│   ├── Enums
+│   ├── Exceptions
+│   ├── Events
+│   └── Abstractions
+│
+├── TribuSoft.Application
+│   │
+│   ├── WorkOrders
+│   │   ├── Commands
+│   │   ├── Queries
+│   │   ├── DTOs
+│   │   └── Handlers
+│   │
+│   └── Abstractions
+│
+├── TribuSoft.Infrastructure
+│   │
+│   ├── Persistence
+│   │   ├── Configurations
+│   │   ├── Repositories
+│   │   └── AppDbContext
+│   │
+│   └── ...
+│
+└── TribuSoft.Api
+    │
+    ├── Endpoints
+    ├── Middleware
+    └── Program.cs
+```
+
+Y las dependencias:
+
+```text
+             ┌───────────────┐
+             │      API      │
+             └───────┬───────┘
+                     │
+                     ▼
+             ┌───────────────┐
+             │  Application  │
+             └───────┬───────┘
+                     │
+                     ▼
+             ┌───────────────┐
+             │    Domain     │
+             └───────────────┘
+                     ▲
+                     │
+             ┌───────┴───────┐
+             │ Infrastructure│
+             │    EF Core    │
+             └───────────────┘
+```
+
+La regla fundamental será:
+
+> **El dominio no conoce EF Core, PostgreSQL, HTTP, Controllers ni DTOs.**
+
+---
+
+# 8. Nuestro modelo de negocio inicial
+
+Antes de escribir código, vamos a identificar los conceptos.
+
+### Clientes
+
+```text
+Customer
+```
+
+### Equipos
+
+```text
+Equipment
+```
+
+### Técnicos
+
+```text
+Technician
+```
+
+### Orden de trabajo
+
+```text
+WorkOrder
+```
+
+### Actividades realizadas
+
+```text
+WorkOrderActivity
+```
+
+### Repuestos utilizados
+
+```text
+WorkOrderPart
+```
+
+### Uso de refrigerante
+
+```text
+RefrigerantUsage
+```
+
+Pero cuidado:
+
+**No significa que todos deban convertirse automáticamente en Aggregate Roots.**
+
+Esta distinción será una parte importante de nuestro aprendizaje.
+
+---
+
+# 9. Primera decisión importante: ¿qué es una Orden?
+
+Preguntémonos:
+
+> ¿Qué identifica realmente una orden?
+
+Podríamos tener:
+
+```text
+WorkOrder
+----------------------------
+Id
+Number
+Customer
+Equipment
+Technician
+Status
+CreatedAt
+ScheduledAt
+StartedAt
+CompletedAt
+Description
+```
+
+Pero inmediatamente aparecen preguntas de negocio:
+
+### ¿Puede una orden existir sin técnico?
+
+Probablemente sí.
+
+```text
+Estado: Pending
+Técnico: null
+```
+
+### ¿Puede tener técnico cuando está pendiente?
+
+Sí.
+
+### ¿Puede cambiar de técnico?
+
+Probablemente sí, mientras no esté finalizada.
+
+### ¿Puede modificarse una orden finalizada?
+
+Probablemente no.
+
+### ¿Puede cancelarse una orden finalizada?
+
+Probablemente no.
+
+### ¿Puede agregarse una actividad después de finalizar?
+
+No.
+
+Estas preguntas son mucho más importantes para DDD que decidir si la PK será `int` o `Guid`.
+
+---
+
+# 10. Estados de nuestra orden
+
+Inicialmente podríamos tener:
+
+```csharp
+public enum WorkOrderStatus
+{
+    Pending = 1,
+    Assigned = 2,
+    InProgress = 3,
+    Completed = 4,
+    Cancelled = 5
+}
+```
+
+Y podemos visualizar el flujo:
+
+```text
+                 ┌───────────┐
+                 │  Pending  │
+                 └─────┬─────┘
+                       │
+                       ▼
+                 ┌───────────┐
+                 │ Assigned  │
+                 └─────┬─────┘
+                       │
+                       ▼
+                ┌────────────┐
+                │ InProgress │
+                └──────┬─────┘
+                       │
+                       ▼
+                 ┌───────────┐
+                 │ Completed │
+                 └───────────┘
+
+Pending ───────────────► Cancelled
+Assigned ──────────────► Cancelled
+InProgress ────────────► Cancelled
+```
+
+Esto nos va a permitir aprender posteriormente algo muy importante:
+
+> **Una entidad DDD no es simplemente un conjunto de propiedades; también tiene comportamiento y reglas de transición.**
+
+---
+
+# 11. ¿Dónde quiero llevarte con este proyecto?
+
+Cuando terminemos, quiero que puedas mirar una funcionalidad como:
+
+> "Asignar un técnico a una orden de trabajo"
+
+y razonarla así:
+
+```text
+HTTP
+ │
+ ▼
+AssignTechnicianCommand
+ │
+ ▼
+CommandHandler
+ │
+ ├── obtiene WorkOrder
+ │
+ ├── obtiene Technician
+ │
+ ├── WorkOrder.AssignTechnician(...)
+ │
+ └── guarda cambios
+ │
+ ▼
+EF Core
+ │
+ ▼
+PostgreSQL
+```
+
+Y no simplemente:
+
+```text
+Controller
+   ↓
+UPDATE work_order
+SET technician_id = ...
+```
+
+La diferencia es enorme.
+
+---
+
+## Siguiente paso
+
+Vamos a hacerlo **paso a paso y con código real**, no intentando aprender todo de una vez.
+
+El siguiente paso será diseñar **el Aggregate `WorkOrder` desde cero**, analizando:
+
+* entidad vs Aggregate Root;
+* propiedades públicas vs privadas;
+* constructor;
+* invariantes;
+* métodos de negocio;
+* `WorkOrderActivity`;
+* `WorkOrderStatus`;
+* cuándo usar `Guid`, `int` o `long`;
+* y cómo evitar crear un modelo anémico.
+
+Después lo conectaremos con **EF Core 10 mediante `IEntityTypeConfiguration<WorkOrder>`**, para que veas claramente la separación entre **DDD y persistencia**.

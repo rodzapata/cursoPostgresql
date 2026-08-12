@@ -1,0 +1,1295 @@
+---
+title: "funciones lambda en CSharp"
+date: "2026-08-12"
+description: "Aprender funciones lambda actualizado a CSharp 14"
+slug: "funcion-lambda"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Claro. Vamos a estudiarlas **desde cero**, pero con mentalidad de **.NET 10 + C# 14**, usando ejemplos reales y buenas convenciones.
+
+Una aclaración importante antes de empezar:
+
+> **Una expresión lambda no es lo mismo que LINQ.**
+> Las lambdas son una característica del lenguaje C#. LINQ es una tecnología/API que las utiliza muchísimo.
+
+Por ejemplo:
+
+```csharp
+customers.Where(c => c.IsActive);
+```
+
+Aquí:
+
+* `Where(...)` → LINQ.
+* `c => c.IsActive` → expresión lambda.
+
+---
+
+# 1. ¿Qué es una función lambda?
+
+Una lambda es una forma **corta de escribir una función**.
+
+Supongamos que queremos una función que reciba dos números y los sume.
+
+La forma tradicional:
+
+```csharp
+static int Sumar(int a, int b)
+{
+    return a + b;
+}
+```
+
+Con lambda:
+
+```csharp
+Func<int, int, int> sumar = (a, b) => a + b;
+```
+
+Podemos leerla así:
+
+```text
+(a, b) => a + b
+  │       │
+  │       └── resultado
+  │
+  └────────── parámetros
+```
+
+La flecha `=>` se lee aproximadamente como:
+
+> "va hacia" / "produce"
+
+---
+Observemos los siguiente:  
+si son 2 parametros, porque hay 3 tipo **int**  
+
+En C#, el tipo delegado **`Func<...>`** siempre reserva **el último tipo especificado para el valor de retorno** (el resultado), mientras que todos los anteriores son los tipos de los parámetros de entrada.
+
+### ¿Cómo se desglosa `Func<int, int, int>`?
+
+Si lo leemos de izquierda a derecha:
+
+```text
+Func< int ,  int ,   int >
+      │      │        └─ 3. Tipo de retorno (Resultado)
+      │      └────────── 2. Segundo parámetro de entrada (b)
+      └───────────────── 1. Primer parámetro de entrada (a)
+
+```
+
+Por eso, cuando defines la función lambda:
+
+```csharp
+Func<int, int, int> sumar = (a, b) => a + b;
+
+```
+
+* C# entiende que **`a`** es el primer `int`.
+* **`b`** es el segundo `int`.
+* Y la operación **`a + b`** devuelve un `int` (el tercer parámetro).
+
+---
+
+### Otros ejemplos para verlo más claro:
+
+* **Un parámetro de entrada y un retorno:**
+```csharp
+// Recibe un int, devuelve un string
+Func<int, string> convertirATexto = x => x.ToString(); 
+
+```
+
+
+* **Tres parámetros de entrada y un retorno:**
+```csharp
+// Recibe 3 ints (a, b, c) y devuelve un double
+Func<int, int, int, double> promediar = (a, b, c) => (a + b + c) / 3.0;
+
+```
+
+
+
+---
+
+> **Nota útil:** Si alguna vez necesitas definir una función que **no devuelva nada** (equivalente a `void`), en lugar de usar `Func` debes usar **`Action`**. Por ejemplo: `Action<int, int>` recibe dos enteros y no regresa ningún resultado.
+
+# 2. La estructura de una lambda
+
+La forma general es:
+
+```csharp
+(parámetros) => expresión
+```
+
+Por ejemplo:
+
+```csharp
+numero => numero * 2
+```
+
+Tenemos:
+
+```text
+numero => numero * 2
+   │           │
+   │           └── resultado
+   └────────────── parámetro
+```
+
+Otro ejemplo:
+
+```csharp
+nombre => nombre.ToUpper()
+```
+
+Y otro:
+
+```csharp
+(x, y) => x + y
+```
+
+---
+
+# 3. Lambda con un solo parámetro
+
+Si tenemos un solo parámetro, podemos omitir los paréntesis.
+
+```csharp
+numero => numero * 2
+```
+
+También sería válido:
+
+```csharp
+(numero) => numero * 2
+```
+
+Pero la primera forma es más limpia.
+
+### Convención recomendada
+
+En C# moderno:
+
+```csharp
+numero => numero * 2
+```
+
+en lugar de:
+
+```csharp
+(numero) => numero * 2
+```
+
+cuando solamente existe un parámetro.
+
+---
+
+# 4. Lambda con varios parámetros
+
+Cuando tenemos varios parámetros:
+
+```csharp
+(a, b) => a + b
+```
+
+Por ejemplo:
+
+```csharp
+Func<int, int, int> sumar = (a, b) => a + b;
+
+var resultado = sumar(10, 20);
+
+Console.WriteLine(resultado);
+```
+
+Resultado:
+
+```text
+30
+```
+
+---
+
+# 5. ¿Dónde se guarda una lambda?
+
+Aquí aparece algo muy importante.
+
+Una lambda normalmente necesita un **tipo delegado**.
+
+Los dos tipos que más vas a utilizar son:
+
+```csharp
+Func<...>
+Action<...>
+```
+
+Vamos a estudiarlos.
+
+---
+
+**6. `Func<>`**
+
+`Func` representa una función que:
+
+* recibe cero o más parámetros
+* **devuelve un valor**
+
+Por ejemplo:
+
+```csharp
+Func<int, int> duplicar = numero => numero * 2;
+```
+
+La última posición representa el tipo de retorno.
+
+```text
+Func<int, int>
+     │    │
+     │    └── retorna int
+     └─────── recibe int
+```
+
+Otro:
+
+```csharp
+Func<int, int, int> sumar = (a, b) => a + b;
+```
+
+Significa:
+
+```text
+Func<
+    int,   // parámetro 1
+    int,   // parámetro 2
+    int    // retorno
+>
+```
+
+---
+
+**7. `Action<>`**
+
+`Action` representa una función que **no devuelve ningún valor**.
+
+Por ejemplo:
+
+```csharp
+Action<string> imprimir = mensaje =>
+{
+    Console.WriteLine(mensaje);
+};
+```
+
+La ejecutamos:
+
+```csharp
+imprimir("Hola Rodney");
+```
+
+Resultado:
+
+```text
+Hola Rodney
+```
+
+Como no devuelve nada:
+
+```csharp
+Action<string>
+```
+
+no tiene un tipo de retorno al final.
+
+---
+
+# 8. Diferencia entre `Func` y `Action`
+
+Piensa así:
+
+### `Func`
+
+```csharp
+Func<int, int> duplicar = numero => numero * 2;
+```
+
+Produce algo:
+
+```text
+10 → 20
+```
+
+### `Action`
+
+```csharp
+Action<int> imprimir = numero =>
+{
+    Console.WriteLine(numero);
+};
+```
+
+Hace algo, pero no devuelve nada:
+
+```text
+10 → imprime 10
+```
+
+Una regla fácil:
+
+> **Func = devuelve algo.**
+> **Action = ejecuta una acción.**
+
+---
+
+# 9. Lambda con varias instrucciones
+
+Hasta ahora hemos utilizado lambdas de una sola expresión:
+
+```csharp
+numero => numero * 2
+```
+
+Pero también podemos utilizar un bloque:
+
+```csharp
+numero =>
+{
+    var resultado = numero * 2;
+
+    return resultado;
+};
+```
+
+Por ejemplo:
+
+```csharp
+Func<int, int> duplicar = numero =>
+{
+    var resultado = numero * 2;
+
+    return resultado;
+};
+```
+
+Aquí aparece una diferencia importante:
+
+### Expression lambda
+
+```csharp
+numero => numero * 2
+```
+
+### Statement lambda
+
+```csharp
+numero =>
+{
+    var resultado = numero * 2;
+
+    return resultado;
+}
+```
+
+---
+
+# 10. ¿Cuál deberíamos preferir?
+
+Cuando la operación es sencilla:
+
+```csharp
+Func<int, int> duplicar = numero => numero * 2;
+```
+
+Es preferible.
+
+No hagas innecesariamente esto:
+
+```csharp
+Func<int, int> duplicar = numero =>
+{
+    return numero * 2;
+};
+```
+
+La primera es más idiomática en C#.
+
+---
+
+# 11. Lambda y `var`
+
+Aquí empieza algo muy importante para escribir C# moderno.
+
+Esto **no funciona**:
+
+```csharp
+var sumar = (a, b) => a + b;
+```
+
+¿Por qué?
+
+Porque el compilador necesita saber qué tipos tienen `a` y `b`.
+
+En cambio:
+
+```csharp
+Func<int, int, int> sumar = (a, b) => a + b;
+```
+
+sí funciona.
+
+El tipo `Func<int, int, int>` proporciona la información necesaria.
+
+---
+
+# 12. Lambdas y métodos
+
+Una lambda puede reemplazar muchas veces una función pequeña.
+
+Por ejemplo:
+
+```csharp
+static bool EsMayorDeEdad(int edad)
+{
+    return edad >= 18;
+}
+```
+
+Podríamos representar esa operación como:
+
+```csharp
+Func<int, bool> esMayorDeEdad = edad => edad >= 18;
+```
+
+Y:
+
+```csharp
+Console.WriteLine(esMayorDeEdad(20));
+```
+
+Resultado:
+
+```text
+True
+```
+
+---
+
+# 13. Aquí empieza LINQ
+
+Ahora vamos a conectar las dos cosas.
+
+Supongamos:
+
+```csharp
+var edades = new[] { 12, 18, 25, 15, 30 };
+```
+
+Queremos solamente los mayores de edad.
+
+Podríamos hacer un `foreach`:
+
+```csharp
+var mayoresDeEdad = new List<int>();
+
+foreach (var edad in edades)
+{
+    if (edad >= 18)
+    {
+        mayoresDeEdad.Add(edad);
+    }
+}
+```
+
+Pero LINQ permite:
+
+```csharp
+var mayoresDeEdad = edades
+    .Where(edad => edad >= 18)
+    .ToList();
+```
+
+Aquí:
+
+```csharp
+.Where(edad => edad >= 18)
+```
+
+es la combinación de:
+
+```text
+LINQ       +       Lambda
+ │                  │
+Where()       edad => edad >= 18
+```
+
+---
+
+# 14. `Where` es un ejemplo fundamental
+
+Esta línea:
+
+```csharp
+.Where(edad => edad >= 18)
+```
+
+se puede interpretar conceptualmente como:
+
+> "Dame los elementos para los cuales esta función devuelva `true`."
+
+La lambda:
+
+```csharp
+edad => edad >= 18
+```
+
+es una función que recibe:
+
+```text
+edad
+```
+
+y devuelve:
+
+```text
+true / false
+```
+
+Por eso conceptualmente tenemos:
+
+```csharp
+Func<int, bool>
+```
+
+---
+
+# 15. Ejemplo real con objetos
+
+Ahora utilicemos algo más cercano a tus proyectos .NET.
+
+```csharp
+public sealed class Customer
+{
+    public int Id { get; init; }
+
+    public string Name { get; init; } = string.Empty;
+
+    public bool IsActive { get; init; }
+}
+```
+
+Creamos clientes:
+
+```csharp
+var customers = new List<Customer>
+{
+    new() { Id = 1, Name = "Carlos", IsActive = true },
+    new() { Id = 2, Name = "Ana", IsActive = false },
+    new() { Id = 3, Name = "Pedro", IsActive = true }
+};
+```
+
+Ahora:
+
+```csharp
+var activeCustomers = customers
+    .Where(customer => customer.IsActive)
+    .ToList();
+```
+
+La lambda:
+
+```csharp
+customer => customer.IsActive
+```
+
+significa:
+
+> Recibe un `Customer` y devuelve `true` si está activo.
+
+---
+
+# 16. `Select` y las lambdas
+
+Otro método LINQ importantísimo:
+
+```csharp
+Select()
+```
+
+Sirve para **transformar** elementos.
+
+Por ejemplo:
+
+```csharp
+var names = customers
+    .Select(customer => customer.Name)
+    .ToList();
+```
+
+Tenemos:
+
+```csharp
+customer => customer.Name
+```
+
+que significa:
+
+```text
+Customer → string
+```
+
+Por ejemplo:
+
+```text
+Customer { Name = "Carlos" }
+             ↓
+         "Carlos"
+```
+
+---
+
+# 17. `Where` vs `Select`
+
+Esta diferencia debes aprenderla muy bien:
+
+### `Where`
+
+**Filtra**
+
+```csharp
+customers.Where(customer => customer.IsActive)
+```
+
+Pregunta:
+
+> ¿Este elemento cumple la condición?
+
+Devuelve:
+
+```text
+Customer → bool
+```
+
+---
+
+### `Select`
+
+**Transforma**
+
+```csharp
+customers.Select(customer => customer.Name)
+```
+
+Pregunta:
+
+> ¿Qué quiero obtener de este elemento?
+
+Devuelve:
+
+```text
+Customer → string
+```
+
+---
+
+# 18. `OrderBy`
+
+También utiliza lambdas:
+
+```csharp
+var customers = customers
+    .OrderBy(customer => customer.Name)
+    .ToList();
+```
+
+La lambda:
+
+```csharp
+customer => customer.Name
+```
+
+le dice a LINQ:
+
+> Ordena utilizando `Name`.
+
+También:
+
+```csharp
+.OrderByDescending(customer => customer.Id)
+```
+
+---
+
+# 19. `Any`
+
+Otro muy utilizado en aplicaciones reales:
+
+```csharp
+var exists = customers
+    .Any(customer => customer.Name == "Carlos");
+```
+
+La lambda:
+
+```csharp
+customer => customer.Name == "Carlos"
+```
+
+devuelve:
+
+```text
+true
+```
+
+o:
+
+```text
+false
+```
+
+---
+
+# 20. `FirstOrDefault`
+
+También:
+
+```csharp
+var customer = customers
+    .FirstOrDefault(customer => customer.Id == 10);
+```
+
+Aquí la lambda significa:
+
+> Encuentra el primer cliente cuyo `Id` sea 10.
+
+---
+
+# 21. Lambdas en EF Core
+
+Esto es **muy importante para tu aprendizaje de .NET 10**.
+
+Cuando escribes:
+
+```csharp
+var customers = await context.Customers
+    .Where(customer => customer.IsActive)
+    .ToListAsync(cancellationToken);
+```
+
+la lambda:
+
+```csharp
+customer => customer.IsActive
+```
+
+no necesariamente se ejecuta en memoria como una lambda normal.
+
+EF Core puede analizarla y traducirla a SQL.
+
+Conceptualmente:
+
+```csharp
+customer => customer.IsActive
+```
+
+puede terminar convirtiéndose en algo parecido a:
+
+```sql
+WHERE IsActive = true
+```
+
+Por eso debes distinguir entre:
+
+```text
+Lambda normal
+       ↓
+se ejecuta en .NET
+```
+
+y:
+
+```text
+Lambda usada por EF Core
+       ↓
+EF Core puede traducirla
+       ↓
+SQL
+       ↓
+Base de datos
+```
+
+---
+
+# 22. Lambda vs Expression
+
+Aquí entramos en un concepto fundamental para **EF Core + Clean Architecture + Repository Pattern**.
+
+Tenemos:
+
+```csharp
+Func<Customer, bool>
+```
+
+y:
+
+```csharp
+Expression<Func<Customer, bool>>
+```
+
+No son exactamente lo mismo.
+
+**`Func`**
+
+Representa código ejecutable:
+
+```csharp
+Func<Customer, bool> predicate =
+    customer => customer.IsActive;
+```
+
+### `Expression<Func<...>>`
+
+Representa un **árbol que describe la expresión**:
+
+```csharp
+Expression<Func<Customer, bool>> predicate =
+    customer => customer.IsActive;
+```
+
+EF Core utiliza expresiones para poder analizar qué estás solicitando y traducirlo a SQL.
+
+---
+
+# 23. Ejemplo práctico con Repository
+
+Por ejemplo:
+
+```csharp
+public async Task<IReadOnlyList<Customer>> GetAsync(
+    Expression<Func<Customer, bool>> predicate,
+    CancellationToken cancellationToken = default)
+{
+    return await context.Customers
+        .Where(predicate)
+        .ToListAsync(cancellationToken);
+}
+```
+
+Podríamos llamar:
+
+```csharp
+var customers = await repository.GetAsync(
+    customer => customer.IsActive,
+    cancellationToken);
+```
+
+La lambda:
+
+```csharp
+customer => customer.IsActive
+```
+
+se convierte en:
+
+```csharp
+Expression<Func<Customer, bool>>
+```
+
+y EF Core puede utilizarla para construir la consulta.
+
+---
+
+# 24. Una regla que quiero que memorices
+
+Cuando veas:
+
+```csharp
+x => ...
+```
+
+pregúntate:
+
+> **¿Qué tipo de delegado o expresión espera este método?**
+
+Por ejemplo:
+
+```csharp
+Where(...)
+```
+
+normalmente espera algo conceptualmente equivalente a:
+
+```csharp
+Func<T, bool>
+```
+
+o, en `IQueryable<T>`, una:
+
+```csharp
+Expression<Func<T, bool>>
+```
+
+---
+
+# 25. Lambdas en métodos propios
+
+También puedes crear tus propios métodos que reciben lambdas.
+
+Por ejemplo:
+
+```csharp
+public static IEnumerable<T> Filter<T>(
+    IEnumerable<T> items,
+    Func<T, bool> predicate)
+{
+    foreach (var item in items)
+    {
+        if (predicate(item))
+        {
+            yield return item;
+        }
+    }
+}
+```
+
+Podemos utilizarlo:
+
+```csharp
+var numbers = new[] { 1, 2, 3, 4, 5 };
+
+var evenNumbers = Filter(
+    numbers,
+    number => number % 2 == 0);
+```
+
+Resultado:
+
+```text
+2
+4
+```
+
+Esto es extremadamente importante porque empiezas a comprender que:
+
+> **Una lambda puede ser pasada como argumento a otro método.**
+
+---
+
+# 26. Lambda como comportamiento
+
+Esta es una de las ideas más poderosas.
+
+Podemos pasar diferentes comportamientos:
+
+```csharp
+Func<int, bool> isEven =
+    number => number % 2 == 0;
+
+Func<int, bool> isPositive =
+    number => number > 0;
+
+Func<int, bool> isGreaterThanTen =
+    number => number > 10;
+```
+
+Y luego:
+
+```csharp
+Filter(numbers, isEven);
+```
+
+o:
+
+```csharp
+Filter(numbers, isPositive);
+```
+
+o:
+
+```csharp
+Filter(numbers, isGreaterThanTen);
+```
+
+El método no necesita conocer la regla concreta.
+
+---
+
+# 27. Esto conecta con SOLID
+
+Esto tiene relación directa con diseño de software.
+
+En lugar de hacer:
+
+```csharp
+GetActiveCustomers()
+GetInactiveCustomers()
+GetCustomersWithCredit()
+GetCustomersFromBogota()
+GetCustomersFromMedellin()
+```
+
+podemos tener un mecanismo genérico:
+
+```csharp
+GetCustomers(
+    customer => customer.IsActive);
+```
+
+o:
+
+```csharp
+GetCustomers(
+    customer => customer.City == "Medellín");
+```
+
+La lógica de selección se proporciona mediante una lambda.
+
+---
+
+# 28. Lambdas modernas de C# 14
+
+En C# 14 hay mejoras en las capacidades del lenguaje alrededor de lambdas y expresiones, pero la sintaxis fundamental que debes dominar sigue siendo:
+
+```csharp
+x => x + 1
+```
+
+y:
+
+```csharp
+(x, y) => x + y
+```
+
+Además, C# moderno favorece expresiones concisas cuando la intención queda clara.
+
+Por ejemplo:
+
+```csharp
+Func<int, bool> isAdult = age => age >= 18;
+```
+
+es mucho más limpio que crear una clase o método únicamente para esa operación.
+
+---
+
+# 29. Pero cuidado: no abuses de las lambdas
+
+Una lambda no significa automáticamente:
+
+> "Código moderno = código mejor."
+
+Esto:
+
+```csharp
+var result = customers
+    .Where(c => c.IsActive)
+    .Where(c => c.CreditLimit > 1000000)
+    .Where(c => c.City != null)
+    .Where(c => c.City!.Length > 5)
+    .Select(c => c.Name)
+    .OrderBy(n => n)
+    .ToList();
+```
+
+puede ser perfectamente válido.
+
+Pero una regla de negocio compleja como:
+
+```csharp
+customer =>
+    customer.IsActive &&
+    customer.CreditLimit > 1_000_000 &&
+    customer.LastPaymentDate.HasValue &&
+    DateTime.UtcNow - customer.LastPaymentDate.Value > TimeSpan.FromDays(30)
+```
+
+puede necesitar una abstracción mejor, dependiendo del contexto.
+
+La lambda debe mejorar la claridad, no destruirla.
+
+---
+
+# 30. Las 6 lambdas que debes dominar primero
+
+Para tu aprendizaje de .NET 10, yo las estudiaría en este orden:
+
+### 1. Filtrar
+
+```csharp
+.Where(x => x.IsActive)
+```
+
+### 2. Transformar
+
+```csharp
+.Select(x => x.Name)
+```
+
+### 3. Ordenar
+
+```csharp
+.OrderBy(x => x.Name)
+```
+
+### 4. Comprobar existencia
+
+```csharp
+.Any(x => x.Id == id)
+```
+
+### 5. Buscar
+
+```csharp
+.FirstOrDefault(x => x.Id == id)
+```
+
+### 6. Agrupar
+
+```csharp
+.GroupBy(x => x.CategoryId)
+```
+
+Estas seis aparecen constantemente en:
+
+* ASP.NET Core
+* EF Core
+* DDD
+* CQRS
+* Repositories
+* LINQ
+* procesamiento de colecciones
+* APIs REST
+
+---
+
+# 31. Un ejemplo completo de una API
+
+Imagina un endpoint:
+
+```csharp
+app.MapGet("/customers", async (
+    AppDbContext context,
+    CancellationToken cancellationToken) =>
+{
+    var customers = await context.Customers
+        .Where(customer => customer.IsActive)
+        .OrderBy(customer => customer.Name)
+        .Select(customer => new CustomerResponse
+        {
+            Id = customer.Id,
+            Name = customer.Name
+        })
+        .ToListAsync(cancellationToken);
+
+    return Results.Ok(customers);
+});
+```
+
+Aquí tenemos **tres lambdas diferentes**:
+
+```csharp
+customer => customer.IsActive
+```
+
+```csharp
+customer => customer.Name
+```
+
+```csharp
+customer => new CustomerResponse
+{
+    Id = customer.Id,
+    Name = customer.Name
+}
+```
+
+Cada una tiene un propósito:
+
+```text
+Where   → filtrar
+OrderBy → ordenar
+Select  → proyectar
+```
+
+---
+
+# 32. Mapa mental
+
+Quédate con esta imagen mental:
+
+```text
+                    LAMBDA
+                      │
+                x => expresión
+                      │
+          ┌───────────┴───────────┐
+          │                       │
+        Func                    Action
+          │                       │
+    devuelve valor          no devuelve valor
+          │
+          ▼
+        LINQ
+          │
+   ┌──────┼────────┬─────────┐
+   │      │        │         │
+ Where  Select   OrderBy    Any
+   │      │        │         │
+filtrar transformar ordenar comprobar
+```
+
+Y cuando trabajes con EF Core:
+
+```text
+Lambda
+   ↓
+Expression<Func<T, ...>>
+   ↓
+EF Core
+   ↓
+SQL
+   ↓
+Base de datos
+```
+
+---
+
+## Siguiente paso recomendado
+
+Como estás aprendiendo **DDD + CQRS + EF Core en .NET 10**, no te recomiendo saltar inmediatamente a lambdas avanzadas.
+
+El siguiente ejercicio debería ser aprender a diferenciar perfectamente estas tres cosas:
+
+```csharp
+Func<T, bool>
+```
+
+vs.
+
+```csharp
+Expression<Func<T, bool>>
+```
+
+vs.
+
+```csharp
+Action<T>
+```
+
+y después practicar:
+
+```csharp
+Where
+Select
+OrderBy
+Any
+FirstOrDefault
+SingleOrDefault
+GroupBy
+```
+
+con nuestro ejemplo de **órdenes de trabajo de mantenimiento de aires acondicionados**. Ahí las lambdas empiezan a tener mucho más sentido dentro de **EF Core + DDD + CQRS**.

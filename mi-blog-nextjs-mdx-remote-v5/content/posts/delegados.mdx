@@ -1,0 +1,1126 @@
+---
+title: "Delegagos en CSharp"
+date: "2026-08-13"
+description: "Aprender delegados antes de LINQ y DDD en el 2026"
+slug: "delegados"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Claro. Y te recomiendo aprender **delegados antes de meternos de lleno en DDD y Clean Architecture**, porque aparecen constantemente en LINQ, estrategias, validaciones, eventos, especificaciones y composición de comportamiento.
+
+En C# moderno, los delegados se usan muchísimo a través de `Func<>`, `Action<>` y lambdas. Microsoft define un delegado como un tipo que representa una referencia a un método con una determinada lista de parámetros y tipo de retorno. ([Microsoft Learn][1])
+
+# 1. La idea fundamental
+
+Quédate primero con esta definición:
+
+> **Un delegado es una variable que puede guardar una función/método.**
+
+Normalmente hacemos esto:
+
+```csharp
+int resultado = Sumar(10, 20);
+
+static int Sumar(int a, int b)
+{
+    return a + b;
+}
+```
+
+Aquí `Sumar` es un método.
+
+Con un delegado podemos hacer que una variable **apunte a ese método**:
+
+```csharp
+delegate int Operacion(int a, int b);
+```
+
+Ahora:
+
+```csharp
+Operacion operacion = Sumar;
+
+int resultado = operacion(10, 20);
+```
+
+Tenemos:
+
+```text
+                ┌───────────────┐
+operacion ─────►│    Sumar()    │
+                └───────────────┘
+```
+
+Y podemos cambiar el comportamiento:
+
+```csharp
+operacion = Restar;
+
+int resultado = operacion(10, 20);
+```
+
+Ahora:
+
+```text
+                ┌───────────────┐
+operacion ─────►│    Restar()   │
+                └───────────────┘
+```
+
+Ese concepto es **fundamental para entender arquitectura limpia**.
+
+---
+
+# 2. Nuestro primer delegado
+
+Vamos a crear un pequeño programa.
+
+```csharp
+public delegate int Operacion(int numero1, int numero2);
+```
+
+Este delegado significa:
+
+```text
+Operacion
+   │
+   ├── recibe int
+   ├── recibe int
+   │
+   └── devuelve int
+```
+
+Por lo tanto, este método sirve:
+
+```csharp
+static int Sumar(int a, int b)
+{
+    return a + b;
+}
+```
+
+Pero este no:
+
+```csharp
+static decimal Sumar(decimal a, decimal b)
+{
+    return a + b;
+}
+```
+
+Porque la firma no coincide.
+
+---
+
+# 3. Asignar un método al delegado
+
+```csharp
+Operacion operacion = Sumar;
+```
+
+Y después:
+
+```csharp
+int resultado = operacion(10, 5);
+
+Console.WriteLine(resultado);
+```
+
+Resultado:
+
+```text
+15
+```
+
+Observa algo importante:
+
+```csharp
+operacion(10, 5)
+```
+
+parece una llamada normal a un método.
+
+Pero realmente estamos diciendo:
+
+> "Ejecuta el método al que actualmente apunta `operacion`."
+
+---
+
+# 4. Cambiar el comportamiento
+
+Tenemos:
+
+```csharp
+static int Sumar(int a, int b)
+{
+    return a + b;
+}
+
+static int Restar(int a, int b)
+{
+    return a - b;
+}
+
+static int Multiplicar(int a, int b)
+{
+    return a * b;
+}
+```
+
+Y:
+
+```csharp
+Operacion operacion = Sumar;
+
+Console.WriteLine(operacion(10, 5));
+
+operacion = Restar;
+
+Console.WriteLine(operacion(10, 5));
+
+operacion = Multiplicar;
+
+Console.WriteLine(operacion(10, 5));
+```
+
+Resultado:
+
+```text
+15
+5
+50
+```
+
+Aquí empieza a aparecer el verdadero poder de los delegados.
+
+Tenemos **un mismo código que puede recibir diferentes comportamientos**.
+
+---
+
+# 5. El ejemplo que debes entender para DDD
+
+Imagina un sistema de órdenes de mantenimiento de aires acondicionados.
+
+Tenemos:
+
+```csharp
+public class OrdenTrabajo
+{
+    public decimal Total { get; set; }
+}
+```
+
+Y queremos calcular un descuento.
+
+Podríamos hacer esto:
+
+```csharp
+static decimal CalcularDescuento(OrdenTrabajo orden)
+{
+    if (orden.Total > 1_000_000)
+    {
+        return orden.Total * 0.10m;
+    }
+
+    return 0;
+}
+```
+
+Pero mañana aparecen nuevas reglas:
+
+```text
+Cliente frecuente
+Cliente nuevo
+Empresa
+Cliente VIP
+Temporada
+Promoción
+```
+
+Podríamos terminar con:
+
+```csharp
+if (...)
+{
+}
+else if (...)
+{
+}
+else if (...)
+{
+}
+else if (...)
+{
+}
+```
+
+Esto empieza a generar código difícil de mantener.
+
+Aquí los delegados empiezan a ser interesantes.
+
+---
+
+# 6. Pasar comportamiento como parámetro
+
+Podemos hacer:
+
+```csharp
+static decimal CalcularDescuento(
+    OrdenTrabajo orden,
+    Func<OrdenTrabajo, decimal> estrategia)
+{
+    return estrategia(orden);
+}
+```
+
+Ahora el método recibe:
+
+```csharp
+Func<OrdenTrabajo, decimal>
+```
+
+Esto significa:
+
+```text
+Func
+ │
+ ├── recibe OrdenTrabajo
+ │
+ └── devuelve decimal
+```
+
+Microsoft define `Func<T..., TResult>` precisamente como un delegado cuyo último parámetro genérico representa el tipo de retorno. ([Microsoft Learn][1])
+
+---
+
+# 7. Utilizarlo
+
+Tenemos:
+
+```csharp
+var orden = new OrdenTrabajo
+{
+    Total = 2_000_000
+};
+```
+
+Podemos crear diferentes estrategias.
+
+```csharp
+Func<OrdenTrabajo, decimal> descuentoNormal =
+    orden => orden.Total * 0.05m;
+```
+
+Otra:
+
+```csharp
+Func<OrdenTrabajo, decimal> descuentoVip =
+    orden => orden.Total * 0.15m;
+```
+
+Y utilizarlas:
+
+```csharp
+var descuento = CalcularDescuento(
+    orden,
+    descuentoNormal);
+```
+
+O:
+
+```csharp
+var descuento = CalcularDescuento(
+    orden,
+    descuentoVip);
+```
+
+La arquitectura empieza a tomar esta forma:
+
+```text
+              CalcularDescuento()
+                      │
+                      │
+             recibe comportamiento
+                      │
+          ┌───────────┴───────────┐
+          ▼                       ▼
+   descuentoNormal          descuentoVip
+          │                       │
+          ▼                       ▼
+         5%                      15%
+```
+
+Esto se conoce como **pasar comportamiento como parámetro**.
+
+Y es una de las ideas más importantes detrás de muchos patrones de diseño.
+
+---
+
+# 8. ¿Qué es `Func`?
+
+`Func` es simplemente un delegado genérico que ya viene incluido en .NET.
+
+Por ejemplo:
+
+```csharp
+Func<int, int> duplicar;
+```
+
+Significa:
+
+```text
+recibe int
+   ↓
+devuelve int
+```
+
+Podemos hacer:
+
+```csharp
+Func<int, int> duplicar = numero => numero * 2;
+
+Console.WriteLine(duplicar(10));
+```
+
+Resultado:
+
+```text
+20
+```
+
+---
+
+# 9. `Func<T, TResult>`
+
+Este es extremadamente importante.
+
+```csharp
+Func<int, string>
+```
+
+significa:
+
+```text
+int ──────► función ──────► string
+```
+
+Ejemplo:
+
+```csharp
+Func<int, string> convertir =
+    numero => numero.ToString();
+
+string resultado = convertir(100);
+```
+
+---
+
+# 10. Varios parámetros
+
+Puedes tener:
+
+```csharp
+Func<int, int, int>
+```
+
+Significa:
+
+```text
+int
+int
+ ↓
+función
+ ↓
+int
+```
+
+Por ejemplo:
+
+```csharp
+Func<int, int, int> sumar =
+    (a, b) => a + b;
+```
+
+Y:
+
+```csharp
+var resultado = sumar(10, 20);
+```
+
+Resultado:
+
+```text
+30
+```
+
+Otro:
+
+```csharp
+Func<int, int, bool> esMayor =
+    (a, b) => a > b;
+```
+
+```csharp
+bool resultado = esMayor(20, 10);
+```
+
+Resultado:
+
+```text
+true
+```
+
+---
+
+# 11. `Action`
+
+Ahora tenemos otro delegado importante:
+
+```csharp
+Action
+```
+
+La diferencia fundamental es:
+
+```text
+Func   → devuelve algo
+Action → no devuelve nada
+```
+
+Por ejemplo:
+
+```csharp
+Action mostrarMensaje =
+    () => Console.WriteLine("Hola");
+```
+
+Ejecutamos:
+
+```csharp
+mostrarMensaje();
+```
+
+---
+
+# 12. `Action<T>`
+
+Puede recibir parámetros.
+
+```csharp
+Action<string> mostrar =
+    mensaje => Console.WriteLine(mensaje);
+```
+
+Entonces:
+
+```csharp
+mostrar("Orden creada correctamente");
+```
+
+También:
+
+```csharp
+Action<OrdenTrabajo> registrar =
+    orden => Console.WriteLine(
+        $"Orden: {orden.Total}");
+```
+
+---
+
+# 13. La regla fácil de recordar
+
+Memoriza esto:
+
+```text
+Func   → recibe → devuelve
+Action → recibe → no devuelve
+```
+
+Por ejemplo:
+
+```csharp
+Func<int, decimal>
+```
+
+significa:
+
+```text
+int → decimal
+```
+
+Mientras:
+
+```csharp
+Action<int>
+```
+
+significa:
+
+```text
+int → void
+```
+
+---
+
+# 14. `Predicate<T>`
+
+También encontrarás:
+
+```csharp
+Predicate<T>
+```
+
+Representa una función que recibe un objeto y devuelve `bool`.
+
+Por ejemplo:
+
+```csharp
+Predicate<int> esPar =
+    numero => numero % 2 == 0;
+```
+
+Entonces:
+
+```csharp
+Console.WriteLine(esPar(10));
+```
+
+Resultado:
+
+```text
+true
+```
+
+Conceptualmente:
+
+```text
+Predicate<T>
+
+T ─────► bool
+```
+
+En la práctica, para mucho código moderno verás `Func<T, bool>` en lugar de `Predicate<T>`, especialmente con LINQ.
+
+---
+
+# 15. Aquí aparece LINQ
+
+Ahora probablemente empieces a reconocer código como este:
+
+```csharp
+var ordenes = ordenesTrabajo
+    .Where(orden => orden.Total > 1_000_000);
+```
+
+¿Qué es esto?
+
+El parámetro:
+
+```csharp
+orden => orden.Total > 1_000_000
+```
+
+es una lambda.
+
+Y conceptualmente se está proporcionando una función que responde:
+
+```text
+OrdenTrabajo
+       ↓
+     bool
+```
+
+Es decir:
+
+```csharp
+Func<OrdenTrabajo, bool>
+```
+
+Las expresiones lambda se pueden convertir a tipos delegado, y `Func`/`Action` son los tipos integrados habituales para ello. ([Microsoft Learn][2])
+
+Por eso debes aprender delegados **antes de profundizar en LINQ**.
+
+---
+
+# 16. Ejemplo práctico con órdenes
+
+Supongamos:
+
+```csharp
+var ordenes =
+    new List<OrdenTrabajo>
+    {
+        new() { Total = 500_000 },
+        new() { Total = 1_500_000 },
+        new() { Total = 2_000_000 },
+        new() { Total = 800_000 }
+    };
+```
+
+Podemos escribir:
+
+```csharp
+var ordenesGrandes =
+    ordenes.Where(
+        orden => orden.Total > 1_000_000);
+```
+
+Pero podemos separar el comportamiento:
+
+```csharp
+Func<OrdenTrabajo, bool> esOrdenGrande =
+    orden => orden.Total > 1_000_000;
+```
+
+Y:
+
+```csharp
+var ordenesGrandes =
+    ordenes.Where(esOrdenGrande);
+```
+
+Ahora debería ser más fácil entender LINQ.
+
+---
+
+# 17. Delegados y Clean Architecture
+
+Aquí es donde quiero que pongamos especial atención.
+
+Supongamos que tenemos:
+
+```text
+TribuSoft
+│
+├── Domain
+├── Application
+├── Infrastructure
+└── Api
+```
+
+En Application podemos tener un caso de uso:
+
+```csharp
+public sealed class CalcularPrecioOrden
+{
+    public decimal Ejecutar(
+        OrdenTrabajo orden,
+        Func<OrdenTrabajo, decimal> calculadora)
+    {
+        return calculadora(orden);
+    }
+}
+```
+
+El caso de uso no necesita saber **cómo** se calcula.
+
+Recibe el comportamiento.
+
+Esto nos permite hacer:
+
+```csharp
+var precio = casoDeUso.Ejecutar(
+    orden,
+    orden => orden.Total * 0.10m);
+```
+
+o:
+
+```csharp
+var precio = casoDeUso.Ejecutar(
+    orden,
+    orden => orden.Total * 0.20m);
+```
+
+---
+
+# 18. Esto nos lleva directamente a Strategy
+
+Observa:
+
+```csharp
+Func<OrdenTrabajo, decimal>
+```
+
+está representando una estrategia.
+
+Tenemos:
+
+```text
+CalcularPrecio
+      │
+      ├── estrategia A
+      ├── estrategia B
+      └── estrategia C
+```
+
+Esto es conceptualmente muy cercano al **Strategy Pattern**.
+
+Por ejemplo:
+
+```csharp
+Func<OrdenTrabajo, decimal> precioClienteNormal =
+    orden => orden.Total;
+
+Func<OrdenTrabajo, decimal> precioClienteVip =
+    orden => orden.Total * 0.90m;
+
+Func<OrdenTrabajo, decimal> precioEmpresa =
+    orden => orden.Total * 0.85m;
+```
+
+Y:
+
+```csharp
+decimal CalcularPrecio(
+    OrdenTrabajo orden,
+    Func<OrdenTrabajo, decimal> estrategia)
+{
+    return estrategia(orden);
+}
+```
+
+Tenemos comportamiento intercambiable.
+
+---
+
+# 19. ¿Entonces reemplazan las interfaces?
+
+**No.**
+
+Esto es muy importante para DDD y Clean Architecture.
+
+No pienses:
+
+> "Como existen delegados, ya no necesito interfaces."
+
+No.
+
+Un delegado es excelente cuando quieres pasar **un comportamiento puntual**.
+
+Una interfaz es normalmente mejor cuando tienes una **abstracción con identidad, múltiples operaciones, estado o una implementación que representa un componente de la arquitectura**.
+
+Por ejemplo:
+
+```csharp
+public interface IOrdenTrabajoRepository
+{
+    Task<OrdenTrabajo?> ObtenerPorIdAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+}
+```
+
+Esto tiene mucho sentido como interfaz.
+
+Pero esto:
+
+```csharp
+Func<OrdenTrabajo, decimal>
+```
+
+puede ser perfecto para una operación sencilla.
+
+---
+
+# 20. Delegados como "inyección de comportamiento"
+
+Esta frase quiero que la recuerdes:
+
+> **Una interfaz permite inyectar una implementación; un delegado permite inyectar comportamiento.**
+
+Por ejemplo:
+
+```csharp
+public decimal Calcular(
+    OrdenTrabajo orden,
+    Func<OrdenTrabajo, decimal> calculadora)
+{
+    return calculadora(orden);
+}
+```
+
+El método no sabe qué hace `calculadora`.
+
+Solo sabe:
+
+```text
+Recibo OrdenTrabajo
+       ↓
+ejecuto calculadora
+       ↓
+obtengo decimal
+```
+
+Eso es **desacoplamiento**.
+
+---
+
+# 21. Un ejemplo mucho más cercano a DDD
+
+Imagina una regla de dominio:
+
+> Una orden urgente tiene un recargo del 20%.
+
+Podemos representar la regla:
+
+```csharp
+Func<OrdenTrabajo, bool> esUrgente =
+    orden => orden.Prioridad == Prioridad.Urgente;
+```
+
+Y otra:
+
+```csharp
+Func<OrdenTrabajo, decimal> calcularRecargo =
+    orden => orden.Total * 0.20m;
+```
+
+Podríamos tener:
+
+```csharp
+if (esUrgente(orden))
+{
+    var recargo = calcularRecargo(orden);
+}
+```
+
+Aquí ya estás viendo una idea fundamental:
+
+```text
+Datos + comportamiento
+```
+
+y cómo podemos representar comportamientos de manera explícita.
+
+---
+
+# 22. Pero cuidado: no abuses de `Func`
+
+En DDD **no recomiendo convertir todo en `Func<>`**.
+
+Por ejemplo, esto:
+
+```csharp
+Func<OrdenTrabajo, bool> validarOrden;
+Func<OrdenTrabajo, decimal> calcularPrecio;
+Func<OrdenTrabajo, bool> puedeCerrar;
+Func<OrdenTrabajo, bool> puedeCancelar;
+Func<OrdenTrabajo, decimal> calcularImpuesto;
+```
+
+puede terminar haciendo que el dominio sea difícil de entender.
+
+A veces es mucho mejor:
+
+```csharp
+public class OrdenTrabajo
+{
+    public bool PuedeCerrar()
+    {
+        // regla de negocio
+    }
+
+    public decimal CalcularImpuesto()
+    {
+        // regla de negocio
+    }
+}
+```
+
+DDD busca expresar claramente el **lenguaje del dominio**.
+
+---
+
+# 23. Delegados vs métodos normales
+
+Método:
+
+```csharp
+static int Sumar(int a, int b)
+{
+    return a + b;
+}
+```
+
+Delegado:
+
+```csharp
+Func<int, int, int> operacion = Sumar;
+```
+
+Lambda:
+
+```csharp
+Func<int, int, int> operacion =
+    (a, b) => a + b;
+```
+
+Conceptualmente:
+
+```text
+Método
+   │
+   ▼
+Sumar()
+
+Delegado
+   │
+   ▼
+referencia a Sumar()
+
+Lambda
+   │
+   ▼
+comportamiento anónimo
+```
+
+---
+
+# 24. La evolución que quiero que aprendas
+
+Te recomiendo estudiar esta secuencia:
+
+```text
+1. Método
+      ↓
+2. Delegado personalizado
+      ↓
+3. Func<>
+      ↓
+4. Action<>
+      ↓
+5. Predicate<>
+      ↓
+6. Lambda
+      ↓
+7. Delegados como parámetros
+      ↓
+8. LINQ
+      ↓
+9. Strategy
+      ↓
+10. Specifications
+      ↓
+11. DDD
+      ↓
+12. Clean Architecture
+```
+
+Y hay algo todavía más importante:
+
+```text
+Delegate
+   ↓
+Lambda
+   ↓
+LINQ
+   ↓
+Expression<Func<T, bool>>
+```
+
+Ese último concepto es **muy importante para EF Core**.
+
+Por ejemplo:
+
+```csharp
+Expression<Func<OrdenTrabajo, bool>>
+```
+
+no es exactamente lo mismo que:
+
+```csharp
+Func<OrdenTrabajo, bool>
+```
+
+Y cuando lleguemos a **DDD + EF Core + Specification Pattern**, esta diferencia se vuelve fundamental.
+
+---
+
+# 25. El siguiente nivel: `Func` vs `Expression<Func<...>>`
+
+Por ejemplo:
+
+```csharp
+Func<OrdenTrabajo, bool> filtro =
+    orden => orden.Total > 1_000_000;
+```
+
+es esencialmente un comportamiento ejecutable.
+
+Mientras:
+
+```csharp
+Expression<Func<OrdenTrabajo, bool>> filtro =
+    orden => orden.Total > 1_000_000;
+```
+
+representa la **estructura de la expresión**.
+
+Eso permite que tecnologías como EF Core puedan analizarla y traducirla a SQL en determinados escenarios.
+
+Por eso, cuando avancemos hacia:
+
+```text
+DDD
+ +
+Clean Architecture
+ +
+EF Core 10
+ +
+Specification Pattern
+```
+
+vas a encontrarte con cosas como:
+
+```csharp
+Expression<Func<OrdenTrabajo, bool>>
+```
+
+y ya no parecerán "magia".
+
+---
+
+## 🧠 Qué quiero que te quede hoy
+
+Si solamente recuerdas cinco cosas de esta primera clase, que sean estas:
+
+```text
+1. Delegado = referencia a un método/comportamiento.
+
+2. Func = delegado que devuelve un valor.
+
+3. Action = delegado que no devuelve valor.
+
+4. Lambda = forma compacta de expresar comportamiento.
+
+5. Un delegado permite pasar comportamiento como parámetro.
+```
+
+Por ejemplo:
+
+```csharp
+Func<int, int> duplicar =
+    numero => numero * 2;
+```
+
+y:
+
+```csharp
+Func<int, bool> esPar =
+    numero => numero % 2 == 0;
+```
+
+son dos de las formas que más vas a encontrar en C# moderno.
+
+La documentación actual de Microsoft para C# mantiene precisamente esta relación entre **delegados, lambdas, `Func` y `Action`**, así que estos conceptos siguen siendo completamente relevantes en .NET 10/C# moderno. ([Microsoft Learn][1])
+
+### Próximo paso recomendado
+
+Antes de saltar a DDD, el siguiente ejercicio debería ser **aprender `Func`, `Action`, `Predicate` y lambdas mediante un pequeño sistema de órdenes de mantenimiento**, y después hacer un ejercicio donde tú mismo construyas una función que reciba otra función como parámetro. Ahí es donde realmente se produce el "clic" mental con los delegados.
+
+[1]: https://learn.microsoft.com/es-es/dotnet/csharp/fundamentals/types/delegates-lambdas?utm_source=chatgpt.com "Expresiones lambda, delegados y eventos - C# | Microsoft Learn"
+[2]: https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/lambda-expressions?utm_source=chatgpt.com "Lambda expressions - Lambda expressions and anonymous functions - C# reference | Microsoft Learn"

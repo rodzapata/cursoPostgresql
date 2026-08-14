@@ -1,0 +1,781 @@
+---
+title: "Test en CSharp"
+date: "2026-08-14"
+description: "Aprendamos a testear en CSharp"
+slug: "test"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+Enseñame Test en .net 10 con ejemplos practicos y enfocado en DDD y clean arquitecture.  
+
+Sí. Y para tu caso te recomiendo aprender **testing al mismo tiempo que DDD + Clean Architecture**, no como un tema separado.
+
+La idea será construir una pequeña aplicación de **órdenes de trabajo para mantenimiento de aires acondicionados**, como la que hemos venido usando, y probarla desde el **Domain hacia la API**.
+
+## 1. Qué vamos a aprender
+
+La ruta será:
+
+1. **Fundamentos de testing en .NET 10**
+2. **xUnit**
+3. **Unit Tests**
+4. **AAA: Arrange, Act, Assert**
+5. Tests de **entidades y reglas de dominio**
+6. Tests de **Value Objects**
+7. Tests de **Aggregate Roots**
+8. Tests de **Domain Services**
+9. Tests de **Application/Use Cases**
+10. Tests con **mocks**
+11. **Moq** y cuándo usarlo
+12. Tests de repositorios
+13. Tests de **EF Core**
+14. Tests de integración
+15. Tests de API
+16. **WebApplicationFactory**
+17. Tests de `ProblemDetails`
+18. Tests de CQRS/MediatR
+19. Qué debemos probar y qué **no** debemos probar
+20. Estructura de tests en una Clean Architecture real.
+
+---
+
+# 2. Primero: ¿qué es un test?
+
+Un test automático comprueba que nuestro código se comporta como esperamos.
+
+Por ejemplo, supongamos que una orden de trabajo tiene una regla:
+
+> Una orden de trabajo no puede crearse sin un cliente.
+
+Podríamos tener:
+
+```csharp
+public sealed class OrdenTrabajo
+{
+    public Guid Id { get; private set; }
+    public Guid ClienteId { get; private set; }
+
+    private OrdenTrabajo()
+    {
+    }
+
+    public OrdenTrabajo(Guid clienteId)
+    {
+        if (clienteId == Guid.Empty)
+            throw new DomainException("El cliente es obligatorio.");
+
+        Id = Guid.NewGuid();
+        ClienteId = clienteId;
+    }
+}
+```
+
+Queremos demostrar automáticamente que:
+
+```text
+cliente válido
+    ↓
+OrdenTrabajo
+    ↓
+se crea correctamente
+```
+
+y:
+
+```text
+Guid.Empty
+    ↓
+OrdenTrabajo
+    ↓
+DomainException
+```
+
+Eso es testing.
+
+---
+
+# 3. ¿Dónde ponemos los tests en Clean Architecture?
+
+Si nuestra solución es:
+
+```text
+TribuSoft
+│
+├── TribuSoft.Api
+├── TribuSoft.Application
+├── TribuSoft.Domain
+└── TribuSoft.Infrastructure
+```
+
+yo agregaría:
+
+```text
+TribuSoft
+│
+├── src
+│   ├── TribuSoft.Api
+│   ├── TribuSoft.Application
+│   ├── TribuSoft.Domain
+│   └── TribuSoft.Infrastructure
+│
+└── tests
+    ├── TribuSoft.Domain.Tests
+    ├── TribuSoft.Application.Tests
+    ├── TribuSoft.Infrastructure.Tests
+    └── TribuSoft.Api.Tests
+```
+
+La relación conceptual sería:
+
+```text
+                 ┌──────────────────────┐
+                 │   TribuSoft.Domain   │
+                 └──────────┬───────────┘
+                            │
+                     Domain.Tests
+                            │
+                 ┌──────────▼───────────┐
+                 │ TribuSoft.Application│
+                 └──────────┬───────────┘
+                            │
+                  Application.Tests
+                            │
+                 ┌──────────▼───────────┐
+                 │   Infrastructure     │
+                 └──────────┬───────────┘
+                            │
+                 Infrastructure.Tests
+                            │
+                 ┌──────────▼───────────┐
+                 │         API          │
+                 └──────────┬───────────┘
+                            │
+                       Api.Tests
+```
+
+Esto es importante:
+
+**cada proyecto de producción tiene su estrategia de pruebas correspondiente.**
+
+---
+
+# 4. Empezamos por Unit Testing
+
+Para comenzar vamos a utilizar **xUnit**.
+
+En .NET 10 puedes crear un proyecto de tests:
+
+```bash
+dotnet new xunit -n TribuSoft.Domain.Tests
+```
+
+Y agregarlo a la solución:
+
+```bash
+dotnet sln add tests/TribuSoft.Domain.Tests
+```
+
+Después hacemos referencia al proyecto Domain:
+
+```bash
+dotnet add tests/TribuSoft.Domain.Tests reference src/TribuSoft.Domain
+```
+
+La estructura queda:
+
+```text
+TribuSoft.Domain
+    └── Entities
+        └── OrdenTrabajo.cs
+
+TribuSoft.Domain.Tests
+    └── Entities
+        └── OrdenTrabajoTests.cs
+```
+
+---
+
+# 5. Nuestro primer test
+
+Supongamos:
+
+```csharp
+public sealed class OrdenTrabajo
+{
+    public Guid Id { get; private set; }
+
+    public Guid ClienteId { get; private set; }
+
+    public OrdenTrabajo(Guid clienteId)
+    {
+        if (clienteId == Guid.Empty)
+            throw new DomainException("El cliente es obligatorio.");
+
+        Id = Guid.NewGuid();
+        ClienteId = clienteId;
+    }
+}
+```
+
+El test:
+
+```csharp
+public class OrdenTrabajoTests
+{
+    [Fact]
+    public void Crear_DeberiaCrearOrdenCuandoClienteEsValido()
+    {
+        // Arrange
+        var clienteId = Guid.NewGuid();
+
+        // Act
+        var orden = new OrdenTrabajo(clienteId);
+
+        // Assert
+        Assert.NotEqual(Guid.Empty, orden.Id);
+        Assert.Equal(clienteId, orden.ClienteId);
+    }
+}
+```
+
+Aquí aparece un concepto fundamental:
+
+## AAA
+
+Todo test debería intentar seguir:
+
+```text
+Arrange
+   ↓
+Act
+   ↓
+Assert
+```
+
+### Arrange
+
+Preparar los datos:
+
+```csharp
+var clienteId = Guid.NewGuid();
+```
+
+### Act
+
+Ejecutar aquello que queremos probar:
+
+```csharp
+var orden = new OrdenTrabajo(clienteId);
+```
+
+### Assert
+
+Comprobar el resultado:
+
+```csharp
+Assert.Equal(clienteId, orden.ClienteId);
+```
+
+---
+
+# 6. Otro test muy importante
+
+Ahora probemos nuestra regla de dominio:
+
+> No se puede crear una orden sin cliente.
+
+```csharp
+[Fact]
+public void Crear_DeberiaLanzarExcepcionCuandoClienteNoEsValido()
+{
+    // Arrange
+    var clienteId = Guid.Empty;
+
+    // Act
+    var action = () => new OrdenTrabajo(clienteId);
+
+    // Assert
+    var exception = Assert.Throws<DomainException>(action);
+
+    Assert.Equal(
+        "El cliente es obligatorio.",
+        exception.Message);
+}
+```
+
+Este test es **muy importante en DDD**.
+
+¿Por qué?
+
+Porque estamos probando una **regla del dominio**.
+
+No estamos probando:
+
+* EF Core
+* SQL Server
+* PostgreSQL
+* HTTP
+* Controllers
+* JSON
+* Repository
+
+Estamos probando exclusivamente:
+
+> **¿El dominio protege sus invariantes?**
+
+---
+
+# 7. Este es uno de los conceptos más importantes de DDD + Testing
+
+Supongamos que tenemos:
+
+```text
+OrdenTrabajo
+```
+
+con estas reglas:
+
+```text
+✓ debe tener cliente
+✓ debe tener técnico
+✓ no puede cerrarse sin actividades
+✓ no puede cancelarse después de cerrada
+✓ no puede tener importe negativo
+```
+
+Cada regla debería tener tests.
+
+Por ejemplo:
+
+```text
+OrdenTrabajoTests
+│
+├── Crear_DeberiaCrearOrdenCuandoDatosValidos
+├── Crear_DeberiaFallarCuandoClienteNoExiste
+├── Crear_DeberiaFallarCuandoTecnicoNoExiste
+├── AgregarActividad_DeberiaAgregarActividad
+├── Cerrar_DeberiaCerrarOrdenCuandoTieneActividades
+├── Cerrar_DeberiaFallarCuandoNoTieneActividades
+└── Cancelar_DeberiaFallarCuandoOrdenEstaCerrada
+```
+
+Observa algo:
+
+Los nombres de los tests **describen comportamiento**, no implementación.
+
+Eso es excelente para DDD.
+
+---
+
+# 8. Test de una regla de negocio
+
+Supongamos que tenemos:
+
+```csharp
+public void Cerrar()
+{
+    if (_actividades.Count == 0)
+        throw new DomainException(
+            "La orden debe tener al menos una actividad.");
+
+    Estado = EstadoOrden.Cerrada;
+}
+```
+
+Test:
+
+```csharp
+[Fact]
+public void Cerrar_DeberiaFallarCuandoNoTieneActividades()
+{
+    // Arrange
+    var orden = CrearOrdenValida();
+
+    // Act
+    var action = () => orden.Cerrar();
+
+    // Assert
+    var exception = Assert.Throws<DomainException>(action);
+
+    Assert.Equal(
+        "La orden debe tener al menos una actividad.",
+        exception.Message);
+}
+```
+
+Aquí aparece una idea fundamental:
+
+> **Los tests de Domain deberían proteger las reglas de negocio.**
+
+---
+
+# 9. ¿Qué NO deberíamos hacer?
+
+Un error común sería crear tests así:
+
+```csharp
+[Fact]
+public void ClienteId_DeberiaSerPrivateSet()
+{
+    // ...
+}
+```
+
+Eso prueba detalles de implementación.
+
+No nos interesa.
+
+Nos interesa:
+
+```text
+¿Puede crearse una orden correctamente?
+¿Puede cerrarse?
+¿Puede cancelarse?
+¿Se respetan las reglas?
+```
+
+DDD está muy orientado a **comportamiento**.
+
+Por eso los tests deberían seguir ese mismo enfoque.
+
+---
+
+# 10. Unit Test vs Integration Test
+
+Esta diferencia es fundamental.
+
+### Unit Test
+
+Prueba una unidad aislada:
+
+```text
+OrdenTrabajo
+     ↓
+reglas de negocio
+```
+
+No necesita:
+
+```text
+SQL Server
+PostgreSQL
+EF Core
+HTTP
+```
+
+Por eso es rápido.
+
+---
+
+### Integration Test
+
+Comprueba que varias partes funcionan juntas:
+
+```text
+API
+ ↓
+Application
+ ↓
+Infrastructure
+ ↓
+EF Core
+ ↓
+PostgreSQL
+```
+
+Aquí sí podemos utilizar una base de datos.
+
+Por ejemplo:
+
+```text
+POST /api/ordenes-trabajo
+             ↓
+CreateOrdenTrabajoCommand
+             ↓
+Handler
+             ↓
+Repository
+             ↓
+EF Core
+             ↓
+PostgreSQL
+```
+
+Ese test comprueba integración.
+
+---
+
+# 11. En Clean Architecture tendremos diferentes niveles
+
+Piensa en una pirámide:
+
+```text
+                 /\
+                /  \
+               / API\
+              /------\
+             /Integration\
+            /--------------\
+           / Application    \
+          /------------------\
+         /     Domain         \
+        /______________________\
+```
+
+La mayor cantidad de tests normalmente estará abajo.
+
+### Domain
+
+Muchos tests:
+
+```text
+★★★★★
+```
+
+### Application
+
+Bastantes:
+
+```text
+★★★★☆
+```
+
+### Infrastructure
+
+Algunos tests de integración:
+
+```text
+★★★☆☆
+```
+
+### API
+
+Tests de integración:
+
+```text
+★★☆☆☆
+```
+
+No queremos tener toda la aplicación probada únicamente desde HTTP.
+
+---
+
+# 12. Y aquí aparece algo muy importante para tu aprendizaje de DDD
+
+Imagina:
+
+```csharp
+CreateOrdenTrabajoCommandHandler
+```
+
+El handler podría hacer:
+
+```text
+Command
+   ↓
+validación
+   ↓
+crear Aggregate
+   ↓
+aplicar reglas
+   ↓
+repository.Add()
+   ↓
+UnitOfWork.SaveChanges()
+```
+
+Podemos probarlo independientemente de PostgreSQL.
+
+Por ejemplo:
+
+```text
+CreateOrdenTrabajoCommand
+             ↓
+       Handler Test
+             ↓
+     Fake/Mock Repository
+```
+
+Y después hacemos otro test:
+
+```text
+API
+ ↓
+Handler
+ ↓
+EF Core
+ ↓
+PostgreSQL
+```
+
+Ese es el siguiente nivel.
+
+---
+
+# 13. La estrategia que te recomiendo
+
+Como estás aprendiendo **DDD + Clean Architecture + CQRS + EF Core en .NET 10**, yo no estudiaría testing de manera aislada.
+
+Lo haría así:
+
+```text
+FASE 1
+Unit Testing
+    ↓
+xUnit
+    ↓
+AAA
+    ↓
+Assertions
+```
+
+↓
+
+```text
+FASE 2
+DDD
+    ↓
+Entities
+    ↓
+Value Objects
+    ↓
+Aggregate Roots
+    ↓
+Domain Services
+    ↓
+Domain Events
+```
+
+↓
+
+```text
+FASE 3
+Application
+    ↓
+Use Cases
+    ↓
+CQRS
+    ↓
+MediatR
+    ↓
+Mocks
+```
+
+↓
+
+```text
+FASE 4
+Infrastructure
+    ↓
+EF Core
+    ↓
+Repositories
+    ↓
+PostgreSQL / SQL Server
+```
+
+↓
+
+```text
+FASE 5
+Integration Testing
+    ↓
+WebApplicationFactory
+    ↓
+API
+    ↓
+HTTP
+    ↓
+ProblemDetails
+```
+
+↓
+
+```text
+FASE 6
+Testing avanzado
+    ↓
+Testcontainers
+    ↓
+PostgreSQL real
+    ↓
+Integration Tests
+```
+
+---
+
+## 14. Nuestro proyecto práctico
+
+Para que realmente lo aprendas, podemos construir los tests alrededor de este dominio:
+
+```text
+Sistema de órdenes de trabajo
+para mantenimiento de aires acondicionados
+```
+
+Con:
+
+```text
+Cliente
+   │
+   └── OrdenTrabajo
+           │
+           ├── Técnico
+           ├── Equipo
+           ├── Actividades
+           ├── Repuestos
+           └── Estado
+```
+
+Y vamos a terminar con algo parecido a:
+
+```text
+TribuSoft
+│
+├── src
+│   ├── TribuSoft.Domain
+│   │   ├── Entities
+│   │   ├── ValueObjects
+│   │   ├── Enums
+│   │   ├── Exceptions
+│   │   └── Events
+│   │
+│   ├── TribuSoft.Application
+│   │   ├── Commands
+│   │   ├── Queries
+│   │   ├── Handlers
+│   │   └── DTOs
+│   │
+│   ├── TribuSoft.Infrastructure
+│   │   ├── Persistence
+│   │   └── Repositories
+│   │
+│   └── TribuSoft.Api
+│
+└── tests
+    ├── TribuSoft.Domain.Tests
+    ├── TribuSoft.Application.Tests
+    ├── TribuSoft.Infrastructure.Tests
+    └── TribuSoft.Api.Tests
+```
+
+Y lo más importante: **no vamos a llenar el proyecto de tests por llenar**. Cada test tendrá una razón arquitectónica.
+
+### Siguiente paso
+
+Yo continuaría con **xUnit desde cero**, pero ya sobre `OrdenTrabajo`, enseñándote:
+
+* `[Fact]`
+* `[Theory]`
+* `Assert.Equal`
+* `Assert.True`
+* `Assert.Throws`
+* datos parametrizados
+* AAA
+* nombres profesionales de tests
+* qué debe probar un test de dominio
+* y finalmente cómo ejecutar los tests con `dotnet test`.
+
+Después pasamos a **Value Objects → Aggregates → Application/CQRS → EF Core → API**, que es donde realmente empieza a encajar todo con Clean Architecture.

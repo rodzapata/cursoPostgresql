@@ -1,0 +1,397 @@
+---
+title: "Ruta mas apropiada para aprender CSharp"
+date: "2026-08-14"
+description: "Aprender delegados antes de LINQ y DDD en el 2026"
+slug: "ruta-csharp"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Sí. Y teniendo en cuenta que tu objetivo es **pasar una prueba técnica de .NET/C#**, yo no intentaría aprender “todo .NET 10”. Me enfocaría en **C# moderno + LINQ + OOP + async/await + colecciones + excepciones + pruebas + ASP.NET Core Web API + EF Core + SQL**.
+
+### 🥇 1. Microsoft Learn — imprescindible
+
+[Microsoft Learn — C#](https://learn.microsoft.com/es-es/dotnet/csharp/?utm_source=chatgpt.com)
+
+Es mi **primera recomendación** porque es documentación oficial y está actualizada con las características modernas de C#. La guía cubre tipos, OOP, LINQ, asincronía, excepciones y otros conceptos que suelen aparecer en pruebas técnicas. ([Microsoft Learn][1])
+
+También tienes:
+
+[Microsoft Learn — .NET](https://learn.microsoft.com/en-us/dotnet/?utm_source=chatgpt.com)
+
+Y las rutas de entrenamiento:
+
+[Microsoft Learn — Training .NET](https://learn.microsoft.com/en-us/training/dotnet/?utm_source=chatgpt.com)
+
+Microsoft actualmente tiene rutas específicas para aprender C# y construir aplicaciones .NET. ([Microsoft Learn][2])
+
+**Para ti:** ⭐⭐⭐⭐⭐
+
+---
+
+### 🥈 2. HackerRank — excelente para simular pruebas técnicas
+
+[HackerRank C# Skills](https://www.hackerrank.com/skills-directory/c_sharp_basic?utm_source=chatgpt.com)
+
+Esta es especialmente importante para tu objetivo.
+
+Su evaluación de C# incluye precisamente:
+
+* tipos y variables
+* value types / reference types
+* nullable
+* clases y objetos
+* interfaces
+* herencia
+* propiedades
+* colecciones
+* excepciones
+
+([HackerRank][3])
+
+Además tienen una sección específica de .NET:
+
+[HackerRank .NET Skills](https://www.hackerrank.com/skills-directory/net_basic?utm_source=chatgpt.com)
+
+Incluye LINQ, colecciones, JSON, HTTP, routing y construcción de APIs REST. ([HackerRank][4])
+
+**Para ti:** ⭐⭐⭐⭐⭐
+
+---
+
+### 🥉 3. Exercism — para ganar velocidad programando C#
+
+[Exercism](https://exercism.org/tracks/csharp?utm_source=chatgpt.com)
+
+Me gusta mucho para complementar Microsoft Learn porque no solamente lees: **tienes que escribir código**.
+
+El track de C# tiene ejercicios organizados desde conceptos básicos hasta problemas de práctica. ([Libre Academy][5])
+
+Por ejemplo, después de estudiar `List<T>`, `Dictionary<TKey,TValue>`, LINQ, clases, interfaces, etc., puedes practicar problemas que te obliguen a utilizarlos.
+
+**Para ti:** ⭐⭐⭐⭐⭐
+
+---
+
+## 4. Codewars — muy bueno para practicar problemas
+
+[Codewars](https://www.codewars.com/?utm_source=chatgpt.com)
+
+Aquí tienes problemas pequeños de programación llamados **Kata**.
+
+Para preparación de entrevista te recomiendo comenzar con:
+
+**8 kyu → 7 kyu → 6 kyu**
+
+No empezaría resolviendo problemas extremadamente difíciles.
+
+Por ejemplo:
+
+```csharp
+public static int SumPositiveNumbers(IEnumerable<int> numbers)
+{
+    return numbers
+        .Where(x => x > 0)
+        .Sum();
+}
+```
+
+Esto te obliga a dominar cosas que aparecen frecuentemente en pruebas:
+
+* métodos
+* expresiones lambda
+* LINQ
+* colecciones
+* tipos
+* condiciones
+* `IEnumerable<T>`
+
+**Para ti:** ⭐⭐⭐⭐
+
+---
+
+# Pero hay algo importante para tu caso
+
+Como ya estás estudiando **DDD, Clean Architecture, CQRS, EF Core y ASP.NET Core 10**, yo **no dedicaría meses a cursos básicos de C#**.
+
+Tu preparación debería tener esta estructura:
+
+```text
+                    PRUEBA TÉCNICA .NET
+                           │
+          ┌────────────────┴────────────────┐
+          │                                 │
+        C#                              ASP.NET Core
+          │                                 │
+    ┌─────┼─────┐                    ┌──────┼──────┐
+    │     │     │                    │      │      │
+   OOP  LINQ Async                Web API DI  HTTP
+    │     │     │                    │
+    │     │     └────────┐           │
+    │     │              │           │
+Collections             Tests       EF Core
+    │                     │           │
+    └──────────┬──────────┘           │
+               │                      │
+             SQL Server / PostgreSQL ─┘
+```
+
+## Lo que yo estudiaría para una prueba técnica
+
+### Nivel 1 — C# que debes dominar
+
+**Prioridad máxima:**
+
+1. Tipos por valor y referencia
+2. `class`
+3. `record`
+4. `struct`
+5. `interface`
+6. herencia
+7. composición
+8. encapsulamiento
+9. `abstract`
+10. `virtual`
+11. `override`
+12. `sealed`
+13. propiedades
+14. `init`
+15. nullable reference types
+16. `List<T>`
+17. `Dictionary<TKey,TValue>`
+18. `HashSet<T>`
+19. `IEnumerable<T>`
+20. `ICollection<T>`
+21. `IReadOnlyCollection<T>`
+22. `IReadOnlyList<T>`
+23. lambdas
+24. LINQ
+25. delegates
+26. `Func<>`
+27. `Action<>`
+28. eventos
+29. excepciones
+30. `async/await`
+31. `Task`
+32. `CancellationToken`
+33. pattern matching
+34. generics
+35. extension methods
+
+---
+
+# Nivel 2 — LINQ
+
+Aquí pondría **muchísimo énfasis**.
+
+Debes poder resolver sin pensar demasiado cosas como:
+
+```csharp
+var customers = customers
+    .Where(c => c.IsActive)
+    .OrderBy(c => c.Name)
+    .Select(c => new
+    {
+        c.Id,
+        c.Name
+    })
+    .ToList();
+```
+
+Y entender perfectamente:
+
+```text
+Where
+Select
+SelectMany
+OrderBy
+ThenBy
+GroupBy
+Join
+Any
+All
+Contains
+First
+FirstOrDefault
+Single
+SingleOrDefault
+Count
+Sum
+Average
+Min
+Max
+Distinct
+ToList
+ToArray
+ToDictionary
+```
+
+**LINQ es extremadamente importante para una prueba de C#.**
+
+---
+
+# Nivel 3 — ASP.NET Core
+
+Después:
+
+```text
+Controller / Minimal API
+        ↓
+Routing
+        ↓
+Dependency Injection
+        ↓
+Middleware
+        ↓
+DTO
+        ↓
+Validation
+        ↓
+Service / Use Case
+        ↓
+Repository
+        ↓
+EF Core
+        ↓
+Database
+```
+
+Debes poder explicar qué hace cada parte.
+
+---
+
+# Nivel 4 — EF Core
+
+Para tu perfil yo estudiaría:
+
+```csharp
+DbContext
+DbSet<T>
+IEntityTypeConfiguration<T>
+AsNoTracking()
+Include()
+ThenInclude()
+Where()
+Select()
+FirstOrDefaultAsync()
+SingleOrDefaultAsync()
+SaveChangesAsync()
+```
+
+Y especialmente:
+
+* relaciones 1:N
+* N:M
+* claves
+* índices
+* shadow properties
+* owned/value objects
+* tracking/no tracking
+* consultas proyectadas
+* migraciones
+* configuración de entidades
+
+---
+
+# Nivel 5 — preguntas conceptuales
+
+También debes prepararte para preguntas como:
+
+> ¿Cuál es la diferencia entre `IEnumerable<T>` e `IQueryable<T>`?
+
+> ¿Qué diferencia hay entre `FirstOrDefault()` y `SingleOrDefault()`?
+
+> ¿Qué diferencia hay entre `Task` y `Thread`?
+
+> ¿Qué significa `async/await`?
+
+> ¿Qué es Dependency Injection?
+
+> ¿Qué diferencia hay entre `AddTransient`, `AddScoped` y `AddSingleton`?
+
+> ¿Qué diferencia existe entre `record` y `class`?
+
+> ¿Qué diferencia existe entre `interface` y `abstract class`?
+
+> ¿Qué es SOLID?
+
+> ¿Qué es un Aggregate Root?
+
+> ¿Qué es CQRS?
+
+> ¿Qué problema resuelve Repository?
+
+> ¿Qué significa Clean Architecture?
+
+Y aquí es donde **tu estudio actual de DDD/Clean Architecture te va a ayudar bastante**.
+
+---
+
+# Mi combinación recomendada para ti
+
+No utilizaría 15 páginas.
+
+Utilizaría solamente estas:
+
+| Página                           | Para qué                       |
+| -------------------------------- | ------------------------------ |
+| **Microsoft Learn**              | Aprender C#/.NET correctamente |
+| **HackerRank**                   | Simular pruebas técnicas       |
+| **Exercism**                     | Practicar C#                   |
+| **Codewars**                     | Resolver problemas             |
+| **Microsoft Learn ASP.NET Core** | Web API                        |
+| **Microsoft Learn EF Core**      | Persistencia                   |
+
+### La estrategia sería:
+
+```text
+Microsoft Learn
+      ↓
+Aprendes concepto
+      ↓
+Ejemplo conmigo
+      ↓
+Exercism / Codewars
+      ↓
+Problema práctico
+      ↓
+HackerRank
+      ↓
+Prueba técnica simulada
+```
+
+Y **no memorizaría respuestas**.
+
+La meta es que te den algo como:
+
+> "Dado un listado de órdenes de mantenimiento, obtenga las órdenes abiertas agrupadas por técnico y ordenadas por fecha."
+
+Y tú inmediatamente puedas pensar:
+
+```csharp
+orders
+    .Where(...)
+    .GroupBy(...)
+    .Select(...)
+    .OrderBy(...)
+```
+
+Eso es mucho más valioso para una prueba técnica que haber visto 50 horas de videos.
+
+### Y te propongo algo mejor
+
+Por lo que vienes estudiando de **C# 14 + .NET 10 + DDD + Clean Architecture**, podemos hacer aquí un **entrenamiento específicamente orientado a pasar una prueba técnica de .NET en 2026**.
+
+Podríamos hacerlo en este orden:
+
+**C# → LINQ → OOP → Collections → Delegates/Lambdas → Async → Unit Testing → ASP.NET Core → EF Core → SQL → DDD/Clean Architecture → prueba técnica real de 60-90 minutos.**
+
+Y yo te voy poniendo ejercicios **sin darte inicialmente la solución**, como si fuera el entrevistador.
+
+[1]: https://learn.microsoft.com/es-es/dotnet/csharp/?utm_source=chatgpt.com "Guía de C#: lenguaje administrado de .NET - C# | Microsoft Learn"
+[2]: https://learn.microsoft.com/en-us/training/dotnet/?utm_source=chatgpt.com "Training for .NET | Microsoft Learn"
+[3]: https://www.hackerrank.com/skills-directory/c_sharp_basic?utm_source=chatgpt.com "C# (Basic) | Skills Directory | HackerRank"
+[4]: https://www.hackerrank.com/skills-directory/net_basic?utm_source=chatgpt.com ".NET (Basic) | Skills Directory | HackerRank"
+[5]: https://libre.academy/courses/exercism-csharp?utm_source=chatgpt.com "Exercism C# Track: free C# learning track | Libre Academy"

@@ -29,8 +29,8 @@ export default function BlogSidebar({ posts, categories }) {
     <aside className="sidebar">
       <h1 className="blog-title">Mi Blog</h1>
       <p className="blog-subtitle">
-        Artículos y apuntes sobre Java, Spring Boot, React, Next.js, Nest,js,
-        PostgreSQL y .NET
+        Artículos y apuntes sobre .NET, EF Core, Csharp 14, Java, Spring Boot, React, Next.js, Nest,js,
+        PostgreSQL, SQL server 
       </p>
 
       <ThemeToggle />

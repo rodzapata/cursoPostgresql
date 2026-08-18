@@ -1,0 +1,834 @@
+---
+title: "Analisis DDD para orden de servicios"
+date: "2026-08-17"
+description: "Analisis en los requerimientos de como planter el problema"
+slug: "analisis-ot"
+category: "DDD"
+tags: ["DDD", "csharp", "backend"]
+published: true
+featured: true
+---
+
+cual es la norma de calidad que standariza el mantenimiento de aire acondicionado en Colombia
+
+En Colombia **no existe una única norma técnica que, por sí sola, estandarice todo el mantenimiento de los aires acondicionados**. El mantenimiento está regulado desde varios frentes: técnico, eléctrico, ambiental y de seguridad.
+
+Para el proyecto de **órdenes de trabajo de mantenimiento de aires acondicionados** que estás desarrollando, estas son las referencias más importantes:
+
+### 1. NTC relacionadas con refrigeración y aire acondicionado
+
+Las **Normas Técnicas Colombianas (NTC)** de ICONTEC contienen requisitos y buenas prácticas aplicables a equipos de refrigeración y aire acondicionado. Sin embargo, muchas NTC son específicas para determinados tipos de instalaciones, equipos o sectores.
+
+Por ejemplo, la **NTC 6502:2021** contempla expresamente el mantenimiento preventivo de sistemas de refrigeración y aire acondicionado, indicando que debe realizarse de acuerdo con las especificaciones del fabricante y las condiciones de operación, y que debe llevarse un registro del mantenimiento. ([Dosquebradas][1])
+
+Esto es especialmente interesante para tu sistema porque menciona información como:
+
+* Tipo de mantenimiento.
+* Cantidad de refrigerante adicionado o retirado.
+* Fecha.
+* Técnico o empresa que realizó la intervención.
+* Disposición del refrigerante retirado.
+* Gestión ambiental de refrigerantes.
+* Seguridad y salud en el trabajo.
+
+---
+
+### 2. RETIE — parte eléctrica
+
+Para la parte eléctrica del aire acondicionado debes tener muy presente el **RETIE (Reglamento Técnico de Instalaciones Eléctricas)**.
+
+El RETIE establece requisitos obligatorios relacionados con las instalaciones eléctricas, productos y personas que intervienen en ellas. La versión vigente fue modificada en 2026 mediante la **Resolución 40284 de 23 de junio de 2026**. ([Ministerio de Minas y Energía][2])
+
+Por ejemplo, en una orden de mantenimiento puedes contemplar verificaciones como:
+
+```text
+Tensión de alimentación
+Corriente del compresor
+Estado de conexiones
+Estado de protecciones
+Puesta a tierra
+Estado de conductores
+Tablero eléctrico
+Consumo eléctrico
+```
+
+Pero ojo: **RETIE no es una norma de mantenimiento de aire acondicionado**. Regula la parte eléctrica cuando intervienes la instalación.
+
+---
+
+### 3. Normativa ambiental para refrigerantes
+
+Este punto es muy importante en refrigeración.
+
+Cuando haces mantenimiento y manipulas refrigerantes, entran en juego las disposiciones ambientales relacionadas con sustancias que afectan la capa de ozono y gases refrigerantes.
+
+Por eso, un procedimiento profesional de mantenimiento no debería limitarse a:
+
+> "Lavar filtros y echar gas".
+
+Debe contemplar, según corresponda:
+
+**Detección de fugas → recuperación del refrigerante → reparación → vacío → prueba → carga → registro del refrigerante utilizado.**
+
+Además, existen requisitos relacionados con la competencia del personal que manipula estos sistemas. Algunas normas colombianas, por ejemplo, exigen que el mantenimiento sea realizado por personal competente y hacen referencia a la certificación correspondiente. ([Ministerio de Ambiente][3])
+
+---
+
+## Para tu proyecto, yo lo estructuraría así
+
+Si estás construyendo tu aplicación de **órdenes de trabajo para mantenimiento de aires acondicionados**, no intentaría crear una entidad llamada simplemente `NormaMantenimientoAire`.
+
+Es mejor separar los aspectos:
+
+```text
+Orden de Trabajo
+│
+├── Inspección mecánica
+│   ├── Evaporador
+│   ├── Condensador
+│   ├── Ventilador
+│   ├── Filtros
+│   ├── Drenaje
+│   └── Rodamientos
+│
+├── Sistema frigorífico
+│   ├── Presión de succión
+│   ├── Presión de descarga
+│   ├── Temperatura
+│   ├── Refrigerante
+│   ├── Detección de fugas
+│   ├── Vacío
+│   └── Carga de refrigerante
+│
+├── Sistema eléctrico
+│   ├── Tensión
+│   ├── Corriente
+│   ├── Protecciones
+│   ├── Conductores
+│   └── Puesta a tierra
+│
+├── Limpieza
+│   ├── Filtros
+│   ├── Evaporador
+│   ├── Condensador
+│   ├── Bandeja
+│   └── Drenaje
+│
+├── Seguridad
+│   ├── EPP
+│   ├── Trabajo en altura
+│   └── Seguridad eléctrica
+│
+└── Refrigerante
+    ├── Tipo
+    ├── Cantidad recuperada
+    ├── Cantidad agregada
+    └── Disposición
+```
+
+### Y algo muy importante para tu aplicación
+
+Yo haría que cada **actividad de mantenimiento** tenga asociado:
+
+```text
+Actividad
+Descripción
+Tipo
+Unidad de medida
+Valor esperado
+Valor mínimo
+Valor máximo
+Resultado
+Observación
+Cumple
+```
+
+Por ejemplo:
+
+| Actividad             | Valor | Unidad | Resultado |
+| --------------------- | ----: | ------ | --------- |
+| Tensión alimentación  |   220 | V      | OK        |
+| Corriente compresor   |   8.5 | A      | OK        |
+| Presión succión       |    65 | PSI    | OK        |
+| Temperatura impulsión |    14 | °C     | OK        |
+| Refrigerante agregado |   0.5 | kg     | OK        |
+| Limpieza filtro       |     — | —      | Realizado |
+| Limpieza evaporador   |     — | —      | Realizado |
+| Detección de fugas    |     — | —      | Sin fuga  |
+
+Esto encaja **muy bien con DDD + Clean Architecture + EF Core** y con el sistema de órdenes de trabajo que vienes construyendo.
+
+**En resumen:** para Colombia no te recomendaría decir en tu aplicación *"mantenimiento realizado según la norma X"* como si existiera una única norma. Es más correcto manejar **NTC aplicables + RETIE para la parte eléctrica + normativa ambiental de refrigerantes + especificaciones del fabricante + SST**.
+
+Si quieres, puedo buscar específicamente **cuáles son las NTC colombianas vigentes en 2026 que aplican a mantenimiento de aire acondicionado y refrigeración**, y armarte una **matriz Norma → requisito → actividad de mantenimiento → campo que debería tener tu sistema**.
+
+[1]: https://turismo.dosquebradas.gov.co/wp-content/uploads/2024/11/NTC_6502-Sistema-de-gestion-de-la-sostenibilidad-para-agencias-de-viajes.-Requisitos-.pdf?utm_source=chatgpt.com "NORMA TÉCNICA           NTC COLOMBIANA                    947-1"
+[2]: https://www.minenergia.gov.co/es/misional/energia-electrica-2/reglamentos-tecnicos/reglamento-t%C3%A9cnico-de-instalaciones-el%C3%A9ctricas-retie/?concepto=960&utm_source=chatgpt.com "Reglamento Técnico de Instalaciones Eléctricas - RETIE"
+[3]: https://archivo.minambiente.gov.co/images/AsuntosambientalesySectorialyUrbana/pdf/Sello_ambiental_colombiano/NTC_6039_-_SAC_Tintas_para_impresi%C3%B3n.pdf?utm_source=chatgpt.com "NORMA TÉCNICA"
+
+
+Sí. Revisé fuentes oficiales y debo **corregir un punto de mi respuesta anterior**: la **NTC 6502:2021** sí contiene requisitos relacionados con mantenimiento de sistemas de refrigeración y aire acondicionado, pero **no es una norma general de mantenimiento de HVAC**; pertenece a un sistema de gestión de sostenibilidad para agencias de viajes. Por tanto, no sería la norma principal que yo usaría para diseñar tu sistema de órdenes de trabajo.
+
+Para tu proyecto, la matriz normativa debería quedar así:
+
+### Matriz normativa para mantenimiento de aire acondicionado en Colombia
+
+| Norma / reglamento                | ¿Qué regula?                                                                      | ¿Qué te interesa llevar a tu sistema?                         |
+| --------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| **NTC 6228-1:2019**               | Seguridad y requisitos ambientales de sistemas de refrigeración y bombas de calor | Refrigerante, clasificación, seguridad, riesgos, carga máxima |
+| **NTC 6228-2:2019**               | Diseño, construcción, instalación, pruebas y documentación                        | Pruebas, documentación y condiciones técnicas                 |
+| **NTC 6228-3:2019**               | Instalación y protección de las personas                                          | Seguridad durante intervención                                |
+| **NTC 6228-4:2019**               | Operación, mantenimiento, reparación y recuperación de refrigerantes              | **Muy importante para tu módulo de mantenimiento**            |
+| **NTC 5852:2011**                 | Seguridad de sistemas de refrigeración                                            | Seguridad del sistema frigorífico                             |
+| **RETIE 2026**                    | Instalaciones y equipos eléctricos                                                | Mediciones y verificaciones eléctricas                        |
+| Normativa ambiental / MinAmbiente | Manejo de refrigerantes y sustancias controladas                                  | Recuperación, fugas, almacenamiento y disposición             |
+| Especificaciones del fabricante   | Condiciones particulares del equipo                                               | Valores nominales, presiones, temperaturas, mantenimiento     |
+
+La **NTC 6228** es especialmente importante. El Ministerio de Ambiente indica que esta familia establece requisitos de seguridad y ambientales y contempla aspectos relacionados con **operación, mantenimiento, reparación y recuperación de refrigerantes**. ([Gestione su gas refrigerante][1])
+
+La **NTC 5852:2011**, que ICONTEC mantiene como vigente, establece requisitos de seguridad para el diseño, construcción, instalación y funcionamiento de sistemas de refrigeración. ([Icontec Store][2])
+
+---
+
+# La más interesante para tu aplicación: NTC 6228
+
+Para el software que estás desarrollando, yo tomaría como referencia principal la familia:
+
+**NTC 6228 — Sistemas de refrigeración y bombas de calor. Requisitos de seguridad y medioambientales.**
+
+No significa que tu aplicación tenga que "certificarse bajo NTC 6228". La idea es utilizar sus conceptos para construir un **proceso técnicamente coherente de mantenimiento**.
+
+Por ejemplo:
+
+### 1. Información del equipo
+
+```text
+Equipo
+├── Marca
+├── Modelo
+├── Número de serie
+├── Tipo de equipo
+├── Capacidad
+├── Refrigerante
+├── Carga nominal
+├── Voltaje
+└── Fecha de instalación
+```
+
+### 2. Inspección frigorífica
+
+```text
+Sistema frigorífico
+├── Presión de succión
+├── Presión de descarga
+├── Temperatura de evaporación
+├── Temperatura de condensación
+├── Sobrecalentamiento
+├── Subenfriamiento
+├── Estado de tuberías
+├── Detección de fugas
+└── Estado del aislamiento
+```
+
+### 3. Refrigerante
+
+Este punto es fundamental.
+
+Tu orden de trabajo debería poder registrar:
+
+```text
+Refrigerante
+├── Tipo
+├── Cantidad inicial
+├── Cantidad recuperada
+├── Cantidad agregada
+├── Cantidad retirada
+├── Motivo de intervención
+├── Método de recuperación
+└── Destino del refrigerante
+```
+
+El Ministerio de Ambiente identifica precisamente al sector de mantenimiento e instalación de refrigeración y aire acondicionado como uno de los principales sectores relacionados con sustancias refrigerantes y tiene programas de buenas prácticas y certificación de técnicos. ([Ministry of Environment][3])
+
+---
+
+# 4. Inspección eléctrica
+
+Aquí entra el **RETIE**, pero con una precisión importante:
+
+**RETIE no es una norma de mantenimiento de aire acondicionado.**
+
+Regula las instalaciones eléctricas, productos y personas que intervienen en ellas. ([Ministerio de Minas y Energía][4])
+
+Además, actualmente en **2026** debes tener en cuenta la modificación mediante la **Resolución 40284 de 23 de junio de 2026**. El Ministerio de Minas la presenta como la versión vigente del RETIE. ([Ministerio de Minas y Energía][5])
+
+Por eso en tu sistema podrías tener:
+
+```text
+Inspección eléctrica
+├── Tensión L1-L2
+├── Tensión L1-N
+├── Tensión L2-N
+├── Corriente
+├── Continuidad
+├── Aislamiento
+├── Conexiones
+├── Protecciones
+├── Puesta a tierra
+└── Estado del tablero
+```
+
+---
+
+# 5. Mantenimiento mecánico
+
+Aquí ya entramos en las actividades que normalmente espera un cliente de mantenimiento:
+
+```text
+Mantenimiento preventivo
+├── Limpieza de filtros
+├── Limpieza de evaporador
+├── Limpieza de condensador
+├── Limpieza de turbina
+├── Limpieza de bandeja
+├── Limpieza de drenaje
+├── Verificación de ventiladores
+├── Verificación de rodamientos
+├── Verificación de vibraciones
+└── Inspección visual general
+```
+
+Y cada actividad podría tener:
+
+```text
+Actividad
+Valor medido
+Unidad
+Valor mínimo
+Valor máximo
+Estado
+Observación
+```
+
+---
+
+# 6. Seguridad
+
+También deberías separar las condiciones de seguridad:
+
+```text
+Seguridad
+├── Desenergización
+├── Bloqueo / etiquetado
+├── EPP
+├── Riesgo eléctrico
+├── Trabajo en altura
+├── Manipulación de refrigerante
+└── Condiciones del área de trabajo
+```
+
+Esto es importante porque la propia documentación del sector recomienda que la instalación, operación y mantenimiento se realicen teniendo en cuenta las normas de seguridad y salud en el trabajo. ([Dosquebradas][6])
+
+---
+
+# 7. Algo muy importante para tu proyecto
+
+Yo **no diseñaría las actividades de mantenimiento simplemente como texto**:
+
+```text
+"Lavar aire acondicionado"
+"Revisar gas"
+"Revisar corriente"
+```
+
+Para una aplicación profesional, las actividades deberían ser **parametrizables**.
+
+Por ejemplo:
+
+```text
+Actividad:
+Medición de corriente del compresor
+
+Tipo:
+Medición
+
+Unidad:
+A
+
+Valor mínimo:
+...
+
+Valor máximo:
+...
+
+Resultado:
+8.4 A
+
+Estado:
+Conforme
+
+Observación:
+Dentro del rango nominal
+```
+
+Otro:
+
+```text
+Actividad:
+Detección de fugas
+
+Tipo:
+Inspección
+
+Resultado:
+Sin fuga
+
+Estado:
+Conforme
+```
+
+Y otro:
+
+```text
+Actividad:
+Limpieza de evaporador
+
+Tipo:
+Mantenimiento
+
+Resultado:
+Realizado
+
+Estado:
+Conforme
+```
+
+---
+
+## Esto nos lleva directamente a tu diseño DDD
+
+Para el proyecto que vienes construyendo en **.NET 10 + DDD + Clean Architecture + EF Core**, yo plantearía algo parecido a:
+
+```text
+OrdenTrabajo
+│
+├── Equipo
+│
+├── TipoMantenimiento
+│   ├── Preventivo
+│   ├── Correctivo
+│   └── Predictivo
+│
+├── Actividades
+│
+├── Mediciones
+│
+├── RefrigerantesUtilizados
+│
+├── Repuestos
+│
+├── Materiales
+│
+├── Evidencias
+│
+├── Observaciones
+│
+└── FirmaCliente
+```
+
+Y una **ActividadMantenimiento** podría ser un concepto bastante importante del dominio:
+
+```text
+ActividadMantenimiento
+    Id
+    Nombre
+    Tipo
+    UnidadMedida
+    ValorEsperado
+    ValorMinimo
+    ValorMaximo
+    RequiereMedicion
+```
+
+Mientras que el resultado de esa actividad pertenece a la **OrdenTrabajo**:
+
+```text
+ActividadEjecutada
+    ActividadId
+    ValorMedido
+    Resultado
+    Cumple
+    Observacion
+```
+
+Esto te permitiría que el administrador configure, por ejemplo:
+
+> "Medir corriente del compresor"
+
+sin tener que modificar el código cada vez que una empresa quiera agregar una nueva actividad.
+
+### En conclusión
+
+Para tu proyecto, yo utilizaría como **base técnica**:
+
+**NTC 6228 + NTC 5852 + RETIE + normativa ambiental de refrigerantes + SST + especificaciones del fabricante.**
+
+Y **no afirmaría que existe una única "norma colombiana de mantenimiento de aire acondicionado"**, porque sería técnicamente incorrecto.
+
+Además, el Ministerio de Ambiente tiene una **Guía para el control de fugas de refrigerante** publicada en 2025 que puede ser muy útil para convertir los requisitos ambientales en actividades concretas de tu software. ([Ministry of Environment][7])
+
+Si quieres llevar esto a tu aplicación, el siguiente paso lógico es construir **el catálogo completo de actividades de mantenimiento preventivo para un minisplit**, incluyendo **qué se revisa, qué se mide, unidad, rango aceptable, herramienta utilizada y resultado**, y después convertirlo en entidades de **DDD/EF Core**.
+
+[1]: https://gestionesugas.minambiente.gov.co/noticia/view?id=11&utm_source=chatgpt.com "NTC 6228-1. REQUERIMIENTOS DE SEGURIDAD Y MEDIOAMBIENTALES EN SISTEMAS DE REFRIGERACIÓN"
+[2]: https://tienda.icontec.org/gp-norma-de-seguridad-para-sistemas-de-refrigeracion-ntc5852-2011.html?utm_source=chatgpt.com "Norma de seguridad para sistemas de refrigeración."
+[3]: https://www.minambiente.gov.co/asuntos-ambientales-sectorial-y-urbana/sector-de-refrigeracion-y-acondicionamiento-de-aire/?utm_source=chatgpt.com "Sector de Refrigeración y Acondicionamiento de Aire -"
+[4]: https://www.minenergia.gov.co/es/misional/energia-electrica-2/reglamentos-tecnicos/reglamento-t%C3%A9cnico-de-instalaciones-el%C3%A9ctricas-retie/?concepto=960&utm_source=chatgpt.com "Reglamento Técnico de Instalaciones Eléctricas - RETIE"
+[5]: https://www.minenergia.gov.co/documents/15918/Resolucion-40284-23-06-2026-RETIE-libros-compilados.pdf?utm_source=chatgpt.com "RESOLUCIÓN NÚMERO         DE       40284"
+[6]: https://turismo.dosquebradas.gov.co/wp-content/uploads/2024/11/NTC_6502-Sistema-de-gestion-de-la-sostenibilidad-para-agencias-de-viajes.-Requisitos-.pdf?utm_source=chatgpt.com "NORMA TÉCNICA           NTC COLOMBIANA                    947-1"
+[7]: https://www.minambiente.gov.co/wp-content/uploads/2025/06/Gui%CC%81a-para-el-control-de-fugas-de-refrigerante.pdf?utm_source=chatgpt.com "Guía para el control de fugas de refrigerante Guía"
+
+Aclarame algo una actividad puede esta compueto de varias tareas, o es mejor que la activadad espefique una sola labor osea que no sea general , sino que sea tan especifica que no sea necesarios subdividirla en tareas ?
+
+Sí. Y para el sistema que estás diseñando, **yo recomiendo que una actividad represente una sola labor concreta y verificable**, no una actividad general compuesta de muchas tareas.
+
+La clave está en distinguir **procedimiento** de **actividad ejecutable**.
+
+### Ejemplo
+
+No recomendaría:
+
+> **Actividad:** Mantenimiento del evaporador
+
+Porque eso puede implicar varias labores:
+
+1. Retirar filtros.
+2. Limpiar filtros.
+3. Limpiar serpentín.
+4. Limpiar bandeja.
+5. Limpiar turbina.
+6. Revisar drenaje.
+7. Volver a instalar filtros.
+
+Es demasiado general para registrar adecuadamente qué se hizo.
+
+En cambio:
+
+| Actividad                      | Resultado |
+| ------------------------------ | --------- |
+| Retirar filtros del evaporador | Realizado |
+| Limpiar filtros                | Realizado |
+| Limpiar serpentín evaporador   | Realizado |
+| Limpiar bandeja de condensados | Realizado |
+| Limpiar turbina                | Realizado |
+| Verificar drenaje              | Conforme  |
+| Instalar filtros               | Realizado |
+
+Aquí cada actividad es **atómica**: tiene un objetivo concreto y puede marcarse independientemente.
+
+---
+
+## ¿Entonces nunca debería una actividad tener tareas?
+
+Yo manejaría **tres niveles**, especialmente porque estás construyendo un software de órdenes de trabajo:
+
+```text
+PLAN DE MANTENIMIENTO
+        │
+        └── Actividades
+                │
+                └── Tareas / pasos internos
+```
+
+Pero **no todas las actividades necesitan tareas**.
+
+### Ejemplo 1 — Actividad simple
+
+> **Medir corriente del compresor**
+
+No necesita subdividirse.
+
+```text
+Actividad:
+Medir corriente del compresor
+
+Resultado:
+8.5 A
+
+Unidad:
+A
+
+Estado:
+Conforme
+```
+
+### Ejemplo 2 — Actividad que sí tiene procedimiento
+
+> **Realizar prueba de estanqueidad**
+
+Aquí internamente puede existir un procedimiento:
+
+```text
+Actividad:
+Realizar prueba de estanqueidad
+
+Pasos:
+1. Presurizar sistema
+2. Esperar estabilización
+3. Verificar presión
+4. Buscar fugas
+5. Registrar resultado
+```
+
+Pero para la **orden de trabajo**, puede seguir apareciendo como una sola actividad:
+
+> ☑ Realizar prueba de estanqueidad — Conforme
+
+Los pasos son instrucciones para el técnico, no necesariamente registros independientes.
+
+---
+
+# La regla que te recomiendo
+
+Hazte esta pregunta:
+
+> **¿Necesito conocer individualmente si esta labor se realizó y cuál fue su resultado?**
+
+### Si la respuesta es SÍ → actividad independiente
+
+Por ejemplo:
+
+> Limpiar filtro
+
+> Limpiar serpentín
+
+> Medir corriente
+
+> Medir presión de succión
+
+> Verificar drenaje
+
+> Detectar fugas
+
+Cada una debe ser una actividad.
+
+### Si la respuesta es NO → puede ser un procedimiento interno
+
+Por ejemplo:
+
+**Actividad:** Realizar prueba de estanqueidad.
+
+Internamente:
+
+```text
+Preparar equipo
+↓
+Presurizar
+↓
+Esperar estabilización
+↓
+Inspeccionar
+↓
+Registrar resultado
+```
+
+El técnico no necesariamente necesita marcar cada paso.
+
+---
+
+# Esto es muy importante para tu modelo DDD
+
+Yo evitaría diseñar:
+
+```text
+Actividad
+ └── Tareas
+      └── Subtareas
+           └── ...
+```
+
+porque puedes terminar creando una jerarquía innecesariamente compleja.
+
+Preferiría:
+
+```text
+PlanMantenimiento
+        │
+        ├── Actividad
+        ├── Actividad
+        ├── Actividad
+        ├── Actividad
+        └── Actividad
+```
+
+Y que cada actividad tenga **su propia naturaleza**.
+
+Por ejemplo:
+
+```text
+Actividad
+-------------------------------
+Nombre
+Tipo
+RequiereMedicion
+UnidadMedida
+ValorMinimo
+ValorMaximo
+Instrucciones
+Orden
+Obligatoria
+```
+
+Así puedes tener:
+
+```text
+"Limpiar filtros"
+Tipo = Limpieza
+RequiereMedicion = false
+```
+
+y:
+
+```text
+"Medir corriente del compresor"
+Tipo = Medición
+RequiereMedicion = true
+UnidadMedida = A
+ValorMinimo = ...
+ValorMaximo = ...
+```
+
+y:
+
+```text
+"Verificar drenaje"
+Tipo = Inspección
+RequiereMedicion = false
+```
+
+---
+
+## Una distinción que te va a ayudar mucho
+
+No confundas:
+
+**Actividad ≠ procedimiento**
+
+Una **actividad** es algo que el técnico ejecuta y cuyo resultado quieres registrar.
+
+Un **procedimiento** explica **cómo ejecutar esa actividad**.
+
+Por ejemplo:
+
+```text
+ACTIVIDAD
+"Medir corriente del compresor"
+```
+
+puede tener:
+
+```text
+INSTRUCCIONES
+"Utilizar pinza amperimétrica.
+Realizar la medición con el equipo
+funcionando en condiciones normales."
+```
+
+Y el resultado:
+
+```text
+Valor: 8.4
+Unidad: A
+Estado: Conforme
+```
+
+Esto es mucho más flexible para tu aplicación.
+
+### Mi recomendación concreta para tu proyecto
+
+**Sí: haz que las actividades sean suficientemente específicas para que normalmente no necesiten subdividirse en tareas registrables.**
+
+Pero permite que una actividad tenga **instrucciones o pasos internos** cuando sea necesario explicar cómo realizarla.
+
+Es decir:
+
+```text
+Actividad
+├── Qué hacer
+├── Cómo hacerlo (opcional)
+├── Qué medir (opcional)
+├── Unidad (opcional)
+├── Rango esperado (opcional)
+└── Resultado
+```
+
+Eso te da un modelo bastante limpio para **DDD + Clean Architecture** y además permite posteriormente generar automáticamente una **orden de trabajo/checklist para el técnico**.
+
+me podrias generar las activades mas usada para descargarla en excel, 
+
+Claro. Te preparé un catálogo inicial con **62 actividades frecuentes de mantenimiento de aire acondicionado**, organizado para que posteriormente puedas utilizarlo como catálogo maestro en tu aplicación.
+
+Incluí actividades de:
+
+* Inspección
+* Limpieza
+* Drenaje
+* Sistema eléctrico
+* Refrigeración
+* Ventilación
+* Control
+* Operación
+* Seguridad
+* Refrigerantes
+* Finalización del mantenimiento
+
+También agregué **unidad de medida** y si la actividad **requiere medición**, pensando en el diseño que estamos haciendo para tu sistema de órdenes de trabajo.
+
+**[Descargar Excel – Catálogo de actividades de mantenimiento](sandbox:/mnt/data/catalogo_actividades_mantenimiento_aire_acondicionado.xlsx)**
+
+Una observación importante: este catálogo es una **base de trabajo técnica**, no una lista normativa que obligatoriamente deba ejecutarse completa en cada mantenimiento. En tu sistema después podemos asociar actividades diferentes según el **tipo de equipo** (minisplit, cassette, piso-techo, central, VRF, etc.) y según sea **preventivo o correctivo**.
+
+me podrias dar una guia de actividades para mantenimiento preventivo o correctivo segun el tipo de equipo para descargarlo en excel
+
+
+Sí. Te preparé una guía más completa, pensada específicamente para que puedas utilizarla posteriormente como **catálogo de actividades de tu sistema de órdenes de trabajo**.
+
+Incluye **89 actividades**, clasificadas por:
+
+* **Tipo de equipo:** Minisplit, Cassette, Piso-Techo, AHU, Chiller y VRF/VRV.
+* **Tipo de mantenimiento:** Preventivo y Correctivo.
+* **Etapa:** inspección, limpieza, eléctrica, refrigeración, drenaje, ventilación, control, operación, etc.
+* **Si requiere medición.**
+* **Unidad de medida.**
+* **Prioridad.**
+
+También agregué dos hojas adicionales:
+
+* **Tipos de equipo**
+* **Criterios de uso**
+
+📥 **[Descargar Excel – Guía de actividades por tipo de equipo](sandbox:/mnt/data/guia_actividades_mantenimiento_por_tipo_equipo.xlsx)**
+
+### Una recomendación importante para tu proyecto
+
+No deberías asignar automáticamente las 89 actividades a una orden de trabajo.
+
+Lo ideal sería:
+
+```text
+Tipo de equipo
+      ↓
+Plan de mantenimiento
+      ↓
+Actividades aplicables
+      ↓
+Orden de trabajo
+      ↓
+Actividades ejecutadas
+      ↓
+Resultados / mediciones / observaciones
+```
+
+Por ejemplo, para un **Minisplit en mantenimiento preventivo**, el sistema podría seleccionar automáticamente 15–20 actividades del catálogo, mientras que para un **Chiller** seleccionaría otro conjunto.
+
+Y hay algo que conviene hacer en el siguiente paso: **separar las actividades "estándar" de las actividades que dependen obligatoriamente de la especificación del fabricante**, especialmente las presiones, temperaturas, amperajes y rangos de aceptación. No sería correcto poner un único rango universal para todos los equipos.
+

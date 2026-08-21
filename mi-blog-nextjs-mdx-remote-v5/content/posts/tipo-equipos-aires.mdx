@@ -1,0 +1,1134 @@
+---
+title: "Tipo de equipos de Aires acondicionado"
+date: "2026-08-21"
+description: "Clasificacion de tipos de equipos de aires acondicionado"
+slug: "tipo-equipos-aires"
+category: "Proyecto OT"
+tags: ["netcore", "csharp", "backend", "android"]
+published: true
+featured: true
+---
+Sí. Hay varios elementos que están **duplicados, mal escritos, son marcas/modelos en vez de tipos de equipo, o corresponden a componentes/accesorios y no a equipos de climatización**.
+
+Para un catálogo de mantenimiento HVAC, te recomiendo separar **Tipo de equipo** de **componente/sistema auxiliar**. Por ejemplo, `COMPRESOR`, `EVAPORADOR`, `CONDENSADOR` y `DAMPER` no deberían estar al mismo nivel que `MINISPLIT`, `CHILLER` o `VRF`.
+
+### 1. Clasificación corregida de los tipos de equipos HVAC
+
+| Actual                        | Clasificación recomendada               | Observación                                                                  |
+| ----------------------------- | --------------------------------------- | ---------------------------------------------------------------------------- |
+| ARMSTRONG                     | ❌ Marca/fabricante                      | No es un tipo de equipo                                                      |
+| BOMBA                         | ⚠️ Equipo auxiliar                      | Es demasiado genérico; debería especificarse bomba de agua, condensado, etc. |
+| BTU METER                     | ⚠️ Instrumento                          | Medidor, no equipo de A/A                                                    |
+| C. VENT.                      | ⚠️ Ventilación                          | Probablemente "control ventilador" o abreviatura; requiere validar           |
+| CAJAS DE VOLUMEN VARIABLE     | **Caja VAV**                            | Equipo terminal de distribución de aire                                      |
+| CAMPANA EXTRACCION            | **Campana de extracción**               | Equipo de extracción                                                         |
+| CAMPANA EXTRACTORA            | **Campana de extracción**               | Duplicado de la anterior                                                     |
+| CASETTE                       | **Cassette**                            | Tipo de unidad interior                                                      |
+| CASETTE HIDRONICO             | **Cassette hidrónico**                  | Correcto                                                                     |
+| CASSETTE SINGLE               | **Cassette**                            | "Single" parece característica, no tipo principal                            |
+| CASSETTE VRF                  | **Cassette VRF**                        | Correcto como unidad interior VRF                                            |
+| CHILLER                       | **Chiller**                             | Correcto                                                                     |
+| CHILLER COMPRESOR             | **Chiller**                             | "Compresor" es componente                                                    |
+| COMPRESOR                     | ❌ Componente                            | No debería ser tipo de equipo                                                |
+| CONDENSADOR                   | ❌ Componente                            | Mejor "unidad condensadora" si se refiere al equipo                          |
+| CONDENSADORA                  | **Unidad condensadora**                 | Correcto                                                                     |
+| CONDESADORA                   | **Unidad condensadora**                 | Error ortográfico                                                            |
+| CONGELADOR                    | **Refrigeración**                       | No es A/A; equipo de refrigeración                                           |
+| CONTROL ARMSTRONG             | ❌ Control/automatización                | Armstrong es marca                                                           |
+| CORTINAS DE AIRE              | **Cortina de aire**                     | Correcto                                                                     |
+| CUARTO FRIO                   | **Cuarto frío**                         | Correcto como sistema/instalación de refrigeración                           |
+| CUARTO FRIO F2                | **Cuarto frío**                         | "F2" debería ser identificación del activo                                   |
+| CVV                           | **Caja de volumen variable (VAV)**      | Si CVV significa Caja de Volumen Variable                                    |
+| DAMPER                        | **Damper**                              | Componente de ventilación, no equipo principal                               |
+| DISPENSADOR DE AGUA           | ❌ Otro                                  | No es HVAC                                                                   |
+| DUCTO                         | **Ducto**                               | Componente/sistema de distribución de aire                                   |
+| EQUIPO PORTATIL               | **Aire acondicionado portátil**         | Correcto                                                                     |
+| EQUIPOS RC                    | ⚠️ Por validar                          | Probablemente clasificación interna                                          |
+| EQUIPOS SC                    | ⚠️ Por validar                          | Probablemente clasificación interna                                          |
+| EVAPORADOR                    | ❌ Componente                            | No debería ser tipo de equipo                                                |
+| EXTRACTOR                     | **Extractor de aire**                   | Correcto                                                                     |
+| EXTRACTOR HONGO               | **Extractor tipo hongo**                | Correcto                                                                     |
+| FANCOIL                       | **Fan Coil Unit (FCU)**                 | Correcto                                                                     |
+| GENERADORA DE VAPOR           | ❌ Otro sistema                          | No es A/A convencional                                                       |
+| HIDRONICO                     | **Equipo hidrónico**                    | Demasiado genérico; debería especificarse                                    |
+| INTER. ALFA LAVAL             | ❌ Marca/fabricante                      | Alfa Laval es fabricante                                                     |
+| INTER. ARMSTRONG              | ❌ Marca/fabricante                      | Armstrong es fabricante                                                      |
+| LAVADOR                       | **Lavador de aire**                     | Equipo de tratamiento de aire                                                |
+| MANEJADORA                    | **Unidad manejadora de aire (AHU/UMA)** | Correcto                                                                     |
+| MICROTURBINA                  | ❌ Otro equipo                           | No es HVAC convencional                                                      |
+| MINISPLIT                     | **Mini Split**                          | Correcto                                                                     |
+| MINISPLIT HIDRONICO           | **Mini Split hidrónico**                | Correcto si realmente es hidrónico                                           |
+| MULTISPLIT                    | **Multi Split**                         | Correcto                                                                     |
+| NEVERA                        | **Refrigerador**                        | Refrigeración, no A/A                                                        |
+| PAQUETE                       | **Unidad paquete (Package Unit)**       | Correcto                                                                     |
+| PARED AGUA HELADA             | **Unidad de pared de agua helada**      | Correcto                                                                     |
+| PISO PARED                    | **Unidad piso-pared**                   | Correcto                                                                     |
+| PISO TECHO                    | **Unidad piso-techo**                   | Correcto                                                                     |
+| PISO TECHO AGUA HELADA        | **Unidad piso-techo de agua helada**    | Correcto                                                                     |
+| PISOTECHO                     | **Unidad piso-techo**                   | Duplicado                                                                    |
+| PISOTECHO HIDRO.              | **Unidad piso-techo hidrónica**         | Correcto                                                                     |
+| PORTATIL                      | **Aire acondicionado portátil**         | Duplicado de Equipo Portátil                                                 |
+| POSTQUEDAMOR                  | ⚠️ Por validar                          | Parece un error de digitación                                                |
+| SIS MONITORES                 | **Sistema de monitoreo**                | Sistema de control/supervisión                                               |
+| SISTEMA MONITOREO             | **Sistema de monitoreo**                | Unificar                                                                     |
+| SISTEMA SUPERVISION Y CONTROL | **Sistema de supervisión y control**    | Correcto                                                                     |
+| SPLIT                         | **Split**                               | Correcto, pero es una categoría muy general                                  |
+| TABLERO ELECTRICO             | ❌ Componente eléctrico                  | No es equipo HVAC                                                            |
+| TANQUE DE AGUA                | ❌ Equipo auxiliar                       | No es tipo de A/A                                                            |
+| TORRE                         | **Torre de enfriamiento**               | Si "torre" se refiere a cooling tower                                        |
+| TORRE ENFRIAMIENTO            | **Torre de enfriamiento**               | Unificar                                                                     |
+| UCA                           | ⚠️ Por validar                          | Puede tener significado interno                                              |
+| UMA                           | **Unidad manejadora de aire (AHU)**     | Correcto                                                                     |
+| UMA AGUA HELADA               | **UMA de agua helada**                  | Correcto                                                                     |
+| VENTANA                       | **Aire acondicionado de ventana**       | Correcto                                                                     |
+| VENTILADOR                    | **Ventilador**                          | Correcto                                                                     |
+| VENTILADOR C                  | ⚠️ Por validar                          | Probablemente clasificación interna                                          |
+| VENTILADOR C.                 | ⚠️ Por validar                          | Probablemente clasificación interna                                          |
+| VRF                           | **Sistema VRF**                         | Correcto                                                                     |
+| VRF PARED                     | **Unidad interior VRF tipo pared**      | Correcto                                                                     |
+
+### 2. Yo lo organizaría en categorías
+
+Para tu catálogo de mantenimiento, esto sería mucho más limpio:
+
+**A. Aire acondicionado de expansión directa (DX)**
+
+* Mini Split
+* Multi Split
+* Split
+* Cassette
+* Cassette VRF
+* Unidad interior VRF tipo pared
+* Unidad piso-techo
+* Unidad piso-techo hidrónica
+* Unidad piso-pared
+* Unidad paquete
+* Aire acondicionado portátil
+* Aire acondicionado de ventana
+
+**B. Sistemas de agua helada / hidrónicos**
+
+* Chiller
+* Fan Coil Unit (FCU)
+* UMA de agua helada
+* Cassette hidrónico
+* Unidad de pared de agua helada
+* Unidad piso-techo de agua helada
+* Unidad hidrónica
+
+**C. Tratamiento y distribución de aire**
+
+* Unidad manejadora de aire (UMA/AHU)
+* Caja VAV
+* Ventilador
+* Extractor de aire
+* Extractor tipo hongo
+* Campana de extracción
+* Cortina de aire
+* Lavador de aire
+* Ductos
+* Damper
+
+**D. Refrigeración**
+
+* Cuarto frío
+* Congelador
+* Refrigerador/nevera
+
+**E. Sistemas auxiliares HVAC**
+
+* Bomba
+* Torre de enfriamiento
+* Tanque de agua
+* Tablero eléctrico
+* Sistema de monitoreo
+* Sistema de supervisión y control
+* BTU Meter
+
+### 3. Hay algo importante para tu modelo de datos
+
+Teniendo en cuenta lo que veníamos trabajando con tu **catálogo de actividades y parámetros de mantenimiento**, yo **no eliminaría físicamente** `COMPRESOR`, `EVAPORADOR`, `CONDENSADOR`, `DAMPER`, etc.
+
+Los movería a otra clasificación:
+
+**Tipo de equipo**
+
+> Mini Split, Chiller, VRF, UMA, Fan Coil, etc.
+
+**Componente**
+
+> Compresor, evaporador, condensador, ventilador, damper, filtro, motor, bomba, etc.
+
+**Sistema**
+
+> Sistema VRF, sistema de agua helada, sistema de extracción, sistema de supervisión, etc.
+
+Esto es especialmente importante porque una actividad como:
+
+> "Verificar estado del compresor"
+
+puede aplicarse a un **Mini Split, Chiller, Unidad Paquete, Cuarto Frío**, etc. El compresor no necesariamente debería ser el "tipo de equipo".
+
+### 4. También corregiría la nomenclatura
+
+Por ejemplo, en lugar de tener:
+
+`CASETTE`
+`CASE TTE HIDRONICO`
+`CASSETTE SINGLE`
+`CASSETTE VRF`
+
+conviene utilizar una estructura normalizada:
+
+| Familia           | Tipo               |
+| ----------------- | ------------------ |
+| Expansión directa | Cassette           |
+| Expansión directa | Cassette VRF       |
+| Hidrónico         | Cassette hidrónico |
+
+Y algo similar:
+
+| Familia      | Tipo                  |
+| ------------ | --------------------- |
+| Ventilación  | Extractor             |
+| Ventilación  | Extractor tipo hongo  |
+| Ventilación  | Campana de extracción |
+| Ventilación  | Ventilador            |
+| Distribución | Caja VAV              |
+| Distribución | Damper                |
+
+**Mi recomendación para tu sistema:** no utilizar directamente estos valores históricos como el catálogo definitivo. Primero haría una **normalización del catálogo**, conservando el valor original como `NombreOriginal` y creando un `TipoEquipoId` normalizado. Así no pierdes la trazabilidad de los equipos que ya tienes registrados.
+
+Si este catálogo proviene del Excel que estamos utilizando para el proyecto HVAC, puedo tomar **todos estos valores y convertirlos en un catálogo normalizado listo para Excel/BD**, con columnas como `Id`, `Nombre`, `Categoria`, `Subcategoria`, `EsEquipo`, `EsComponente`, `NombreOriginal` y `Observacion`.
+
+Perfecto. Para tu sistema de mantenimiento HVAC, te recomiendo que el catálogo quede **normalizado y listo para llevarlo posteriormente a SQL Server/PostgreSQL**.
+
+La estructura que usaría es:
+
+| Campo            | Propósito                                         |
+| ---------------- | ------------------------------------------------- |
+| `Id`             | Identificador único                               |
+| `Nombre`         | Nombre normalizado del equipo                     |
+| `Categoria`      | HVAC, Refrigeración, Ventilación, Control, etc.   |
+| `Subcategoria`   | DX, Hidrónico, VRF, Extracción, etc.              |
+| `EsEquipo`       | Indica si es un equipo mantenible                 |
+| `EsComponente`   | Indica si es un componente                        |
+| `NombreOriginal` | Conserva el nombre que viene del sistema anterior |
+| `Observacion`    | Aclaraciones o problemas encontrados              |
+
+Por ejemplo:
+
+| Id | Nombre                    | Categoría          | Subcategoría         | EsEquipo | EsComponente | NombreOriginal            | Observación            |
+| -: | ------------------------- | ------------------ | -------------------- | :------: | :----------: | ------------------------- | ---------------------- |
+|  1 | Mini Split                | Aire acondicionado | Expansión directa    |    Sí    |      No      | MINISPLIT                 | Normalizado            |
+|  2 | Cassette                  | Aire acondicionado | Expansión directa    |    Sí    |      No      | CASETTE                   | Corrección ortográfica |
+|  3 | Cassette VRF              | Aire acondicionado | VRF                  |    Sí    |      No      | CASSETTE VRF              | Normalizado            |
+|  4 | Chiller                   | Aire acondicionado | Agua helada          |    Sí    |      No      | CHILLER                   | Correcto               |
+|  5 | Unidad condensadora       | Aire acondicionado | Expansión directa    |    Sí    |      No      | CONDESADORA               | Corrección ortográfica |
+|  6 | Compresor                 | Componente         | Refrigeración        |    No    |      Sí      | COMPRESOR                 | Componente, no equipo  |
+|  7 | Evaporador                | Componente         | Refrigeración        |    No    |      Sí      | EVAPORADOR                | Componente             |
+|  8 | Condensador               | Componente         | Refrigeración        |    No    |      Sí      | CONDENSADOR               | Componente             |
+|  9 | Unidad manejadora de aire | Aire acondicionado | Manejo de aire       |    Sí    |      No      | UMA                       | Normalizado            |
+| 10 | Fan Coil                  | Aire acondicionado | Hidrónico            |    Sí    |      No      | FANCOIL                   | Normalizado            |
+| 11 | Extractor de aire         | Ventilación        | Extracción           |    Sí    |      No      | EXTRACTOR                 | Normalizado            |
+| 12 | Extractor tipo hongo      | Ventilación        | Extracción           |    Sí    |      No      | EXTRACTOR HONGO           | Normalizado            |
+| 13 | Caja VAV                  | Ventilación        | Distribución de aire |    Sí    |      No      | CAJAS DE VOLUMEN VARIABLE | Normalizado            |
+| 14 | Damper                    | Ventilación        | Distribución de aire |    No    |      Sí      | DAMPER                    | Componente             |
+| 15 | Torre de enfriamiento     | HVAC               | Rechazo de calor     |    Sí    |      No      | TORRE ENFRIAMIENTO        | Normalizado            |
+
+### Pero hay varios valores que necesito validar
+
+En particular:
+
+* `EQUIPOS RC`
+* `EQUIPOS SC`
+* `POSTQUEDAMOR`
+* `UCA`
+* `C. VENT.`
+* `VENTILADOR C`
+* `VENTILADOR C.`
+* `HIDRONICO`
+* `INTER. ALFA LAVAL`
+* `INTER. ARMSTRONG`
+
+Es posible que algunos sean **abreviaturas internas de tu empresa**, y no sería correcto inventar su significado.
+
+**Si me compartes el archivo original**, puedo hacer la normalización completa sobre todos los registros, identificar duplicados y errores ortográficos y devolverte un **Excel limpio**, manteniendo el valor original para que puedas cruzarlo con tu base de datos existente.
+
+se puede decir split cassette, como tipo de equipo? o es mejor separalo ?  
+
+Sí, **"Split Cassette" se puede utilizar**, pero para el modelo de datos que estás construyendo para mantenimiento HVAC, **es mejor separarlo**.
+
+La razón es que estás mezclando dos conceptos:
+
+* **Split** → describe la arquitectura del sistema: unidad interior + unidad exterior.
+* **Cassette** → describe el tipo de unidad interior.
+
+Por eso, yo lo modelaría así:
+
+| Campo                   | Valor                  |
+| ----------------------- | ---------------------- |
+| Sistema                 | Split                  |
+| Tipo de unidad interior | Cassette               |
+| Tecnología              | Expansión directa (DX) |
+
+Entonces podrías tener:
+
+* **Split Cassette**
+* **Split Pared**
+* **Split Piso-Techo**
+* **Split Conductos**
+* **Split Piso-Pared**
+
+Pero **no necesariamente necesitas que "Split Cassette" sea un tipo independiente** en tu catálogo maestro.
+
+### Para tu proyecto HVAC
+
+Yo recomiendo esta estructura:
+
+**Tipo de sistema**
+
+* Split
+* Multi Split
+* VRF
+* Chiller
+* Paquete
+* Ventana
+* Portátil
+* Hidrónico
+
+**Tipo de unidad**
+
+* Pared
+* Cassette
+* Piso-Techo
+* Piso-Pared
+* Conductos
+* Fan Coil
+* UMA
+
+Así, un equipo podría quedar:
+
+> **Sistema:** Split
+> **Unidad:** Cassette
+> **Tecnología:** DX
+
+Y otro:
+
+> **Sistema:** VRF
+> **Unidad:** Cassette
+> **Tecnología:** DX
+
+Esto tiene una ventaja importante: **no duplicas "Cassette"** simplemente porque pertenece a diferentes sistemas.
+
+Por ejemplo, en vez de tener:
+
+```text
+Cassette
+Cassette VRF
+Split Cassette
+Cassette Hidrónico
+```
+
+puedes tener:
+
+```text
+Sistema       Unidad       Tecnología
+--------------------------------------
+Split         Cassette     DX
+VRF           Cassette     DX
+Hidrónico     Cassette     Agua helada
+```
+
+### ¿Qué haría con tu catálogo actual?
+
+Para tu aplicación de **órdenes de trabajo de mantenimiento**, yo evitaría que `TipoEquipo` tenga valores como:
+
+> `SPLIT CASSETTE`
+> `CASSETTE VRF`
+> `CASSETTE HIDRONICO`
+
+como categorías independientes.
+
+Los convertiría en **atributos del equipo**.
+
+Esto además encaja mucho mejor con lo que veníamos definiendo sobre que **los rangos/parametrizaciones dependen del equipo y no deberían estar "quemados" dentro de la actividad**.
+
+Si quieres llevarlo a un diseño DDD, incluso podríamos llegar a algo como:
+
+```text
+Equipo
+ ├── TipoSistema
+ ├── TipoUnidad
+ ├── Tecnologia
+ ├── Marca
+ ├── Modelo
+ ├── CapacidadBTU
+ ├── Refrigerante
+ └── ...
+```
+
+De esta manera, **"Split Cassette" sería una combinación de atributos**, no un tipo de equipo independiente. Esta sería mi opción recomendada para tu sistema.
+
+Sí. Revisando toda la lista, **no te recomiendo clasificarla únicamente por "tipo de equipo"**. Aquí tienes mezcladas actividades de mantenimiento, mediciones, parámetros, componentes, documentación y preguntas del formulario.
+
+Para el catálogo que estamos construyendo, yo haría una clasificación en **dos niveles**:
+
+> **Categoría de actividad → Subcategoría**
+
+y, además, separaría las actividades de los **parámetros de medición**.
+
+## 1. Clasificación maestra que te recomiendo
+
+| Código | Categoría                | Subcategorías principales                                      |
+| ------ | ------------------------ | -------------------------------------------------------------- |
+| INS    | Inspección               | Visual, mecánica, eléctrica, refrigeración, hidráulica         |
+| AJU    | Ajuste                   | Mecánico, eléctrico, control, bandas/poleas, tornillería       |
+| LIM    | Limpieza                 | Equipo, serpentín, filtros, drenaje, eléctrico, ventilación    |
+| LUB    | Lubricación              | Rodamientos, chumaceras, motores, bombas, válvulas             |
+| MED    | Medición                 | Eléctrica, temperatura, presión, caudal, RPM, aislamiento      |
+| REF    | Refrigeración            | Refrigerante, compresor, aceite, válvulas, fugas               |
+| ELE    | Eléctrico                | Terminales, tableros, motores, protecciones, contactores       |
+| CON    | Control y automatización | Controladores, sensores, termostatos, set points, comunicación |
+| HID    | Hidráulico               | Bombas, agua, válvulas, tuberías, flujo                        |
+| MEC    | Mecánico                 | Motores, rodamientos, acoples, poleas, bandas                  |
+| VEN    | Ventilación              | Ventiladores, blower, aspas, ductos, dampers                   |
+| CAM    | Cambio/Reemplazo         | Filtros, rodamientos, bandas, baterías, aceite, componentes    |
+| REP    | Reparación               | Fugas, aislamiento, componentes, estructura                    |
+| PIN    | Pintura                  | Equipo, bandejas, tuberías, bombas                             |
+| PRU    | Prueba                   | Operación, disparo, alarma, hidrostática, hermeticidad         |
+| DOC    | Documentación            | Informes, backups, reportes                                    |
+| SEG    | Seguridad                | Anclajes, línea de vida, permisos, protecciones                |
+| OPE    | Operación                | Energizar, operar equipo, permutación de bombas                |
+| AGU    | Calidad de agua          | Análisis físico-químico, microbiológico, limpieza              |
+| GAS    | Combustible/Gas          | Quemador, tren de gas, fugas LPNG                              |
+| EVI    | Evidencias               | Fotografías, evidencias, equipos adicionales                   |
+
+---
+
+# 2. Algo MUY importante: hay registros que NO son actividades
+
+Esto es lo primero que corregiría en tu catálogo.
+
+Por ejemplo:
+
+> `Amperaje L1 - L2`
+
+no es realmente una actividad.
+
+La actividad sería:
+
+> **Medir corriente eléctrica**
+
+y el resultado sería un **parámetro**:
+
+```text
+Parámetro: Corriente L1-L2
+Unidad: A
+```
+
+Lo mismo ocurre con:
+
+> `Voltaje: RS`
+
+Debería ser:
+
+```text
+Actividad: Medir voltaje eléctrico
+Parámetro: Voltaje RS
+Unidad: V
+```
+
+Y:
+
+> `Presión succión PSI`
+
+debería ser:
+
+```text
+Actividad: Medir presión de refrigerante
+Parámetro: Presión de succión
+Unidad: PSI
+```
+
+Esto es especialmente importante para el modelo que estamos diseñando.
+
+---
+
+# 3. Clasificación de tus actividades
+
+## INS — Inspección
+
+Aquí colocaría actividades cuyo objetivo principal es **verificar el estado**, sin realizar necesariamente una intervención.
+
+### Inspección general
+
+* Inspección visual y verificación de operación del equipo
+* Inspección de elementos de indicación
+* Inspección de ruidos y vibraciones
+* Inspección de soportes de la tubería
+* Inspección de soportes antivibratorios
+* Inspección del estado de la estructura
+* Inspección de bases y anclajes
+* Inspección de fugas
+* Inspección del aislamiento térmico
+* Inspección de serpentines
+* Inspección de ventiladores
+* Inspección de motores
+* Inspección de rodamientos
+* Inspección de compuertas
+* Inspección de actuadores
+* Inspección de válvulas
+* Inspección de sellos
+* Inspección del acople
+* Inspección de tuberías
+
+Ejemplos de tu lista:
+
+* `Inspeccion de actuador`
+* `Inspeccion de compuertas`
+* `Inspeccion visual y verificacion de la operación del equipo`
+* `Inspección de ruidos y vibraciones`
+* `Inspección de soportes de la tubería`
+* `Inspeccionar sellos`
+* `Comprobar estado de anclajes`
+* `Comprobar ausencia de ruidos y vibraciones anormales`
+
+---
+
+# 4. AJU — Ajuste
+
+Todo lo relacionado con llevar un componente a su condición correcta.
+
+### Mecánico
+
+* Ajuste de tornillería
+* Ajuste de tortillería
+* Ajuste de bases
+* Ajuste de anclajes
+* Ajuste de poleas
+* Ajuste de bandas
+* Ajuste de acoples
+* Ajuste de compuertas
+* Ajuste de dampers
+
+### Eléctrico
+
+* Ajuste de terminales
+* Ajuste de cables
+* Ajuste de borneras
+* Ajuste de bornes
+* Ajuste de contactores
+* Ajuste de conexiones eléctricas
+
+Por ejemplo:
+
+`Ajuste de terminales eléctricas y conexiones`
+
+→
+
+**AJU / Eléctrico**
+
+---
+
+# 5. LIM — Limpieza
+
+Esta categoría tiene muchísimo peso en tu catálogo.
+
+### Equipo
+
+* Limpieza general
+* Limpieza general de la unidad
+* Limpieza interna y externa del equipo
+* Limpieza exterior del equipo
+* Limpieza interna del equipo
+
+### Filtros
+
+* Lavado de filtros
+* Lavado de filtros de aire
+* Limpieza de filtros
+* Cambio de filtros
+* Limpieza de filtro en V
+* Limpieza de filtro en Y
+* Limpieza de filtros de succión
+
+### Serpentines
+
+* Lavado y peine de serpentín
+* Limpieza de serpentines
+* Limpieza con desincrustante de serpentines
+* Desincrustación de serpentín
+* Limpieza de evaporador
+* Limpieza de condensador
+
+### Drenaje
+
+* Limpieza de bandeja
+* Limpieza de bandeja de condensado
+* Limpieza de drenaje
+* Limpieza de tuberías de drenaje
+* Limpieza de bandejas y drenajes
+
+### Ventilación
+
+* Limpieza de blower
+* Limpieza de rotor
+* Limpieza de ventilador
+* Limpieza de aspas
+* Limpieza de ductos
+* Limpieza de rejillas
+* Limpieza de difusores
+* Limpieza de dampers
+
+### Eléctrico
+
+* Limpieza de terminales
+* Limpieza de contactos
+* Limpieza de contactores
+* Limpieza de tableros
+* Limpieza de tarjetas electrónicas
+
+---
+
+# 6. LUB — Lubricación
+
+Aquí agruparía:
+
+* Lubricación de rodamientos
+* Lubricación de chumaceras
+* Lubricación de bujes
+* Lubricación de motores
+* Lubricación de bombas
+* Lubricación de válvulas
+* Engrase de chumaceras
+* Engrase de rodamientos
+* Lubricación de rodamientos del ventilador
+* Lubricación de chumaceras del ventilador
+
+Por ejemplo:
+
+`Engrase de chumaceras y rodamientos del ventilador`
+
+→
+
+**LUB / Rodamientos y chumaceras**
+
+---
+
+# 7. MED — Medición
+
+Aquí está una de las mayores oportunidades de normalización.
+
+### Eléctrica
+
+Todas estas:
+
+* Amperaje L1-L2
+* Lectura de amperaje L1-L2-L3
+* Lectura de corriente
+* Lectura de voltaje
+* Voltaje RS
+* Voltaje RS-RT-ST
+* Amperaje y voltaje del compresor
+* Amperaje y voltaje del motor
+* Amperaje y voltaje de la bomba
+* Lectura de voltaje del motor
+* Lectura de corriente del motor
+
+deberían convertirse en actividades genéricas como:
+
+**Medir corriente eléctrica**
+
+**Medir voltaje eléctrico**
+
+Y los detalles pasan a parámetros.
+
+---
+
+### Temperatura
+
+Igualmente:
+
+* Temperatura de suministro
+* Temperatura de retorno
+* Temperatura de zona
+* Temperatura de entrada
+* Temperatura de salida
+* Temperatura de condensación
+* Temperatura de evaporación
+* Temperatura de agua
+* Temperatura de succión
+* Temperatura de descarga
+
+deberían ser:
+
+**Medir temperatura**
+
+con diferentes parámetros.
+
+---
+
+### Presión
+
+Estas:
+
+* Presión de succión
+* Presión de descarga
+* Presión de refrigerante
+* Presión entrada/salida
+* Presión diferencial
+
+deberían ser:
+
+**Medir presión**
+
+y luego:
+
+```text
+TipoPresion
+    Succión
+    Descarga
+    Entrada
+    Salida
+    Diferencial
+```
+
+---
+
+### Otros parámetros
+
+También:
+
+* RPM motor
+* CFM
+* GPM
+* kWh
+* kW
+* aislamiento eléctrico
+* humedad relativa
+* CO₂
+* delta de temperatura
+* delta de presión
+
+son **mediciones/variables**, no tipos de actividad independientes.
+
+---
+
+# 8. REF — Refrigeración
+
+Aquí colocaría todo lo específico del circuito frigorífico.
+
+* Inspección de refrigerante
+* Verificación de carga de refrigerante
+* Ajuste de carga de refrigerante
+* Revisión de presión de refrigerante
+* Revisión de fugas de refrigerante
+* Verificación de humedad del sistema
+* Revisión de mirilla de líquido
+* Revisión de válvulas de expansión
+* Revisión de válvulas de servicio
+* Revisión de válvulas de paso
+* Análisis del aceite del compresor
+* Revisión del nivel de aceite
+* Revisión del control de aceite
+* Revisión de resistencia de cárter
+* Revisión de separador de aceite
+* Cambio de filtro de aceite
+* Cambio de aceite
+* Prueba de hermeticidad
+
+---
+
+# 9. ELE — Eléctrico
+
+Aquí pondría las actividades de intervención eléctrica.
+
+* Ajuste de terminales eléctricas
+* Desulfatación de terminales
+* Limpieza de terminales
+* Limpieza de contactos
+* Ajuste de contactores
+* Revisión de contactores
+* Revisión de borneras
+* Ajuste de borneras
+* Revisión de tableros
+* Limpieza de tableros
+* Revisión de protecciones
+* Revisión de térmicos
+* Revisión de interruptores
+* Revisión de bimetálicos
+* Revisión de acometida eléctrica
+* Medición de aislamiento eléctrico
+* Prueba con Megger
+* Revisión de capacitores
+* Revisión de variadores
+* Revisión de arrancadores
+* Revisión de luces piloto
+
+---
+
+# 10. CON — Control y automatización
+
+Aquí tienes bastantes actividades.
+
+* Chequear sistema de control
+* Revisión del sistema de control
+* Backup de programación y mímicos
+* Revisión de programación
+* Ajuste de programación
+* Revisión de microprocesadores
+* Calibración de dispositivos de control
+* Revisión de controladores
+* Revisión de comunicación de controladoras
+* Verificación de comunicación PC-equipo
+* Revisión de interfaces
+* Revisión de sensores
+* Calibración de sensores
+* Verificación de sensores
+* Revisión de termostatos
+* Calibración de termostatos
+* Ajuste de set points
+* Revisión de interfaz gráfica
+* Verificación de alarmas
+* Revisión de elementos de control
+* Revisión de Energy Valve
+* Verificación de operación desde Metasys
+* Verificación de válvulas desde cuarto de control
+
+---
+
+# 11. HID — Hidráulico
+
+Todo lo relacionado con agua:
+
+* Chequeo de nivel de agua
+* Chequeo de funcionamiento de bomba
+* Revisión de bombas
+* Revisión de red de agua
+* Revisión de tuberías
+* Revisión de válvulas
+* Revisión de flotadores
+* Revisión de nivel del tanque
+* Revisión de tanque de reposición
+* Verificación de flujo de agua
+* Verificación de presión de agua
+* Revisión de fugas de agua
+* Limpieza de bombas
+* Limpieza de filtros de bomba
+* Lubricación de bombas
+* Alineación motor-bomba
+* Revisión del acople motor-bomba
+* Permutación de bombas
+
+---
+
+# 12. MEC — Mecánico
+
+* Alineación de poleas
+* Alineación de bandas
+* Tensión de bandas
+* Alineación de acoples
+* Revisión de rodamientos
+* Cambio de rodamientos
+* Revisión de chumaceras
+* Cambio de chumaceras
+* Revisión de bujes
+* Cambio de bujes
+* Revisión de prisioneros
+* Revisión de fijación del motor
+* Revisión de bases
+* Revisión de anclajes
+* Revisión de transmisiones
+* Revisión de aspas
+* Balanceo
+* Overhaul
+
+---
+
+# 13. VEN — Ventilación
+
+* Revisión de ventiladores
+* Limpieza de ventiladores
+* Limpieza de blower
+* Limpieza de rotor
+* Lubricación de ventiladores
+* Revisión de aspas
+* Balanceo de ventiladores
+* Revisión de bandas
+* Revisión de poleas
+* Limpieza de ductos
+* Revisión de ductos
+* Revisión de soportes de ductos
+* Revisión de rejillas
+* Revisión de difusores
+* Revisión de dampers
+* Ajuste de dampers
+* Limpieza de dampers
+* Revisión de actuadores
+
+---
+
+# 14. CAM — Cambio/Reemplazo
+
+Todas las actividades que explícitamente dicen **cambio, reemplazo o sustitución**:
+
+* Cambio de bandas
+* Cambio de filtros
+* Cambio de rodamientos
+* Cambio de chumaceras
+* Cambio de empaques
+* Cambio de tornillos
+* Cambio de baterías
+* Cambio de filtro de aceite
+* Cambio de separador aire/aceite
+* Cambio de filtro de aire
+* Cambio de paneles humidificadores
+* Reemplazo de coolant
+* Reemplazo de encendido
+* Reemplazo de baterías
+* Reemplazo de filtro de aceite
+* Reemplazo de componentes
+
+---
+
+# 15. PRU — Pruebas
+
+* Prueba hidrostática
+* Prueba de hermeticidad
+* Prueba de disparo
+* Prueba de alarma
+* Prueba de operación
+* Prueba de comunicación
+* Simulación de concentración de gases
+* Prueba de dispositivos de protección
+* Prueba de termostato
+* Prueba de controles
+* Prueba de sensores
+* Prueba de operación de válvulas
+
+---
+
+# 16. PIN — Pintura
+
+Agruparía:
+
+* Pintura de mantenimiento del equipo
+* Pintura de bandejas
+* Pintura de bombas
+* Pintura de tuberías
+* Pintura de válvulas
+* Pintura de accesorios
+* Pintura de motores
+
+Y eliminaría el duplicado:
+
+> `Pintura de mantenimiento de bandejas con primer epóxico`
+
+aparece dos veces.
+
+---
+
+# 17. DOC — Documentación
+
+Aquí:
+
+* Backup de programación y mímicos
+* Descarga de informes en memoria USB
+* Informe de gestión del sistema
+* Reporte de alarmas y fallas
+* Reporte de falla del sistema
+* Informe de resultados y recomendaciones
+* Lectura de parámetros
+
+Pero cuidado: **"Lectura de parámetros"** no es documentación si realmente implica medición; debería ser `MED`.
+
+---
+
+# 18. SEG — Seguridad
+
+Estas no son actividades HVAC propiamente dichas, pero sí son actividades/checklist de seguridad:
+
+* Punto de anclaje adecuado
+* Línea de vida
+* Verificación de dispositivos de protección
+* Prueba de disparo de protecciones
+* Permiso de tareas de alto riesgo
+* Verificación de seguridades
+* Protecciones eléctricas
+
+---
+
+# 19. AGU — Calidad y tratamiento de agua
+
+Especialmente para tus torres:
+
+* Análisis físico-químico del agua
+* Análisis microbiológico del agua
+* Cambio de agua
+* Limpieza del tanque/piscina
+* Limpieza de circuitos
+* Limpieza de filtros
+* Limpieza de separadores de gotas
+* Limpieza de rellenos
+* Limpieza de persianas
+* Revisión de válvula flotadora
+* Revisión de nivel de agua
+
+---
+
+# 20. GAS — Gas/combustión
+
+Estas actividades son de otra especialidad:
+
+* Revisión del tren de válvulas de gas natural
+* Mantenimiento del quemador
+* Revisión de fugas de LPNG
+* Revisión de conexiones de gas
+* Revisión de válvulas de gas
+* Revisión de compresores asociados al sistema de gas
+* Reemplazo del sistema de encendido
+
+---
+
+# 21. EVI — Evidencias/formulario
+
+Estas **no deben estar en el catálogo de actividades**:
+
+* ¿Necesita permiso de tareas de alto riesgo?
+* ¿Requiere evidencias adicionales?
+* Descripción de evidencia N.º 1
+* Descripción de evidencia N.º 2
+* ¿Requiere agregar equipos adicionales?
+
+Son **campos del formulario de la orden de trabajo**, no actividades.
+
+---
+
+# 22. Lo más importante para tu diseño
+
+Después de revisar tu lista completa, veo claramente que actualmente tienes mezclados **al menos 5 conceptos diferentes**:
+
+```text
+ACTIVIDAD
+    ↓
+Medición
+    ↓
+Parámetro
+    ↓
+Componente
+    ↓
+Equipo
+    ↓
+Evidencia / formulario
+```
+
+Yo lo llevaría a tu modelo así:
+
+```text
+Actividad
+├── Id
+├── Nombre
+├── CategoriaActividadId
+├── SubcategoriaActividadId
+└── EspecificaComponente
+
+Parametro
+├── Id
+├── Nombre
+├── Unidad
+├── TipoDato
+├── Minimo
+├── Maximo
+└── ...
+
+ActividadParametro
+├── ActividadId
+└── ParametroId
+
+Componente
+├── Id
+├── Nombre
+└── TipoComponente
+
+TipoEquipo
+├── Id
+├── Nombre
+├── Categoria
+└── ...
+
+ActividadTipoEquipo
+├── ActividadId
+└── TipoEquipoId
+```
+
+Por ejemplo:
+
+### Actividad
+
+**Medir corriente eléctrica**
+
+Categoría:
+
+> `MED / Eléctrica`
+
+### Parámetros
+
+```text
+L1-L2
+L2-L3
+L3-L1
+```
+
+Unidad:
+
+> A
+
+### Equipo
+
+> Chiller
+
+### Componente
+
+> Compresor
+
+Entonces la orden podría representar:
+
+> **Chiller → Compresor #1 → Medir corriente eléctrica**
+
+y registrar:
+
+```text
+L1-L2 = 18.4 A
+L2-L3 = 18.1 A
+L3-L1 = 18.3 A
+```
+
+Esto es muchísimo más flexible que tener actividades como:
+
+> `Compresor #1 Lectura de Amperaje: RS-RT-ST`
+
+porque esa actividad queda amarrada a un caso específico.
+
+### Mi recomendación final
+
+**No normalizaría esta lista simplemente corrigiendo nombres.** Haría una limpieza más profunda:
+
+1. **Eliminar duplicados.**
+2. **Corregir ortografía.**
+3. **Normalizar nombres.**
+4. Separar **Actividad** de **Parámetro**.
+5. Separar **Actividad** de **Componente**.
+6. Separar **Actividad** de **Equipo**.
+7. Separar actividades de **documentación/evidencias**.
+8. Identificar actividades específicas de **Chiller, UMA, VRF, torre, bomba, etc.**
+9. Mantener `NombreOriginal` para no perder trazabilidad.
+10. Asociar cada actividad con los **tipos de equipo compatibles**.
+
+Y, dado el tamaño de esta lista, **el siguiente paso más útil es convertir las ~400 filas en un catálogo normalizado**, no clasificarlas manualmente una por una en una respuesta. Puedo estructurarlo con estas columnas:
+
+`Id | ActividadNormalizada | Categoria | Subcategoria | TipoOperacion | Componente | TipoEquipo | EsParametro | Parametro | Unidad | NombreOriginal | Observacion`
+
+Eso además quedaría directamente alineado con el catálogo de **parámetros de mantenimiento HVAC** que venimos construyendo.
+
+

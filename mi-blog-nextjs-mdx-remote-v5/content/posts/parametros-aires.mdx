@@ -1,0 +1,80 @@
+---
+title: "Explicacion de los parametros de actividades en aires acondicionado"
+date: "2026-08-23"
+description: "Analisis de los paarametros que de"
+slug: "parametros-aires"
+category: "DDD"
+tags: ["DDD", "csharp", "backend"]
+published: true
+featured: true
+---
+
+cual es la diferencia valor nominal, valor minimo y valor maximo  ?  
+
+En ingeniería, finanzas y especificaciones técnicas, la diferencia radica en la **definición teórica** del componente frente a los **límites reales tolerados o alcanzados** durante su operación.
+
+| Término | Definición | Ejemplo (Voltaje de una Batería de Litio) |
+| --- | --- | --- |
+| **Valor Nominal** | El valor de referencia o etiqueta teórica especificado por el fabricante. Indica la condición normal ideal o de diseño. | **3.7 V** (el nombre comercial estándar de la celda) |
+| **Valor Mínimo** | El límite inferior aceptable o el punto más bajo que el sistema puede registrar antes de fallar o descargarse por completo. | **3.0 V** (por debajo de este nivel, la celda se degrada o apaga) |
+| **Valor Máximo** | El límite superior aceptable o la capacidad tope de tolerancia antes de que ocurra sobrecarga o falla. | **4.2 V** (alcanzado cuando la batería está cargada al 100%) |
+
+**Diferencia clave en la práctica:**
+
+* El **valor nominal** sirve para categorizar, identificar y realizar cálculos teóricos iniciales.
+* Los valores **mínimo y máximo** definen la **rango de tolerancia o ventana operacional** dentro de la cual un componente o variable funciona de manera segura y correcta.
+
+y que se entiende por porcentaje de tolerancia en equipos de aires acondicionado ?  
+
+En equipos de aire acondicionado y refrigeración, el **porcentaje de tolerancia** representa el **margen de variación aceptable** que pueden tener ciertos parámetros (como voltaje, corriente, presión o capacidad) respecto a su **valor nominal**, sin que el equipo sufra daños o pierda eficiencia gravemente.
+
+A continuación, se explican los casos más comunes donde aplica:
+
+---
+
+### 1. Tolerancia de Voltaje (Tensión de Alimentación)
+
+Es la aplicación más crítica en aire acondicionado. El fabricante especifica un voltaje nominal (por ejemplo, **220 V**) y una tolerancia permisible, generalmente de **±10%**.
+
+* **Cálculo:**
+* **Valor nominal:** $220\text{ V}$
+* **Tolerancia:** $\pm 10\%$ ($\pm 22\text{ V}$)
+* **Rango aceptable:** Mínimo **198 V** – Máximo **242 V**.
+
+
+* **¿Qué significa?**
+* Si el voltaje suministrado está dentro de ese rango ($198\text{ V} - 242\text{ V}$), el compresor y los motores del ventilador funcionarán de forma segura.
+* Si cae por debajo del valor mínimo ($~`<`198\text{ V}$), el motor absorbe más corriente (amperaje), lo que genera **sobrecalentamiento en los devanados** y puede disparar el protector térmico.
+* Si supera el valor máximo ($>242\text{ V}$), se produce sobreesfuerzo en el aislamiento eléctrico y componentes electrónicos (tarjetas inverter).
+
+
+
+---
+
+### 2. Tolerancia en Capacitores (Condensadores de Arranque/Marcha)
+
+Los capacitores del compresor y del motor del ventilador incluyen una tolerancia impresa en su carcasa, típicamente de **±5%** o **±10%**.
+
+* **Ejemplo:** Un capacitor nominal de $45\ \mu\text{F}$ con tolerancia de $\pm 5\%$:
+* **Rango permitido:** $42.75\ \mu\text{F}$ a $47.25\ \mu\text{F}$.
+
+
+* **Aplicación práctica:** Cuando se mide la capacitancia durante un mantenimiento, si el multímetro marca un valor por debajo del límite mínimo aceptable (por ejemplo, $40\ \mu\text{F}$), el capacitor ha perdido sus propiedades y debe reemplazarse aunque el equipo siga arrancando.
+
+---
+
+### 3. Tolerancia en Carga de Refrigerante y Presiones
+
+En sistemas modernos (especialmente equipos Inverter o de R-410A / R-32), la tolerancia en el peso de la carga de refrigerante es muy estrecha:
+
+* **Ejemplo de etiqueta:** Carga nominal de $850\text{ g} \pm 20\text{ g}$.
+* **Significado:** El sistema tolerará entre **830 g** y **870 g**. Un exceso o falta fuera de este porcentaje de tolerancia altera las presiones de trabajo, disminuye la eficiencia energética y puede provocar retorno de líquido al compresor.
+
+---
+
+### Resumen
+
+El porcentaje de tolerancia define la **ventana de seguridad técnica** especificada por el fabricante para garantizar la vida útil del equipo frente a fluctuaciones en la red eléctrica o pequeñas desviaciones en los componentes.  
+
+
+

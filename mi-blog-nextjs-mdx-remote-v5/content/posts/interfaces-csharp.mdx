@@ -1,0 +1,1148 @@
+---
+title: "Interfaces en CSharp"
+date: "2026-08-27"
+description: "Aprender Interfaces con ejemplos practicos"
+slug: "interfaces-csharp"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Claro. Vamos a estudiar **interfaces en .NET 10 + C# 14** pero enfocándonos en algo que te sirva realmente para **DDD + Clean Architecture**, no solo en la definición de `interface`.
+
+La idea es que al terminar puedas entender **por qué DDD y Clean Architecture utilizan tantas interfaces**, dónde colocarlas y cómo implementarlas.
+
+---
+
+# 1. ¿Qué es una Interface en C#?
+
+Una interfaz es un **contrato**.
+
+Dice:
+
+> "Cualquier clase que implemente esta interfaz debe proporcionar estos comportamientos."
+
+Por ejemplo:
+
+```csharp
+public interface INotificationService
+{
+    void Send(string message);
+}
+```
+
+La interfaz **no dice cómo** se envía el mensaje.
+
+Solo dice:
+
+> Debe existir un método `Send`.
+
+Ahora podemos tener diferentes implementaciones:
+
+```csharp
+public class EmailNotificationService : INotificationService
+{
+    public void Send(string message)
+    {
+        Console.WriteLine($"Enviando email: {message}");
+    }
+}
+```
+
+Y:
+
+```csharp
+public class SmsNotificationService : INotificationService
+{
+    public void Send(string message)
+    {
+        Console.WriteLine($"Enviando SMS: {message}");
+    }
+}
+```
+
+Ambas cumplen el mismo contrato:
+
+```text
+             INotificationService
+                     │
+            ┌────────┴────────┐
+            │                 │
+     EmailNotification   SmsNotification
+        Service              Service
+```
+
+---
+
+# 2. ¿Por qué necesitamos interfaces?
+
+Supongamos que tienes:
+
+```csharp
+public class MaintenanceService
+{
+    private readonly EmailNotificationService _notificationService;
+
+    public MaintenanceService()
+    {
+        _notificationService = new EmailNotificationService();
+    }
+}
+```
+
+Aquí tenemos un problema.
+
+`MaintenanceService` está **acoplado** a:
+
+```text
+EmailNotificationService
+```
+
+Si mañana quieres enviar SMS, tendrías que modificar `MaintenanceService`.
+
+---
+
+## Con una interfaz
+
+```csharp
+public class MaintenanceService
+{
+    private readonly INotificationService _notificationService;
+
+    public MaintenanceService(INotificationService notificationService)
+    {
+        _notificationService = notificationService;
+    }
+}
+```
+
+Ahora `MaintenanceService` no sabe si utiliza:
+
+* Email
+* SMS
+* WhatsApp
+* Telegram
+* una API externa
+
+Solo conoce:
+
+```csharp
+INotificationService
+```
+
+Esto es **abstracción** y reduce el acoplamiento.
+
+---
+
+# 3. Interfaces y polimorfismo
+
+Mira este ejemplo:
+
+```csharp
+public interface IPaymentService
+{
+    void Pay(decimal amount);
+}
+```
+
+Implementaciones:
+
+```csharp
+public class CreditCardPayment : IPaymentService
+{
+    public void Pay(decimal amount)
+    {
+        Console.WriteLine($"Pagando ${amount} con tarjeta");
+    }
+}
+```
+
+```csharp
+public class CashPayment : IPaymentService
+{
+    public void Pay(decimal amount)
+    {
+        Console.WriteLine($"Pagando ${amount} en efectivo");
+    }
+}
+```
+
+Puedes hacer:
+
+```csharp
+IPaymentService payment = new CreditCardPayment();
+
+payment.Pay(100_000);
+```
+
+o:
+
+```csharp
+IPaymentService payment = new CashPayment();
+
+payment.Pay(100_000);
+```
+
+El código que utiliza `IPaymentService` **no necesita conocer la clase concreta**.
+
+Esto es fundamental en Clean Architecture.
+
+---
+
+# 4. Interface ≠ clase abstracta
+
+Es importante diferenciarlas.
+
+### Interface
+
+Define principalmente un **contrato**:
+
+```csharp
+public interface IEquipmentRepository
+{
+    Task<Equipment?> GetByIdAsync(Guid id);
+}
+```
+
+### Clase abstracta
+
+Puede contener estado y comportamiento:
+
+```csharp
+public abstract class Equipment
+{
+    public Guid Id { get; protected set; }
+
+    public string SerialNumber { get; protected set; } = null!;
+
+    public void Activate()
+    {
+        // comportamiento
+    }
+}
+```
+
+Una clase puede implementar varias interfaces:
+
+```csharp
+public class AirConditioner : IEquipmentRepository, IDisposable
+{
+}
+```
+
+Pero solo puede heredar de una clase:
+
+```csharp
+public class AirConditioner : Equipment
+{
+}
+```
+
+---
+
+# 5. Ahora llevémoslo a DDD
+
+Aquí empieza lo interesante para tu proyecto HVAC.
+
+Imaginemos nuestro dominio:
+
+```text
+Maintenance
+   │
+   ├── Equipment
+   ├── MaintenanceOrder
+   ├── Technician
+   ├── Activity
+   └── Customer
+```
+
+Tenemos una entidad:
+
+```csharp
+public class Equipment
+{
+    public Guid Id { get; private set; }
+
+    public string SerialNumber { get; private set; }
+
+    public Equipment(
+        Guid id,
+        string serialNumber)
+    {
+        Id = id;
+        SerialNumber = serialNumber;
+    }
+}
+```
+
+Ahora imaginemos que necesitamos obtener equipos.
+
+Podríamos crear:
+
+```csharp
+public interface IEquipmentRepository
+{
+    Task<Equipment?> GetByIdAsync(Guid id);
+}
+```
+
+¿Dónde debería estar?
+
+En una arquitectura DDD + Clean Architecture, normalmente queremos que **el dominio y/o la aplicación definan las abstracciones**, mientras que Infrastructure proporciona las implementaciones concretas.
+
+Una estructura posible:
+
+```text
+src
+│
+├── HVAC.Domain
+│
+│   ├── Entities
+│   │    └── Equipment.cs
+│   │
+│   ├── ValueObjects
+│   │
+│   ├── Aggregates
+│   │
+│   └── Repositories
+│        └── IEquipmentRepository.cs
+│
+├── HVAC.Application
+│
+│   ├── UseCases
+│   │
+│   ├── DTOs
+│   │
+│   └── Interfaces
+│
+├── HVAC.Infrastructure
+│
+│   ├── Persistence
+│   │    ├── AppDbContext.cs
+│   │    └── Repositories
+│   │         └── EquipmentRepository.cs
+│   │
+│   └── Services
+│
+└── HVAC.Api
+```
+
+---
+
+# 6. La inversión de dependencias
+
+Esta es una de las ideas **más importantes**.
+
+Tenemos:
+
+```csharp
+public interface IEquipmentRepository
+{
+    Task<Equipment?> GetByIdAsync(Guid id);
+}
+```
+
+Y en Infrastructure:
+
+```csharp
+public class EquipmentRepository : IEquipmentRepository
+{
+    private readonly AppDbContext _context;
+
+    public EquipmentRepository(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<Equipment?> GetByIdAsync(Guid id)
+    {
+        return await _context.Equipments
+            .FirstOrDefaultAsync(x => x.Id == id);
+    }
+}
+```
+
+Observa algo:
+
+```text
+Domain
+   │
+   │ define
+   ▼
+IEquipmentRepository
+   ▲
+   │ implementa
+   │
+Infrastructure
+   │
+   ▼
+EquipmentRepository
+```
+
+La dirección de la dependencia es muy importante.
+
+Infrastructure depende de Domain.
+
+No al revés.
+
+---
+
+# 7. ¿Por qué esto es Clean Architecture?
+
+Clean Architecture busca que las reglas importantes de nuestro sistema no dependan de detalles externos.
+
+Por ejemplo:
+
+```text
+              ┌───────────────────┐
+              │        API        │
+              └─────────┬─────────┘
+                        │
+                        ▼
+              ┌───────────────────┐
+              │    Application    │
+              └─────────┬─────────┘
+                        │
+                        ▼
+              ┌───────────────────┐
+              │      Domain       │
+              └───────────────────┘
+                        ▲
+                        │
+              ┌─────────┴─────────┐
+              │   Infrastructure  │
+              └───────────────────┘
+```
+
+La infraestructura contiene detalles:
+
+* EF Core
+* PostgreSQL
+* SQL Server
+* SMTP
+* APIs externas
+* almacenamiento
+* Redis
+
+El dominio no debería saber nada de eso.
+
+---
+
+# 8. Ejemplo completo con tu proyecto HVAC
+
+Supongamos un caso de uso:
+
+> Registrar una orden de mantenimiento.
+
+Tenemos:
+
+```csharp
+public class MaintenanceOrder
+{
+    public Guid Id { get; private set; }
+
+    public Guid EquipmentId { get; private set; }
+
+    public DateTime Date { get; private set; }
+
+    public MaintenanceOrder(
+        Guid id,
+        Guid equipmentId)
+    {
+        Id = id;
+        EquipmentId = equipmentId;
+        Date = DateTime.UtcNow;
+    }
+}
+```
+
+Ahora necesitamos guardar la orden.
+
+Creamos:
+
+```csharp
+public interface IMaintenanceOrderRepository
+{
+    Task AddAsync(MaintenanceOrder order);
+
+    Task<MaintenanceOrder?> GetByIdAsync(Guid id);
+}
+```
+
+---
+
+# 9. Implementación en Infrastructure
+
+```csharp
+public class MaintenanceOrderRepository
+    : IMaintenanceOrderRepository
+{
+    private readonly AppDbContext _context;
+
+    public MaintenanceOrderRepository(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task AddAsync(MaintenanceOrder order)
+    {
+        await _context.MaintenanceOrders.AddAsync(order);
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task<MaintenanceOrder?> GetByIdAsync(Guid id)
+    {
+        return await _context.MaintenanceOrders
+            .FirstOrDefaultAsync(x => x.Id == id);
+    }
+}
+```
+
+Ahora tenemos:
+
+```text
+Application
+     │
+     ▼
+IMaintenanceOrderRepository
+     ▲
+     │
+     │ implements
+     │
+Infrastructure
+     │
+     ▼
+MaintenanceOrderRepository
+     │
+     ▼
+   EF Core
+     │
+     ▼
+ PostgreSQL
+```
+
+---
+
+# 10. La interfaz en Application
+
+Aquí aparece otra situación importante.
+
+Supongamos que tenemos:
+
+```csharp
+CreateMaintenanceOrderCommand
+```
+
+y:
+
+```csharp
+CreateMaintenanceOrderHandler
+```
+
+El Handler necesita guardar una orden.
+
+No queremos que conozca:
+
+```csharp
+AppDbContext
+```
+
+ni:
+
+```csharp
+EntityFramework
+```
+
+ni:
+
+```csharp
+PostgreSQL
+```
+
+Solo necesita:
+
+```csharp
+IMaintenanceOrderRepository
+```
+
+Por ejemplo:
+
+```csharp
+public class CreateMaintenanceOrderHandler
+{
+    private readonly IMaintenanceOrderRepository _repository;
+
+    public CreateMaintenanceOrderHandler(
+        IMaintenanceOrderRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task HandleAsync(Guid equipmentId)
+    {
+        var order = new MaintenanceOrder(
+            Guid.NewGuid(),
+            equipmentId);
+
+        await _repository.AddAsync(order);
+    }
+}
+```
+
+El Handler no sabe **cómo** se guarda.
+
+Solo sabe:
+
+> Tengo un contrato que permite guardar una orden.
+
+---
+
+# 11. Dependency Injection
+
+Ahora tenemos que decirle a .NET:
+
+> Cuando alguien solicite `IMaintenanceOrderRepository`, dame `MaintenanceOrderRepository`.
+
+En `Program.cs`:
+
+```csharp
+builder.Services.AddScoped<
+    IMaintenanceOrderRepository,
+    MaintenanceOrderRepository>();
+```
+
+Entonces:
+
+```csharp
+public CreateMaintenanceOrderHandler(
+    IMaintenanceOrderRepository repository)
+```
+
+recibe automáticamente:
+
+```text
+MaintenanceOrderRepository
+```
+
+.NET hace la conexión.
+
+---
+
+# 12. Lo importante: el Handler no hace `new`
+
+Esto:
+
+```csharp
+var repository = new MaintenanceOrderRepository();
+```
+
+sería un mal enfoque.
+
+Porque Application estaría acoplada a Infrastructure.
+
+En cambio:
+
+```csharp
+public CreateMaintenanceOrderHandler(
+    IMaintenanceOrderRepository repository)
+{
+    _repository = repository;
+}
+```
+
+es mucho mejor.
+
+Tenemos:
+
+```text
+Application
+     │
+     │ conoce
+     ▼
+Interface
+     ▲
+     │ implementa
+     │
+Infrastructure
+```
+
+---
+
+# 13. Interfaces para servicios externos
+
+Imaginemos que cuando terminamos un mantenimiento debemos enviar una notificación.
+
+Creamos:
+
+```csharp
+public interface INotificationService
+{
+    Task SendAsync(
+        string recipient,
+        string message);
+}
+```
+
+Infrastructure:
+
+```csharp
+public class EmailNotificationService
+    : INotificationService
+{
+    public async Task SendAsync(
+        string recipient,
+        string message)
+    {
+        // SMTP
+        // SendGrid
+        // Amazon SES
+        // etc.
+    }
+}
+```
+
+Application:
+
+```csharp
+public class CompleteMaintenanceHandler
+{
+    private readonly INotificationService _notificationService;
+
+    public CompleteMaintenanceHandler(
+        INotificationService notificationService)
+    {
+        _notificationService = notificationService;
+    }
+
+    public async Task HandleAsync()
+    {
+        // lógica del caso de uso
+
+        await _notificationService.SendAsync(
+            "cliente@email.com",
+            "Mantenimiento completado");
+    }
+}
+```
+
+Application no sabe si usamos:
+
+```text
+SMTP
+SendGrid
+Amazon SES
+Mailgun
+```
+
+Eso es responsabilidad de Infrastructure.
+
+---
+
+# 14. Interfaces y testing
+
+Este es otro beneficio enorme.
+
+Supongamos:
+
+```csharp
+public interface IEquipmentRepository
+{
+    Task<Equipment?> GetByIdAsync(Guid id);
+}
+```
+
+Para producción:
+
+```csharp
+public class EquipmentRepository
+    : IEquipmentRepository
+{
+    // PostgreSQL + EF Core
+}
+```
+
+Pero para una prueba:
+
+```csharp
+public class FakeEquipmentRepository
+    : IEquipmentRepository
+{
+    public Task<Equipment?> GetByIdAsync(Guid id)
+    {
+        var equipment = new Equipment(
+            id,
+            "AC-001");
+
+        return Task.FromResult<Equipment?>(equipment);
+    }
+}
+```
+
+Entonces podemos probar Application sin levantar:
+
+* PostgreSQL
+* EF Core
+* Docker
+* API
+
+Esto facilita muchísimo los **unit tests**.
+
+---
+
+# 15. Interfaces en DDD: cuidado
+
+Aquí hay una distinción importante.
+
+No significa que debamos crear interfaces para **todo**.
+
+❌ No hagas esto automáticamente:
+
+```csharp
+IEquipment
+IEquipmentService
+IEquipmentValidator
+IEquipmentFactory
+IEquipmentManager
+IEquipmentHelper
+IEquipmentMapper
+```
+
+solo porque "DDD utiliza interfaces".
+
+Las interfaces deben existir cuando aportan una abstracción útil.
+
+Por ejemplo:
+
+```csharp
+IEquipmentRepository
+```
+
+tiene sentido porque queremos abstraer la persistencia.
+
+También:
+
+```csharp
+INotificationService
+```
+
+porque queremos abstraer un servicio externo.
+
+Pero hacer:
+
+```csharp
+IEquipment
+```
+
+para una entidad concreta puede no aportar ningún beneficio.
+
+---
+
+# 16. Interface y SOLID
+
+Las interfaces están especialmente relacionadas con:
+
+### S — Single Responsibility
+
+Cada componente tiene una responsabilidad.
+
+### O — Open/Closed
+
+Podemos agregar implementaciones sin modificar el consumidor.
+
+### L — Liskov Substitution
+
+Una implementación debe poder sustituir al contrato sin romper las expectativas.
+
+### I — Interface Segregation
+
+No crear interfaces gigantes.
+
+### D — Dependency Inversion
+
+Los módulos de alto nivel dependen de abstracciones.
+
+Este último es especialmente importante para Clean Architecture.
+
+---
+
+# 17. Interface Segregation
+
+Imagina esto:
+
+```csharp
+public interface IMaintenanceService
+{
+    void Create();
+    void Update();
+    void Delete();
+    void SendEmail();
+    void GeneratePdf();
+    void ExportExcel();
+    void SendWhatsApp();
+}
+```
+
+Es una interfaz demasiado grande.
+
+Mejor:
+
+```csharp
+public interface IMaintenanceRepository
+{
+    Task AddAsync(MaintenanceOrder order);
+}
+```
+
+```csharp
+public interface INotificationService
+{
+    Task SendAsync(string message);
+}
+```
+
+```csharp
+public interface IPdfGenerator
+{
+    Task<byte[]> GenerateAsync(
+        MaintenanceOrder order);
+}
+```
+
+Cada interfaz tiene una responsabilidad más clara.
+
+---
+
+# 18. Una regla práctica para tu proyecto
+
+Para tu aplicación HVAC, piensa así:
+
+### Domain
+
+Contiene:
+
+```text
+Entities
+Value Objects
+Aggregates
+Domain Services
+Domain Events
+Repository abstractions (cuando formen parte del modelo de persistencia del dominio)
+```
+
+Ejemplo:
+
+```csharp
+public interface IMaintenanceOrderRepository
+{
+    Task<MaintenanceOrder?> GetByIdAsync(Guid id);
+
+    Task AddAsync(MaintenanceOrder order);
+}
+```
+
+---
+
+### Application
+
+Contiene:
+
+```text
+Use Cases
+Commands
+Queries
+DTOs
+Handlers
+Application Services
+Interfaces de servicios externos
+```
+
+Ejemplo:
+
+```csharp
+public interface INotificationService
+{
+    Task SendAsync(
+        string recipient,
+        string message);
+}
+```
+
+---
+
+### Infrastructure
+
+Implementa:
+
+```text
+EF Core
+Repositories
+Email
+Storage
+External APIs
+Authentication
+Logging
+etc.
+```
+
+Ejemplo:
+
+```csharp
+public class MaintenanceOrderRepository
+    : IMaintenanceOrderRepository
+{
+}
+```
+
+---
+
+### API
+
+Se preocupa principalmente por:
+
+```text
+HTTP
+Controllers
+Endpoints
+Authentication
+Request/Response
+Dependency Injection
+```
+
+---
+
+# 19. La idea que debes memorizar
+
+Cuando veas:
+
+```csharp
+private readonly IEquipmentRepository _repository;
+```
+
+no pienses:
+
+> "Es una clase."
+
+Piensa:
+
+> **"Es un contrato que me dice qué puedo hacer, pero no cómo se hace."**
+
+Y cuando veas:
+
+```csharp
+public EquipmentRepository : IEquipmentRepository
+```
+
+piensa:
+
+> **"Esta clase es una implementación concreta de ese contrato."**
+
+Y cuando veas:
+
+```csharp
+builder.Services.AddScoped<
+    IEquipmentRepository,
+    EquipmentRepository>();
+```
+
+piensa:
+
+> **".NET va a conectar el contrato con su implementación."**
+
+---
+
+# 20. El mapa mental para DDD + Clean Architecture
+
+Quédate con este esquema:
+
+```text
+                 ┌──────────────────────┐
+                 │         API          │
+                 │ Controllers/Endpoints│
+                 └──────────┬───────────┘
+                            │
+                            ▼
+                 ┌──────────────────────┐
+                 │     APPLICATION     │
+                 │                      │
+                 │ Use Cases            │
+                 │ DTOs                 │
+                 │ Handlers             │
+                 │ Interfaces           │
+                 └──────────┬───────────┘
+                            │
+                            ▼
+                 ┌──────────────────────┐
+                 │        DOMAIN       │
+                 │                      │
+                 │ Entities             │
+                 │ Value Objects        │
+                 │ Aggregates           │
+                 │ Domain Rules         │
+                 └──────────────────────┘
+                            ▲
+                            │
+                            │ implements
+                            │
+                 ┌──────────┴───────────┐
+                 │   INFRASTRUCTURE     │
+                 │                      │
+                 │ EF Core              │
+                 │ PostgreSQL           │
+                 │ Repositories         │
+                 │ Email                │
+                 │ External APIs        │
+                 └──────────────────────┘
+```
+
+La palabra clave es:
+
+**abstracción**.
+
+La Application puede decir:
+
+```csharp
+IEquipmentRepository
+```
+
+sin saber si mañana los datos vienen de:
+
+```text
+PostgreSQL
+SQL Server
+MongoDB
+API externa
+memoria
+```
+
+Eso es exactamente lo que buscamos con **DDD + Clean Architecture + Dependency Inversion**.
+
+---
+
+## 🧠 Ejercicio para comprobar que quedó claro
+
+Antes de avanzar a un tema más avanzado, intenta responder estas 4 preguntas:
+
+1. ¿Cuál es la diferencia entre esto?
+
+```csharp
+IEquipmentRepository
+```
+
+y esto:
+
+```csharp
+EquipmentRepository
+```
+
+2. ¿Por qué `Application` no debería hacer directamente esto?
+
+```csharp
+var repository = new EquipmentRepository();
+```
+
+3. ¿Quién debería implementar `IEquipmentRepository`: **Domain, Application o Infrastructure**?
+
+4. Si mañana cambiamos PostgreSQL por SQL Server, ¿qué debería cambiar principalmente: el `Use Case` o la implementación del repositorio?
+
+Si quieres aprenderlo **paso a paso como hicimos con tipos por valor y referencia**, podemos continuar con un ejercicio práctico de tu sistema HVAC: primero hacemos una interfaz sencilla, luego **Dependency Injection**, después **Repository Pattern**, y finalmente construimos un **Use Case real con DDD + Clean Architecture**.

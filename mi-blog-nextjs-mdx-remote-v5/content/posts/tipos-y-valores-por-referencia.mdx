@@ -1,0 +1,1131 @@
+---
+title: "Tipos y Valores por Referencias"
+date: "2026-08-27"
+description: "Aprender Los diferentes tipos y valores "
+slug: "tipos-y-valores-por-referencia"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Claro. En .NET 10 y C# 14, entender **tipos por valor (`value types`) y tipos por referencia (`reference types`)** es fundamental, especialmente si estás preparándote para pruebas técnicas.
+
+Vamos a verlo **paso a paso y con ejemplos prácticos**, empezando desde lo más básico y avanzando hacia `record`, `struct`, `class`, `ref`, `out`, `readonly` y casos reales.
+
+---
+
+# 1. La idea fundamental
+
+En C# existen dos grandes categorías:
+
+```text
+Tipos por valor
+│
+├── int
+├── decimal
+├── double
+├── bool
+├── char
+├── enum
+├── struct
+└── record struct
+
+Tipos por referencia
+│
+├── class
+├── record
+├── string
+├── array
+├── interface
+└── delegate
+```
+
+La diferencia principal es:
+
+> **Un tipo por valor contiene directamente su valor.**
+
+> **Un tipo por referencia contiene una referencia hacia un objeto.**
+
+Pero cuidado: decir simplemente **"value types viven en el stack y reference types viven en el heap"** es una simplificación incorrecta. La ubicación física depende del contexto y de cómo el runtime gestione la memoria.
+
+---
+
+# 2. Tipos por valor
+
+Empecemos con algo muy sencillo:
+
+```csharp
+int edad1 = 50;
+int edad2 = edad1;
+
+edad2 = 60;
+
+Console.WriteLine(edad1);
+Console.WriteLine(edad2);
+```
+
+Resultado:
+
+```text
+50
+60
+```
+
+¿Qué ocurrió?
+
+Cuando hacemos:
+
+```csharp
+int edad2 = edad1;
+```
+
+se copia el **valor**.
+
+Podemos imaginarlo así:
+
+```text
+edad1 ──> 50
+
+edad2 ──> 50
+```
+
+Después:
+
+```csharp
+edad2 = 60;
+```
+
+tenemos:
+
+```text
+edad1 ──> 50
+edad2 ──> 60
+```
+
+Son valores independientes.
+
+---
+
+# 3. Ejemplo con `double`
+
+```csharp
+double precio1 = 100.50;
+double precio2 = precio1;
+
+precio2 = 200.75;
+
+Console.WriteLine(precio1);
+Console.WriteLine(precio2);
+```
+
+Resultado:
+
+```text
+100.50
+200.75
+```
+
+Exactamente el mismo comportamiento.
+
+---
+
+# 4. Ejemplo con `bool`
+
+```csharp
+bool activo1 = true;
+bool activo2 = activo1;
+
+activo2 = false;
+
+Console.WriteLine(activo1);
+Console.WriteLine(activo2);
+```
+
+Resultado:
+
+```text
+True
+False
+```
+
+Porque `bool` es un tipo por valor.
+
+---
+
+# 5. `struct` también es un tipo por valor
+
+Aquí empieza una parte muy importante.
+
+Podemos crear nuestro propio tipo por valor:
+
+```csharp
+public struct Point
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+}
+```
+
+Utilizamos:
+
+```csharp
+Point p1 = new Point
+{
+    X = 10,
+    Y = 20
+};
+
+Point p2 = p1;
+
+p2.X = 100;
+
+Console.WriteLine(p1.X);
+Console.WriteLine(p2.X);
+```
+
+Resultado:
+
+```text
+10
+100
+```
+
+¿Por qué?
+
+Porque:
+
+```csharp
+Point p2 = p1;
+```
+
+crea una copia del valor.
+
+Conceptualmente:
+
+```text
+p1
+┌──────────┐
+│ X = 10   │
+│ Y = 20   │
+└──────────┘
+
+p2
+┌──────────┐
+│ X = 10   │
+│ Y = 20   │
+└──────────┘
+```
+
+Modificar `p2` no modifica `p1`.
+
+---
+
+# 6. Ahora comparemos con una `class`
+
+Creamos exactamente lo mismo, pero como clase:
+
+```csharp
+public class Point
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+}
+```
+
+Ahora:
+
+```csharp
+Point p1 = new Point
+{
+    X = 10,
+    Y = 20
+};
+
+Point p2 = p1;
+
+p2.X = 100;
+
+Console.WriteLine(p1.X);
+Console.WriteLine(p2.X);
+```
+
+Resultado:
+
+```text
+100
+100
+```
+
+Esto sorprende inicialmente.
+
+¿Por qué?
+
+Porque:
+
+```csharp
+Point p2 = p1;
+```
+
+**no copia el objeto.**
+
+Copia la referencia.
+
+Conceptualmente:
+
+```text
+p1 ─────────┐
+            ↓
+        ┌──────────┐
+        │ X = 100  │
+        │ Y = 20   │
+        └──────────┘
+            ↑
+            │
+p2 ─────────┘
+```
+
+Ambas variables apuntan al mismo objeto.
+
+---
+
+# 7. La diferencia más importante
+
+Memoriza esta comparación:
+
+### `struct`
+
+```csharp
+Point p2 = p1;
+```
+
+significa conceptualmente:
+
+```text
+COPIAR EL VALOR
+```
+
+### `class`
+
+```csharp
+Point p2 = p1;
+```
+
+significa:
+
+```text
+COPIAR LA REFERENCIA
+```
+
+Esta diferencia aparece constantemente en entrevistas técnicas.
+
+---
+
+# 8. Un ejemplo práctico con `Customer`
+
+Supongamos:
+
+```csharp
+public class Customer
+{
+    public string Name { get; set; } = string.Empty;
+}
+```
+
+Tenemos:
+
+```csharp
+Customer customer1 = new()
+{
+    Name = "Rodney"
+};
+
+Customer customer2 = customer1;
+
+customer2.Name = "Carlos";
+
+Console.WriteLine(customer1.Name);
+```
+
+Resultado:
+
+```text
+Carlos
+```
+
+Porque ambos apuntan al mismo objeto.
+
+---
+
+# 9. ¿Qué pasa con `string`?
+
+Aquí aparece una pregunta muy común:
+
+> ¿`string` es value type o reference type?
+
+`string` es:
+
+**tipo por referencia.**
+
+Por ejemplo:
+
+```csharp
+string name1 = "Rodney";
+string name2 = name1;
+
+name2 = "Carlos";
+
+Console.WriteLine(name1);
+Console.WriteLine(name2);
+```
+
+Resultado:
+
+```text
+Rodney
+Carlos
+```
+
+Pero esto **no significa que `string` sea un tipo por valor**.
+
+La razón está relacionada con que `string` es **inmutable**.
+
+Cuando hacemos:
+
+```csharp
+name2 = "Carlos";
+```
+
+no estamos modificando el string `"Rodney"`.
+
+Estamos haciendo que `name2` haga referencia a otro string.
+
+---
+
+# 10. `enum` también es un tipo por valor
+
+Por ejemplo:
+
+```csharp
+public enum Status
+{
+    Pending,
+    Active,
+    Cancelled
+}
+```
+
+Tenemos:
+
+```csharp
+Status status1 = Status.Active;
+Status status2 = status1;
+
+status2 = Status.Cancelled;
+
+Console.WriteLine(status1);
+Console.WriteLine(status2);
+```
+
+Resultado:
+
+```text
+Active
+Cancelled
+```
+
+Los `enum` son value types.
+
+---
+
+# 11. ¿Y `DateTime`?
+
+También:
+
+```csharp
+DateTime date1 = DateTime.Now;
+DateTime date2 = date1;
+
+date2 = date2.AddDays(1);
+```
+
+`DateTime` es un `struct`.
+
+Por tanto:
+
+```text
+DateTime
+   ↓
+struct
+   ↓
+value type
+```
+
+Lo mismo ocurre con muchos tipos modernos de .NET:
+
+```csharp
+Guid
+DateTime
+DateTimeOffset
+TimeSpan
+decimal
+```
+
+---
+
+# 12. `Guid`
+
+Esto es especialmente importante para tus proyectos con .NET y DDD.
+
+```csharp
+Guid id1 = Guid.NewGuid();
+
+Guid id2 = id1;
+
+id2 = Guid.NewGuid();
+```
+
+`Guid` es un `struct`.
+
+Por tanto:
+
+```text
+id1 ≠ id2
+```
+
+después de asignar un nuevo valor a `id2`.
+
+---
+
+# 13. Tipos nullable
+
+Ahora aparece algo muy importante:
+
+```csharp
+int? age = null;
+```
+
+Esto realmente es:
+
+```csharp
+Nullable<int>
+```
+
+Por ejemplo:
+
+```csharp
+int? age = 50;
+
+Console.WriteLine(age.HasValue);
+Console.WriteLine(age.Value);
+```
+
+Resultado:
+
+```text
+True
+50
+```
+
+También:
+
+```csharp
+int? age = null;
+
+Console.WriteLine(age.HasValue);
+```
+
+Resultado:
+
+```text
+False
+```
+
+Esto es muy utilizado con EF Core:
+
+```csharp
+public decimal? Discount { get; set; }
+```
+
+Significa que `Discount` puede contener:
+
+```text
+un decimal
+```
+
+o:
+
+```text
+null
+```
+
+---
+
+# 14. Tipos por referencia pueden ser `null`
+
+Por ejemplo:
+
+```csharp
+Customer? customer = null;
+```
+
+Mientras que un `int` normalmente no puede ser `null`:
+
+```csharp
+int age = null; // ERROR
+```
+
+Pero:
+
+```csharp
+int? age = null;
+```
+
+sí es válido.
+
+---
+
+# 15. `record` vs `record struct`
+
+Esto es especialmente importante en C# moderno.
+
+Tenemos:
+
+```csharp
+public record CustomerDto(
+    Guid Id,
+    string Name);
+```
+
+`record` es un:
+
+**reference type.**
+
+Pero podemos crear:
+
+```csharp
+public record struct CustomerDto(
+    Guid Id,
+    string Name);
+```
+
+Este es un:
+
+**value type.**
+
+Tenemos entonces:
+
+```text
+record
+   ↓
+reference type
+
+record class
+   ↓
+reference type
+
+record struct
+   ↓
+value type
+```
+
+---
+
+# 16. ¿Por qué existen los `record`?
+
+Los `record` están pensados especialmente para representar datos donde importa la **igualdad por valor**.
+
+Por ejemplo:
+
+```csharp
+public record Address(
+    string City,
+    string Country);
+```
+
+Tenemos:
+
+```csharp
+Address address1 = new("Barranquilla", "Colombia");
+Address address2 = new("Barranquilla", "Colombia");
+
+Console.WriteLine(address1 == address2);
+```
+
+Resultado:
+
+```text
+True
+```
+
+Esto es diferente de una clase tradicional.
+
+---
+
+# 17. Clase tradicional
+
+```csharp
+public class Address
+{
+    public string City { get; set; } = string.Empty;
+    public string Country { get; set; } = string.Empty;
+}
+```
+
+Ahora:
+
+```csharp
+Address address1 = new()
+{
+    City = "Barranquilla",
+    Country = "Colombia"
+};
+
+Address address2 = new()
+{
+    City = "Barranquilla",
+    Country = "Colombia"
+};
+
+Console.WriteLine(address1 == address2);
+```
+
+Normalmente:
+
+```text
+False
+```
+
+Porque son dos objetos diferentes.
+
+---
+
+# 18. Aquí aparece el concepto "igualdad por valor"
+
+Esta es una de las razones por las que los `record` son muy interesantes para DDD.
+
+Supongamos un Value Object:
+
+```csharp
+public record Money(
+    decimal Amount,
+    string Currency);
+```
+
+Podemos hacer:
+
+```csharp
+Money price1 = new(100, "USD");
+Money price2 = new(100, "USD");
+
+Console.WriteLine(price1 == price2);
+```
+
+Resultado:
+
+```text
+True
+```
+
+Conceptualmente:
+
+```text
+price1 = 100 USD
+price2 = 100 USD
+
+Son iguales por VALOR.
+```
+
+Esto encaja muy bien con el concepto de **Value Object de DDD**.
+
+---
+
+# 19. Pero cuidado: Value Type ≠ Value Object
+
+Esto es MUY importante para tu aprendizaje de DDD.
+
+No debemos confundir:
+
+```text
+Value Type
+```
+
+con:
+
+```text
+Value Object
+```
+
+Son conceptos diferentes.
+
+### Value Type de C#
+
+Es una categoría del lenguaje:
+
+```csharp
+int
+decimal
+bool
+struct
+enum
+```
+
+### Value Object de DDD
+
+Es un concepto de diseño de dominio.
+
+Por ejemplo:
+
+```csharp
+public record Email
+{
+    public string Value { get; }
+
+    public Email(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException("Email inválido");
+
+        Value = value;
+    }
+}
+```
+
+`Email` podría ser un Value Object de nuestro dominio.
+
+---
+
+# 20. Ejemplo práctico relacionado con tu proyecto
+
+Supongamos que tenemos:
+
+```csharp
+public class Invoice
+{
+    public Guid Id { get; private set; }
+
+    public decimal Total { get; private set; }
+}
+```
+
+Podemos evolucionarlo a algo más orientado a DDD:
+
+```csharp
+public record Money(
+    decimal Amount,
+    string Currency);
+```
+
+Y:
+
+```csharp
+public class Invoice
+{
+    public Guid Id { get; private set; }
+
+    public Money Total { get; private set; }
+        = new(0, "COP");
+}
+```
+
+Aquí tenemos dos conceptos distintos:
+
+```text
+Guid
+ ↓
+Value Type de C#
+
+Money
+ ↓
+Value Object de DDD
+```
+
+Aunque ambos pueden representar valores, **no son el mismo concepto**.
+
+---
+
+# 21. Ahora una pregunta típica de entrevista
+
+¿Qué ocurre aquí?
+
+```csharp
+int x = 10;
+Change(x);
+
+Console.WriteLine(x);
+
+static void Change(int value)
+{
+    value = 20;
+}
+```
+
+Resultado:
+
+```text
+10
+```
+
+¿Por qué?
+
+Porque `int` es un value type.
+
+Cuando hacemos:
+
+```csharp
+Change(x);
+```
+
+se copia el valor:
+
+```text
+x = 10
+
+        copia
+          ↓
+value = 10
+```
+
+Después:
+
+```csharp
+value = 20;
+```
+
+solamente modificamos la copia.
+
+---
+
+# 22. ¿Y una clase?
+
+Ahora:
+
+```csharp
+public class Customer
+{
+    public string Name { get; set; } = string.Empty;
+}
+```
+
+Tenemos:
+
+```csharp
+Customer customer = new()
+{
+    Name = "Rodney"
+};
+
+Change(customer);
+
+Console.WriteLine(customer.Name);
+
+static void Change(Customer customer)
+{
+    customer.Name = "Carlos";
+}
+```
+
+Resultado:
+
+```text
+Carlos
+```
+
+Porque se copia la referencia.
+
+```text
+customer ─────┐
+              ↓
+           Customer
+           Name = Carlos
+              ↑
+              │
+parameter ────┘
+```
+
+---
+
+# 23. Pero aquí viene una pregunta de entrevista más difícil
+
+¿Qué pasa aquí?
+
+```csharp
+Customer customer = new()
+{
+    Name = "Rodney"
+};
+
+Change(customer);
+
+Console.WriteLine(customer.Name);
+
+static void Change(Customer customer)
+{
+    customer = new Customer
+    {
+        Name = "Carlos"
+    };
+}
+```
+
+Resultado:
+
+```text
+Rodney
+```
+
+¿Por qué?
+
+Porque aunque `Customer` sea reference type, **la referencia se pasa por valor por defecto**.
+
+Es decir:
+
+```text
+customer
+   │
+   └───────► Objeto A
+```
+
+Al entrar al método:
+
+```text
+parameter
+   │
+   └───────► Objeto A
+```
+
+Tenemos dos copias de la referencia.
+
+Cuando hacemos:
+
+```csharp
+customer = new Customer(...)
+```
+
+solo cambiamos la referencia local.
+
+La variable original continúa apuntando al objeto A.
+
+---
+
+# 24. Esto nos lleva a `ref`
+
+Podemos hacer:
+
+```csharp
+Customer customer = new()
+{
+    Name = "Rodney"
+};
+
+Change(ref customer);
+
+Console.WriteLine(customer.Name);
+
+static void Change(ref Customer customer)
+{
+    customer = new Customer
+    {
+        Name = "Carlos"
+    };
+}
+```
+
+Ahora:
+
+```text
+Carlos
+```
+
+Porque `ref` permite que el método trabaje con la misma variable.
+
+---
+
+# 25. Lo que debes memorizar
+
+Para una prueba técnica de .NET 10, esta tabla es fundamental:
+
+| Tipo            | Categoría      |
+| --------------- | -------------- |
+| `int`           | Value type     |
+| `long`          | Value type     |
+| `double`        | Value type     |
+| `decimal`       | Value type     |
+| `bool`          | Value type     |
+| `char`          | Value type     |
+| `enum`          | Value type     |
+| `struct`        | Value type     |
+| `record struct` | Value type     |
+| `DateTime`      | Value type     |
+| `Guid`          | Value type     |
+| `class`         | Reference type |
+| `record`        | Reference type |
+| `string`        | Reference type |
+| `array`         | Reference type |
+| `interface`     | Reference type |
+| `delegate`      | Reference type |
+
+---
+
+# 26. Regla mental para recordar
+
+Cuando veas:
+
+```csharp
+int
+decimal
+bool
+Guid
+DateTime
+struct
+enum
+record struct
+```
+
+piensa:
+
+> **"Se copia el valor."**
+
+Cuando veas:
+
+```csharp
+class
+record
+string
+array
+```
+
+piensa:
+
+> **"Se copia la referencia."**
+
+Y una última regla muy importante:
+
+> **Reference type no significa que se pase por referencia.**
+
+Por defecto, C# pasa **los argumentos por valor**, incluso cuando ese valor es una referencia.
+
+Esto último es una de las preguntas favoritas de las pruebas técnicas de C#.
+
+---
+
+## Siguiente paso recomendado
+
+Para dominar esto realmente, el siguiente ejercicio debería ser práctico:
+
+```text
+1. int
+2. struct
+3. class
+4. record
+5. record struct
+6. métodos y paso de parámetros
+7. ref
+8. out
+9. in
+10. boxing / unboxing
+11. readonly struct
+12. Value Objects en DDD
+```
+
+Y podemos hacerlo **como entrenamiento de prueba técnica**: yo te planteo un código, tú dices qué imprime y **por qué**, y después revisamos tu respuesta antes de avanzar al siguiente nivel.

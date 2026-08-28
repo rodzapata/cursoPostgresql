@@ -5,6 +5,7 @@ import { compileMDX } from 'next-mdx-remote/rsc'
 import { slugify } from './utils'
 import { mdxComponents } from '../components/mdx/mdx-components'
 import rehypePrettyCode from 'rehype-pretty-code'
+import remarkGfm from 'remark-gfm'
 
 const postsDirectory = path.join(process.cwd(), 'content/posts')
 
@@ -97,6 +98,9 @@ export async function getPostMdxBySlug(slug) {
     options: {
       parseFrontmatter: false,
       mdxOptions: {
+        remarkPlugins: [
+          remarkGfm
+        ],
         rehypePlugins: [
           [
             rehypePrettyCode,
@@ -108,7 +112,8 @@ export async function getPostMdxBySlug(slug) {
         ]
       }
     }
-  })
+    
+})
 
   return {
     ...post,

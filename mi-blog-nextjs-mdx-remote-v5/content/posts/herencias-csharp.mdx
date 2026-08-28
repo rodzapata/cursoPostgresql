@@ -1,0 +1,1406 @@
+---
+title: "Herencias en CSharp"
+date: "2026-08-28"
+description: "Aprender Herencias con ejemplos practicos"
+slug: "herencias-csharp"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Claro. Vamos a estudiar **herencia en .NET 10 con C# 14**, paso a paso y con ejemplos prácticos, pero además conectándola con **DDD y Clean Architecture**, porque es el contexto en el que estás trabajando.
+
+---
+
+# 1. ¿Qué es la herencia?
+
+La **herencia** permite crear una clase nueva a partir de otra clase existente.
+
+La clase nueva **hereda** características y comportamientos de la clase original.
+
+Por ejemplo:
+
+```csharp
+public class Animal
+{
+    public string Name { get; set; } = string.Empty;
+
+    public void Eat()
+    {
+        Console.WriteLine("El animal está comiendo");
+    }
+}
+```
+
+Tenemos otra clase:
+
+```csharp
+public class Dog : Animal
+{
+}
+```
+
+El `:` significa:
+
+> `Dog` hereda de `Animal`.
+
+Ahora podemos hacer:
+
+```csharp
+var dog = new Dog();
+
+dog.Name = "Firulais";
+
+dog.Eat();
+```
+
+Aunque `Dog` no declaró `Name` ni `Eat`, los heredó de `Animal`.
+
+Visualmente:
+
+```text
+Animal
+   │
+   │ hereda
+   ▼
+ Dog
+```
+
+---
+
+# 2. ¿Qué hereda exactamente?
+
+Una clase hija puede recibir de la clase padre:
+
+* propiedades
+* métodos
+* campos accesibles
+* eventos
+* comportamiento
+
+Pero hay algo importante:
+
+**No todo es heredable/accesible directamente.**
+
+Por ejemplo:
+
+```csharp
+public class Animal
+{
+    private string _secret = "ABC";
+
+    protected string Species = "Animal";
+
+    public string Name { get; set; } = string.Empty;
+}
+```
+
+Una clase hija:
+
+```csharp
+public class Dog : Animal
+{
+    public void ShowData()
+    {
+        Console.WriteLine(Name);      // ✅ public
+        Console.WriteLine(Species);   // ✅ protected
+
+        // Console.WriteLine(_secret); // ❌ private
+    }
+}
+```
+
+La regla básica:
+
+| Modificador | Clase hija             |
+| ----------- | ---------------------- |
+| `public`    | ✅                      |
+| `protected` | ✅                      |
+| `internal`  | depende del ensamblado |
+| `private`   | ❌                      |
+
+---
+
+# 3. Herencia "es un"
+
+Una regla muy útil:
+
+> La herencia normalmente representa una relación **"es un"**.
+
+Por ejemplo:
+
+```text
+Dog es un Animal
+Cat es un Animal
+```
+
+Entonces:
+
+```csharp
+public class Dog : Animal
+{
+}
+```
+
+tiene sentido.
+
+Pero:
+
+```text
+Car es un Engine
+```
+
+no tiene sentido.
+
+Un carro **tiene un** motor.
+
+Eso sería composición:
+
+```csharp
+public class Car
+{
+    public Engine Engine { get; }
+
+    public Car(Engine engine)
+    {
+        Engine = engine;
+    }
+}
+```
+
+Esto es:
+
+```text
+Car
+ │
+ └── tiene un → Engine
+```
+
+Mientras que:
+
+```text
+Dog
+ │
+ └── es un → Animal
+```
+
+es herencia.
+
+---
+
+# 4. Ejemplo práctico con HVAC
+
+Vamos a utilizar algo relacionado con tu proyecto.
+
+Supongamos que tenemos diferentes equipos:
+
+```text
+Equipment
+   │
+   ├── AirConditioner
+   ├── Refrigerator
+   └── Freezer
+```
+
+Podemos crear:
+
+```csharp
+public class Equipment
+{
+    public Guid Id { get; protected set; }
+
+    public string SerialNumber { get; protected set; } = string.Empty;
+
+    public bool IsActive { get; protected set; }
+
+    public void Activate()
+    {
+        IsActive = true;
+    }
+}
+```
+
+Ahora:
+
+```csharp
+public class AirConditioner : Equipment
+{
+    public decimal CoolingCapacity { get; private set; }
+}
+```
+
+Y:
+
+```csharp
+public class Refrigerator : Equipment
+{
+    public decimal Temperature { get; private set; }
+}
+```
+
+Podemos hacer:
+
+```csharp
+var airConditioner = new AirConditioner();
+
+airConditioner.Activate();
+```
+
+`Activate()` pertenece a `Equipment`, pero `AirConditioner` lo heredó.
+
+---
+
+# 5. Una clase puede extender el comportamiento
+
+La clase hija puede agregar nuevas propiedades y métodos.
+
+```csharp
+public class AirConditioner : Equipment
+{
+    public decimal CoolingCapacity { get; private set; }
+
+    public void StartCooling()
+    {
+        Console.WriteLine("Iniciando refrigeración...");
+    }
+}
+```
+
+Ahora:
+
+```csharp
+var equipment = new AirConditioner();
+
+equipment.Activate();
+equipment.StartCooling();
+```
+
+Tenemos:
+
+```text
+Equipment
+ ├── Id
+ ├── SerialNumber
+ ├── IsActive
+ └── Activate()
+
+       ▲
+       │
+       │ hereda
+       │
+
+AirConditioner
+ ├── CoolingCapacity
+ └── StartCooling()
+```
+
+---
+
+# 6. ¿Qué pasa con los constructores?
+
+Este punto es muy importante.
+
+Supongamos:
+
+```csharp
+public class Equipment
+{
+    public Guid Id { get; }
+
+    public Equipment(Guid id)
+    {
+        Id = id;
+    }
+}
+```
+
+Entonces:
+
+```csharp
+public class AirConditioner : Equipment
+{
+}
+```
+
+no puede hacer:
+
+```csharp
+new AirConditioner();
+```
+
+porque `Equipment` necesita un `Guid`.
+
+La clase hija debe llamar al constructor del padre:
+
+```csharp
+public class AirConditioner : Equipment
+{
+    public AirConditioner(Guid id)
+        : base(id)
+    {
+    }
+}
+```
+
+La palabra:
+
+```csharp
+base
+```
+
+significa:
+
+> llama o accede a la clase padre.
+
+Ahora:
+
+```csharp
+var equipment = new AirConditioner(Guid.NewGuid());
+```
+
+El flujo es:
+
+```text
+new AirConditioner()
+        │
+        ▼
+AirConditioner constructor
+        │
+        ▼
+base(id)
+        │
+        ▼
+Equipment constructor
+```
+
+---
+
+# 7. `protected`: muy importante en herencia
+
+Imagina:
+
+```csharp
+public class Equipment
+{
+    protected string Status { get; set; } = "Inactive";
+}
+```
+
+La clase hija puede utilizarlo:
+
+```csharp
+public class AirConditioner : Equipment
+{
+    public void Start()
+    {
+        Status = "Running";
+    }
+}
+```
+
+Pero desde fuera:
+
+```csharp
+var ac = new AirConditioner();
+
+// ac.Status = "Running"; ❌
+```
+
+No puedes acceder.
+
+`protected` significa:
+
+> Solo la clase y sus clases derivadas pueden acceder directamente.
+
+---
+
+# 8. `virtual` y `override`
+
+Aquí comienza una de las partes más importantes de la herencia.
+
+Supongamos:
+
+```csharp
+public class Equipment
+{
+    public virtual void PerformMaintenance()
+    {
+        Console.WriteLine("Mantenimiento genérico");
+    }
+}
+```
+
+La palabra:
+
+```csharp
+virtual
+```
+
+significa:
+
+> Las clases hijas pueden cambiar este comportamiento.
+
+Por ejemplo:
+
+```csharp
+public class AirConditioner : Equipment
+{
+    public override void PerformMaintenance()
+    {
+        Console.WriteLine("Mantenimiento de aire acondicionado");
+    }
+}
+```
+
+Ahora:
+
+```csharp
+var equipment = new AirConditioner();
+
+equipment.PerformMaintenance();
+```
+
+Resultado:
+
+```text
+Mantenimiento de aire acondicionado
+```
+
+Aunque la variable sea:
+
+```csharp
+Equipment
+```
+
+el objeto real es:
+
+```text
+AirConditioner
+```
+
+---
+
+# 9. Polimorfismo
+
+Esto se llama **polimorfismo**.
+
+Mira:
+
+```csharp
+Equipment equipment = new AirConditioner();
+```
+
+La variable es:
+
+```text
+Equipment
+```
+
+pero el objeto es:
+
+```text
+AirConditioner
+```
+
+Entonces:
+
+```csharp
+equipment.PerformMaintenance();
+```
+
+ejecuta:
+
+```text
+AirConditioner.PerformMaintenance()
+```
+
+Esto permite trabajar con diferentes tipos utilizando una abstracción común.
+
+---
+
+# 10. Ejemplo práctico con varios equipos
+
+Tenemos:
+
+```csharp
+public class Equipment
+{
+    public virtual void PerformMaintenance()
+    {
+        Console.WriteLine("Mantenimiento general");
+    }
+}
+```
+
+Aire acondicionado:
+
+```csharp
+public class AirConditioner : Equipment
+{
+    public override void PerformMaintenance()
+    {
+        Console.WriteLine(
+            "Limpiar filtros y revisar refrigerante");
+    }
+}
+```
+
+Refrigerador:
+
+```csharp
+public class Refrigerator : Equipment
+{
+    public override void PerformMaintenance()
+    {
+        Console.WriteLine(
+            "Revisar evaporador y temperatura");
+    }
+}
+```
+
+Ahora:
+
+```csharp
+var equipments = new List<Equipment>
+{
+    new AirConditioner(),
+    new Refrigerator()
+};
+```
+
+Podemos hacer:
+
+```csharp
+foreach (var equipment in equipments)
+{
+    equipment.PerformMaintenance();
+}
+```
+
+Resultado:
+
+```text
+Limpiar filtros y revisar refrigerante
+Revisar evaporador y temperatura
+```
+
+Sin hacer:
+
+```csharp
+if (equipment is AirConditioner)
+```
+
+ni:
+
+```csharp
+if (equipment is Refrigerator)
+```
+
+Eso es una de las grandes ventajas del polimorfismo.
+
+---
+
+# 11. `abstract`
+
+Ahora supongamos que no tiene sentido crear un `Equipment` directamente.
+
+No queremos:
+
+```csharp
+new Equipment();
+```
+
+porque `Equipment` es un concepto general.
+
+Entonces podemos hacer:
+
+```csharp
+public abstract class Equipment
+{
+    public Guid Id { get; protected set; }
+
+    public string SerialNumber { get; protected set; }
+        = string.Empty;
+
+    public abstract void PerformMaintenance();
+}
+```
+
+Ahora:
+
+```csharp
+var equipment = new Equipment(); // ❌
+```
+
+No está permitido.
+
+Pero:
+
+```csharp
+var ac = new AirConditioner();
+```
+
+sí.
+
+---
+
+# 12. Método abstracto
+
+Observa:
+
+```csharp
+public abstract void PerformMaintenance();
+```
+
+No tiene implementación.
+
+La clase hija **está obligada** a implementarlo:
+
+```csharp
+public class AirConditioner : Equipment
+{
+    public override void PerformMaintenance()
+    {
+        Console.WriteLine(
+            "Mantenimiento de aire acondicionado");
+    }
+}
+```
+
+Si haces:
+
+```csharp
+public class Refrigerator : Equipment
+{
+}
+```
+
+obtendrás un error porque falta implementar:
+
+```csharp
+PerformMaintenance()
+```
+
+---
+
+# 13. `abstract` vs `virtual`
+
+Esta diferencia debes aprenderla muy bien.
+
+### `virtual`
+
+Tiene implementación por defecto:
+
+```csharp
+public virtual void Start()
+{
+    Console.WriteLine("Encendiendo equipo");
+}
+```
+
+La hija **puede** sobrescribirlo:
+
+```csharp
+public override void Start()
+{
+}
+```
+
+### `abstract`
+
+No tiene implementación:
+
+```csharp
+public abstract void PerformMaintenance();
+```
+
+La hija **debe** implementarlo.
+
+Resumen:
+
+```text
+virtual
+   ↓
+Tiene implementación
+   ↓
+override es opcional
+
+
+abstract
+   ↓
+No tiene implementación
+   ↓
+override es obligatorio
+```
+
+---
+
+# 14. `sealed`
+
+También podemos impedir que una clase sea heredada.
+
+```csharp
+public sealed class AirConditioner
+{
+}
+```
+
+Ahora:
+
+```csharp
+public class Cassette : AirConditioner
+{
+}
+```
+
+❌ No permitido.
+
+También puedes impedir solamente que un método sea sobrescrito:
+
+```csharp
+public class Equipment
+{
+    public virtual void Start()
+    {
+    }
+}
+```
+
+Una hija puede hacer:
+
+```csharp
+public class AirConditioner : Equipment
+{
+    public sealed override void Start()
+    {
+    }
+}
+```
+
+Y otra clase que herede de `AirConditioner` ya no podrá hacer `override` de `Start()`.
+
+---
+
+# 15. Herencia multinivel
+
+C# permite:
+
+```text
+Equipment
+    │
+    ▼
+AirConditioner
+    │
+    ▼
+Cassette
+```
+
+Por ejemplo:
+
+```csharp
+public abstract class Equipment
+{
+    public Guid Id { get; protected set; }
+}
+```
+
+```csharp
+public class AirConditioner : Equipment
+{
+    public decimal CoolingCapacity { get; protected set; }
+}
+```
+
+```csharp
+public class Cassette : AirConditioner
+{
+    public int NumberOfDirections { get; private set; }
+}
+```
+
+Entonces:
+
+```csharp
+var cassette = new Cassette();
+```
+
+puede acceder a lo que corresponde de toda la cadena:
+
+```text
+Equipment
+ └── Id
+
+AirConditioner
+ └── CoolingCapacity
+
+Cassette
+ └── NumberOfDirections
+```
+
+Pero cuidado:
+
+**No conviene crear jerarquías de herencia demasiado profundas.**
+
+---
+
+# 16. Herencia múltiple
+
+C# **no permite heredar de dos clases**.
+
+Esto no es válido:
+
+```csharp
+public class AirConditioner
+    : Equipment, RefrigerationSystem
+{
+}
+```
+
+si ambas son clases.
+
+Pero sí puedes implementar múltiples interfaces:
+
+```csharp
+public class AirConditioner
+    : Equipment, IMaintainable, IReportable
+{
+}
+```
+
+Por eso interfaces y herencia suelen complementarse muy bien.
+
+---
+
+# 17. Herencia vs Interface
+
+Una forma sencilla de diferenciarlas:
+
+### Herencia
+
+Representa principalmente:
+
+> **"Es un..."**
+
+```text
+AirConditioner
+      │
+      └── es un Equipment
+```
+
+### Interface
+
+Representa:
+
+> **"Puede hacer..."**
+
+```text
+AirConditioner
+      │
+      ├── puede ser mantenido
+      ├── puede generar reporte
+      └── puede ser monitoreado
+```
+
+Por ejemplo:
+
+```csharp
+public interface IMaintainable
+{
+    void PerformMaintenance();
+}
+```
+
+```csharp
+public interface IReportable
+{
+    string GenerateReport();
+}
+```
+
+Y:
+
+```csharp
+public class AirConditioner
+    : Equipment, IMaintainable, IReportable
+{
+}
+```
+
+---
+
+# 18. ¿Cómo usar herencia en DDD?
+
+Aquí debemos tener cuidado.
+
+En DDD puedes utilizar herencia cuando existe una verdadera relación conceptual en el dominio.
+
+Por ejemplo, en tu aplicación HVAC podríamos tener:
+
+```text
+Equipment
+   │
+   ├── AirConditioningEquipment
+   │      ├── MiniSplit
+   │      ├── Cassette
+   │      └── PackageUnit
+   │
+   └── RefrigerationEquipment
+          ├── Freezer
+          └── Refrigerator
+```
+
+Pero **no debemos convertir automáticamente cada clasificación del catálogo en una clase**.
+
+Por ejemplo, si tienes:
+
+```text
+Categoría:
+Aire acondicionado expansión directa
+
+Tipo:
+MiniSplit
+
+Subtipo:
+Inverter
+
+Aplicación:
+Residencial
+```
+
+no necesariamente significa:
+
+```csharp
+class MiniSplitInverterResidential : Equipment
+```
+
+Eso sería un mal diseño.
+
+Muchas clasificaciones son **datos del dominio**, no jerarquías de objetos.
+
+---
+
+# 19. Esto es especialmente importante para tu proyecto HVAC
+
+Tú tienes:
+
+```text
+Categoría
+Tipo
+Subtipo
+Aplicación
+```
+
+No necesariamente deberíamos convertir todo eso en herencia.
+
+Podríamos tener:
+
+```csharp
+public class Equipment
+{
+    public Guid Id { get; private set; }
+
+    public string SerialNumber { get; private set; }
+
+    public EquipmentType Type { get; private set; }
+
+    public EquipmentSubtype Subtype { get; private set; }
+}
+```
+
+Y:
+
+```text
+Equipment
+    │
+    ├── Type = MiniSplit
+    ├── Subtype = Inverter
+    └── Application = Residential
+```
+
+Esto es diferente de:
+
+```text
+Equipment
+   │
+   └── MiniSplit
+          │
+          └── Inverter
+                 │
+                 └── Residential
+```
+
+La segunda opción puede generar una explosión de clases.
+
+---
+
+# 20. Herencia en entidades DDD
+
+Ahora pensemos en otro caso de tu dominio.
+
+Anteriormente trabajamos con el concepto:
+
+```text
+Tercero
+   │
+   ├── PersonaNatural
+   └── PersonaJuridica
+```
+
+Aquí la herencia **sí puede tener bastante sentido**.
+
+Por ejemplo:
+
+```csharp
+public abstract class Tercero
+{
+    public Guid Id { get; protected set; }
+
+    public string NumeroIdentificacion { get; protected set; }
+        = string.Empty;
+
+    protected Tercero(
+        Guid id,
+        string numeroIdentificacion)
+    {
+        Id = id;
+        NumeroIdentificacion = numeroIdentificacion;
+    }
+}
+```
+
+Persona natural:
+
+```csharp
+public class PersonaNatural : Tercero
+{
+    public string Nombres { get; private set; }
+
+    public string Apellidos { get; private set; }
+
+    public PersonaNatural(
+        Guid id,
+        string numeroIdentificacion,
+        string nombres,
+        string apellidos)
+        : base(id, numeroIdentificacion)
+    {
+        Nombres = nombres;
+        Apellidos = apellidos;
+    }
+}
+```
+
+Persona jurídica:
+
+```csharp
+public class PersonaJuridica : Tercero
+{
+    public string RazonSocial { get; private set; }
+
+    public PersonaJuridica(
+        Guid id,
+        string numeroIdentificacion,
+        string razonSocial)
+        : base(id, numeroIdentificacion)
+    {
+        RazonSocial = razonSocial;
+    }
+}
+```
+
+Aquí tenemos una relación conceptual clara:
+
+```text
+                  Tercero
+                     │
+          ┌──────────┴──────────┐
+          │                     │
+          ▼                     ▼
+ PersonaNatural         PersonaJuridica
+```
+
+---
+
+# 21. ¿Por qué `Tercero` es `abstract`?
+
+Porque probablemente no tiene sentido en nuestro dominio hacer:
+
+```csharp
+new Tercero();
+```
+
+¿Qué sería?
+
+¿Una persona natural?
+
+¿Una empresa?
+
+La abstracción representa el concepto general.
+
+Por eso:
+
+```csharp
+public abstract class Tercero
+```
+
+es apropiado.
+
+---
+
+# 22. Herencia y Clean Architecture
+
+La herencia no es exclusiva de Domain.
+
+Puedes encontrarla en diferentes capas, pero debemos evitar que Infrastructure contamine Domain.
+
+Por ejemplo:
+
+```text
+Domain
+│
+├── Tercero.cs
+├── PersonaNatural.cs
+└── PersonaJuridica.cs
+```
+
+Esto es una jerarquía del **modelo de negocio**.
+
+Por otro lado, EF Core puede tener configuraciones para mapear esa jerarquía a la base de datos.
+
+Por ejemplo:
+
+```csharp
+builder.HasDiscriminator<string>("tipo_persona")
+    .HasValue<PersonaNatural>("N")
+    .HasValue<PersonaJuridica>("J");
+```
+
+La idea conceptual sería:
+
+```text
+                  Tercero
+                     │
+            ┌────────┴────────┐
+            │                 │
+            ▼                 ▼
+       Natural              Jurídica
+          N                    J
+```
+
+Y EF Core puede almacenar ambas en una tabla utilizando un discriminador.
+
+---
+
+# 23. Un error común
+
+No confundas esto:
+
+```csharp
+public class AirConditioner : Equipment
+```
+
+con:
+
+```csharp
+public class AirConditioner
+{
+    public Equipment Equipment { get; }
+}
+```
+
+El primero es:
+
+```text
+AirConditioner ES UN Equipment
+```
+
+El segundo es:
+
+```text
+AirConditioner TIENE UN Equipment
+```
+
+Son decisiones de modelado completamente diferentes.
+
+---
+
+# 24. Regla práctica para decidir
+
+Cuando estés diseñando una clase pregúntate:
+
+### Pregunta 1
+
+> ¿X realmente es un Y?
+
+Si:
+
+```text
+PersonaNatural es un Tercero
+```
+
+✅ Herencia puede tener sentido.
+
+Pero:
+
+```text
+MaintenanceOrder es un Equipment
+```
+
+❌ No.
+
+Una orden **tiene relación con** un equipo.
+
+---
+
+### Pregunta 2
+
+> ¿Necesito comportamiento polimórfico?
+
+Si tenemos:
+
+```csharp
+Equipment equipment
+```
+
+y necesitamos que:
+
+```text
+MiniSplit
+Cassette
+PackageUnit
+```
+
+respondan de manera diferente al mismo comportamiento:
+
+```csharp
+equipment.PerformMaintenance();
+```
+
+la herencia puede ser útil.
+
+---
+
+### Pregunta 3
+
+> ¿La diferencia es simplemente información configurable?
+
+Si solamente tenemos:
+
+```text
+Tipo = MiniSplit
+Subtipo = Inverter
+Aplicación = Residencial
+```
+
+probablemente **no necesitas herencia**.
+
+Son datos del dominio.
+
+---
+
+# 25. Resumen que quiero que memorices
+
+Piensa en estos conceptos:
+
+```text
+HERENCIA
+   │
+   ├── : 
+   │
+   ├── "es un"
+   │
+   ├── reutilización
+   │
+   ├── especialización
+   │
+   └── polimorfismo
+```
+
+Los elementos principales:
+
+```csharp
+class
+abstract class
+virtual
+override
+protected
+base
+sealed
+```
+
+Y recuerda:
+
+```text
+abstract
+   ↓
+No puedes crear directamente la clase
+
+
+virtual
+   ↓
+Puede ser sobrescrito
+
+
+override
+   ↓
+Sobrescribe comportamiento heredado
+
+
+base
+   ↓
+Accede al padre
+
+
+protected
+   ↓
+Disponible para la clase y sus derivadas
+
+
+sealed
+   ↓
+Impide continuar heredando/sobrescribiendo
+```
+
+---
+
+## 🧠 Ejercicio práctico
+
+Antes de avanzar, intenta resolver este pequeño problema.
+
+Tenemos:
+
+```csharp
+public abstract class Equipment
+{
+    public string SerialNumber { get; protected set; } = "";
+
+    public abstract void PerformMaintenance();
+}
+```
+
+Y queremos:
+
+1. Crear `AirConditioner` que herede de `Equipment`.
+2. Crear `Refrigerator` que herede de `Equipment`.
+3. Ambos deben implementar `PerformMaintenance()`.
+4. `AirConditioner` debe mostrar:
+   `"Realizando mantenimiento al aire acondicionado"`
+5. `Refrigerator` debe mostrar:
+   `"Realizando mantenimiento al refrigerador"`
+6. Crear una:
+
+```csharp
+List<Equipment>
+```
+
+que contenga ambos equipos.
+7. Recorrer la lista y ejecutar:
+
+```csharp
+equipment.PerformMaintenance();
+```
+
+**Intenta hacerlo tú primero.**
+
+Después podemos revisar tu solución y pasar al siguiente nivel: **herencia + `abstract` + `virtual` + `override` + interfaces**, y finalmente llevarlo a tu modelo HVAC con **DDD, Aggregate Roots y EF Core 10**.

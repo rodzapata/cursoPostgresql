@@ -1,0 +1,964 @@
+---
+title: "Init en CSharp"
+date: "2026-09-21"
+description: "Aprender el uso de Init en DDD"
+slug: "init-csharp"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Claro. En **C# 14 / .NET 10**, `init` es especialmente interesante cuando estás trabajando con **DDD**, porque permite crear objetos que, una vez construidos, quedan protegidos contra modificaciones accidentales.
+
+Vamos paso a paso.
+
+---
+
+# 1. ¿Qué es `init`?
+
+`init` es un accesor de propiedades similar a `set`, pero con una diferencia fundamental:
+
+```csharp
+public string Name { get; init; }
+```
+
+Con `set`:
+
+```csharp
+public string Name { get; set; }
+```
+
+puedes modificar la propiedad en cualquier momento:
+
+```csharp
+var equipment = new Equipment();
+
+equipment.Name = "Aire acondicionado";
+equipment.Name = "Chiller"; // ✅ Permitido
+```
+
+Con `init`:
+
+```csharp
+public string Name { get; init; }
+```
+
+puedes asignarla **solamente durante la creación/inicialización del objeto**:
+
+```csharp
+var equipment = new Equipment
+{
+    Name = "Aire acondicionado"
+};
+```
+
+Pero después:
+
+```csharp
+equipment.Name = "Chiller";
+```
+
+❌ No compila.
+
+---
+
+# 2. `set` vs `init`
+
+La diferencia fundamental:
+
+| Accesor    | Creación | Después de crear |
+| ---------- | -------: | ---------------: |
+| `set`      |        ✅ |                ✅ |
+| `init`     |        ✅ |                ❌ |
+| solo `get` |  Depende |                ❌ |
+
+Por ejemplo:
+
+```csharp
+public class Equipment
+{
+    public string Name { get; set; }
+}
+```
+
+Permite:
+
+```csharp
+var equipment = new Equipment
+{
+    Name = "Chiller"
+};
+
+equipment.Name = "Minisplit"; // ✅
+```
+
+Mientras:
+
+```csharp
+public class Equipment
+{
+    public string Name { get; init; }
+}
+```
+
+permite:
+
+```csharp
+var equipment = new Equipment
+{
+    Name = "Chiller"
+};
+```
+
+pero:
+
+```csharp
+equipment.Name = "Minisplit"; // ❌
+```
+
+---
+
+# 3. ¿Por qué existe `init`?
+
+Principalmente para permitir **objetos inmutables o parcialmente inmutables** sin tener que escribir constructores enormes.
+
+Antes de `init`, podríamos hacer:
+
+```csharp
+public class Equipment
+{
+    public string Name { get; }
+    public string SerialNumber { get; }
+
+    public Equipment(
+        string name,
+        string serialNumber)
+    {
+        Name = name;
+        SerialNumber = serialNumber;
+    }
+}
+```
+
+Entonces:
+
+```csharp
+var equipment = new Equipment(
+    "Chiller",
+    "CH-001");
+```
+
+Funciona, pero cuando tenemos muchas propiedades:
+
+```csharp
+var equipment = new Equipment(
+    "Chiller",
+    "CH-001",
+    "Trane",
+    "C001",
+    ...
+);
+```
+
+puede volverse difícil de leer.
+
+Con `init`:
+
+```csharp
+public class Equipment
+{
+    public string Name { get; init; }
+    public string SerialNumber { get; init; }
+    public string Brand { get; init; }
+    public string Model { get; init; }
+}
+```
+
+podemos hacer:
+
+```csharp
+var equipment = new Equipment
+{
+    Name = "Chiller",
+    SerialNumber = "CH-001",
+    Brand = "Trane",
+    Model = "C001"
+};
+```
+
+Mucho más legible.
+
+---
+
+# 4. `init` no significa que la propiedad sea totalmente inmutable
+
+Este punto es **muy importante**.
+
+Mira:
+
+```csharp
+public class Equipment
+{
+    public string Name { get; init; }
+}
+```
+
+Después de:
+
+```csharp
+var equipment = new Equipment
+{
+    Name = "Chiller"
+};
+```
+
+no puedes hacer:
+
+```csharp
+equipment.Name = "Minisplit";
+```
+
+Pero `init` **no impide que internamente la clase modifique la propiedad**.
+
+Por ejemplo:
+
+```csharp
+public class Equipment
+{
+    public string Name { get; private set; }
+
+    public void Rename(string newName)
+    {
+        Name = newName;
+    }
+}
+```
+
+Aquí tenemos otro concepto: `private set`.
+
+---
+
+# 5. `init` vs `private set`
+
+Esta comparación es fundamental para DDD.
+
+### `init`
+
+```csharp
+public string Name { get; init; }
+```
+
+La propiedad puede ser asignada:
+
+* durante la construcción
+* mediante object initializer
+
+pero no después desde código externo.
+
+### `private set`
+
+```csharp
+public string Name { get; private set; }
+```
+
+La propiedad:
+
+* puede ser asignada durante la creación
+* puede ser modificada dentro de la entidad
+* no puede ser modificada directamente desde fuera
+
+Por ejemplo:
+
+```csharp
+public class Equipment
+{
+    public string Name { get; private set; }
+
+    public void Rename(string newName)
+    {
+        Name = newName;
+    }
+}
+```
+
+Uso:
+
+```csharp
+var equipment = new Equipment();
+
+equipment.Name = "Chiller"; // ❌
+```
+
+Pero:
+
+```csharp
+equipment.Rename("Chiller");
+```
+
+✅
+
+Esto encaja muchísimo mejor con DDD.
+
+---
+
+# 6. ¿Dónde entra DDD?
+
+DDD busca que las **reglas del negocio estén protegidas dentro del dominio**.
+
+Supongamos que tenemos:
+
+```text
+Equipment
+```
+
+y queremos representar un equipo HVAC.
+
+Una mala implementación sería:
+
+```csharp
+public class Equipment
+{
+    public string Name { get; set; }
+    public string SerialNumber { get; set; }
+    public bool IsActive { get; set; }
+}
+```
+
+Desde cualquier parte:
+
+```csharp
+equipment.IsActive = false;
+```
+
+o:
+
+```csharp
+equipment.SerialNumber = "";
+```
+
+o:
+
+```csharp
+equipment.Name = null;
+```
+
+El dominio queda demasiado expuesto.
+
+---
+
+# 7. Una entidad DDD más protegida
+
+Podríamos comenzar con:
+
+```csharp
+public class Equipment
+{
+    public string Name { get; private set; }
+    public string SerialNumber { get; private set; }
+    public bool IsActive { get; private set; }
+
+    public Equipment(
+        string name,
+        string serialNumber)
+    {
+        Name = name;
+        SerialNumber = serialNumber;
+        IsActive = true;
+    }
+}
+```
+
+Ahora:
+
+```csharp
+var equipment = new Equipment(
+    "Chiller",
+    "CH-001");
+```
+
+Y no podemos hacer:
+
+```csharp
+equipment.Name = "Minisplit"; // ❌
+```
+
+La entidad controla sus propios cambios.
+
+---
+
+# 8. Entonces, ¿cuándo usar `init` en DDD?
+
+Aquí está lo importante.
+
+No deberías pensar:
+
+> "`init` es mejor que `set`".
+
+La pregunta correcta es:
+
+> **¿Quién debe tener permiso para cambiar esta propiedad y cuándo?**
+
+Por ejemplo:
+
+```csharp
+public class Equipment
+{
+    public Guid Id { get; init; }
+
+    public string SerialNumber { get; init; }
+
+    public string Name { get; private set; }
+
+    public bool IsActive { get; private set; }
+}
+```
+
+Podríamos interpretar:
+
+### `Id`
+
+```csharp
+public Guid Id { get; init; }
+```
+
+El ID se establece cuando se crea la entidad y posteriormente no debería cambiar.
+
+### `SerialNumber`
+
+Podría ser también inmutable:
+
+```csharp
+public string SerialNumber { get; init; }
+```
+
+porque el número de serie físico del equipo normalmente no cambia.
+
+### `Name`
+
+Podría cambiar mediante una regla de negocio:
+
+```csharp
+public string Name { get; private set; }
+
+public void Rename(string name)
+{
+    // reglas del dominio
+
+    Name = name;
+}
+```
+
+### `IsActive`
+
+También debería ser controlado por el dominio:
+
+```csharp
+public bool IsActive { get; private set; }
+
+public void Deactivate()
+{
+    IsActive = false;
+}
+
+public void Activate()
+{
+    IsActive = true;
+}
+```
+
+---
+
+# 9. Ejemplo completo con DDD
+
+Imaginemos nuestro contexto HVAC:
+
+```text
+Equipment
+ ├── Id
+ ├── SerialNumber
+ ├── Name
+ ├── Brand
+ ├── Model
+ └── IsActive
+```
+
+Podríamos crear:
+
+```csharp
+public class Equipment
+{
+    public Guid Id { get; init; }
+
+    public string SerialNumber { get; init; }
+
+    public string Name { get; private set; }
+
+    public string Brand { get; init; }
+
+    public string Model { get; init; }
+
+    public bool IsActive { get; private set; }
+
+    public Equipment(
+        Guid id,
+        string serialNumber,
+        string name,
+        string brand,
+        string model)
+    {
+        Id = id;
+        SerialNumber = serialNumber;
+        Name = name;
+        Brand = brand;
+        Model = model;
+
+        IsActive = true;
+    }
+
+    public void Rename(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException(
+                "El nombre es obligatorio.");
+
+        Name = name;
+    }
+
+    public void Deactivate()
+    {
+        IsActive = false;
+    }
+
+    public void Activate()
+    {
+        IsActive = true;
+    }
+}
+```
+
+Ahora tenemos una entidad mucho más controlada.
+
+---
+
+# 10. ¿Qué pasaría si usamos `init` para todo?
+
+Podríamos escribir:
+
+```csharp
+public class Equipment
+{
+    public Guid Id { get; init; }
+
+    public string SerialNumber { get; init; }
+
+    public string Name { get; init; }
+
+    public string Brand { get; init; }
+
+    public string Model { get; init; }
+
+    public bool IsActive { get; init; }
+}
+```
+
+Y:
+
+```csharp
+var equipment = new Equipment
+{
+    Id = Guid.NewGuid(),
+    SerialNumber = "CH-001",
+    Name = "Chiller",
+    Brand = "Trane",
+    Model = "CVHF",
+    IsActive = true
+};
+```
+
+Esto parece muy limpio.
+
+Pero desde DDD tenemos un problema:
+
+**¿Dónde están las reglas del negocio?**
+
+Podríamos hacer:
+
+```csharp
+var equipment = new Equipment
+{
+    Id = Guid.NewGuid(),
+    SerialNumber = "",
+    Name = "",
+    IsActive = false
+};
+```
+
+El objeto permite demasiadas combinaciones.
+
+---
+
+# 11. `init` no reemplaza las reglas de dominio
+
+Este es uno de los conceptos más importantes.
+
+`init` proporciona una **restricción técnica del lenguaje**:
+
+> "Esta propiedad no puede ser reasignada después de la inicialización."
+
+Pero DDD necesita algo más:
+
+> "Esta entidad solamente puede cambiar de acuerdo con las reglas del negocio."
+
+Por eso normalmente veremos:
+
+```csharp
+public string Name { get; private set; }
+```
+
+junto con:
+
+```csharp
+public void Rename(string name)
+{
+    // reglas
+}
+```
+
+en lugar de:
+
+```csharp
+public string Name { get; init; }
+```
+
+para todo.
+
+---
+
+# 12. ¿Y los Records?
+
+`init` aparece muchísimo con `record`.
+
+Por ejemplo:
+
+```csharp
+public record EquipmentDto
+{
+    public Guid Id { get; init; }
+
+    public string Name { get; init; }
+
+    public string SerialNumber { get; init; }
+}
+```
+
+Podemos hacer:
+
+```csharp
+var dto = new EquipmentDto
+{
+    Id = Guid.NewGuid(),
+    Name = "Chiller",
+    SerialNumber = "CH-001"
+};
+```
+
+Y luego:
+
+```csharp
+dto.Name = "Minisplit"; // ❌
+```
+
+Los `record` están diseñados especialmente para representar **datos** y funcionan muy bien para DTOs.
+
+---
+
+# 13. `init` y DTOs en Clean Architecture
+
+Aquí `init` puede resultar muy útil.
+
+Por ejemplo, en tu proyecto:
+
+```text
+TribuSoft
+│
+├── TribuSoft.Domain
+│
+├── TribuSoft.Application
+│
+├── TribuSoft.Infrastructure
+│
+└── TribuSoft.Api
+```
+
+Podrías tener:
+
+```text
+Application
+│
+└── Equipment
+    │
+    └── DTOs
+        └── EquipmentDto.cs
+```
+
+Y:
+
+```csharp
+public sealed record EquipmentDto
+{
+    public Guid Id { get; init; }
+
+    public string Name { get; init; }
+
+    public string SerialNumber { get; init; }
+
+    public string Brand { get; init; }
+
+    public string Model { get; init; }
+}
+```
+
+Aquí `init` tiene mucho sentido porque un DTO normalmente representa **datos**, no comportamiento de negocio.
+
+---
+
+# 14. `init` en Commands
+
+También es muy común en CQRS.
+
+Por ejemplo:
+
+```csharp
+public sealed record CreateEquipmentCommand
+{
+    public string Name { get; init; }
+
+    public string SerialNumber { get; init; }
+
+    public string Brand { get; init; }
+
+    public string Model { get; init; }
+}
+```
+
+El controller recibe:
+
+```json
+{
+    "name": "Chiller",
+    "serialNumber": "CH-001",
+    "brand": "Trane",
+    "model": "CVHF"
+}
+```
+
+Y posteriormente:
+
+```csharp
+var command = new CreateEquipmentCommand
+{
+    Name = "Chiller",
+    SerialNumber = "CH-001",
+    Brand = "Trane",
+    Model = "CVHF"
+};
+```
+
+Una vez creado:
+
+```csharp
+command.Name = "Minisplit";
+```
+
+❌ No permitido.
+
+---
+
+# 15. Una regla práctica para tu proyecto DDD
+
+Para el proyecto HVAC que estás construyendo, puedes utilizar esta regla inicial:
+
+### Entidades / Aggregate Roots
+
+Preferir:
+
+```csharp
+private set
+```
+
+cuando la propiedad puede cambiar mediante reglas de negocio.
+
+Ejemplo:
+
+```csharp
+public class Equipment
+{
+    public string Name { get; private set; }
+
+    public bool IsActive { get; private set; }
+
+    public void Rename(string name)
+    {
+        // reglas
+    }
+
+    public void Deactivate()
+    {
+        // reglas
+    }
+}
+```
+
+### Propiedades realmente inmutables
+
+Puedes utilizar:
+
+```csharp
+init
+```
+
+cuando solamente deben establecerse durante la creación.
+
+Ejemplo:
+
+```csharp
+public Guid Id { get; init; }
+
+public string SerialNumber { get; init; }
+```
+
+aunque en una entidad DDD también puedes preferir constructor + `private set`, dependiendo de cómo quieras integrar EF Core y tus invariantes.
+
+### DTOs
+
+`init` es una excelente opción:
+
+```csharp
+public sealed record EquipmentDto
+{
+    public Guid Id { get; init; }
+    public string Name { get; init; }
+}
+```
+
+---
+
+# 16. Una comparación que debes recordar
+
+Piensa en esto:
+
+```csharp
+public string Name { get; set; }
+```
+
+**"Cualquiera puede cambiarlo."**
+
+```csharp
+public string Name { get; init; }
+```
+
+**"Solo se puede establecer al crear el objeto."**
+
+```csharp
+public string Name { get; private set; }
+```
+
+**"La entidad controla cuándo puede cambiar."**
+
+Y en DDD normalmente queremos:
+
+> **La entidad controla sus cambios.**
+
+Por eso `private set` suele ser más importante que `init` cuando estamos modelando **Entities y Aggregate Roots**.
+
+---
+
+## 17. Ejemplo aplicado a tu dominio HVAC
+
+Podríamos terminar con algo parecido a:
+
+```csharp
+public class Equipment
+{
+    public Guid Id { get; init; }
+
+    public string SerialNumber { get; private set; }
+
+    public string Name { get; private set; }
+
+    public bool IsActive { get; private set; }
+
+    public Equipment(
+        Guid id,
+        string serialNumber,
+        string name)
+    {
+        Id = id;
+        SerialNumber = serialNumber;
+        Name = name;
+        IsActive = true;
+    }
+
+    public void ChangeSerialNumber(string serialNumber)
+    {
+        if (string.IsNullOrWhiteSpace(serialNumber))
+            throw new DomainException(
+                "El número de serie es obligatorio.");
+
+        SerialNumber = serialNumber;
+    }
+
+    public void Rename(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new DomainException(
+                "El nombre del equipo es obligatorio.");
+
+        Name = name;
+    }
+
+    public void Deactivate()
+    {
+        IsActive = false;
+    }
+}
+```
+
+Aquí ya podemos ver claramente la filosofía DDD:
+
+```text
+                 Equipment
+                     │
+        ┌────────────┼────────────┐
+        │            │            │
+       Id       SerialNumber     Name
+     init       private set   private set
+        │            │            │
+        │            │            │
+        │     ChangeSerialNumber  Rename
+        │            │            │
+        └────────────┼────────────┘
+                     │
+               Reglas de dominio
+```
+
+### La idea clave
+
+`init` **no es una herramienta específica de DDD**. Es una característica de C#.
+
+Pero DDD puede aprovecharla para expresar:
+
+> **"Esta propiedad forma parte de la identidad/configuración inicial del objeto y no debe cambiar después."**
+
+Mientras que:
+
+```csharp
+private set
+```
+
+expresa mejor:
+
+> **"Esta propiedad puede cambiar, pero solamente mediante las reglas que expone el dominio."**
+
+Para tu proyecto HVAC, esta distinción será **muy importante** cuando pasemos a **Entities, Value Objects, Aggregate Roots y EF Core 10**.

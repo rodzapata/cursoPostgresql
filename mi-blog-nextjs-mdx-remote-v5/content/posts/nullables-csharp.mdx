@@ -1,0 +1,1714 @@
+---
+title: "Nullables y Reference types"
+date: "2026-09-01"
+description: "Aprender Nullables Los diferentes tipos y valores "
+slug: "nullables-csharp"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Claro. Vamos a estudiar **Nullable Reference Types (NRT)** paso a paso en **.NET 10 + C# 14**, pero aterrizado a **DDD + Clean Architecture**, que es especialmente importante porque te ayuda a modelar correctamente qué propiedades de tu dominio **pueden** y **no pueden** ser `null`.
+
+La idea principal que debes llevarte desde el principio es:
+
+> **Nullable Reference Types no evita que `null` exista en tiempo de ejecución; permite que el compilador detecte muchos posibles errores relacionados con `null`.**
+
+---
+
+# 1. El problema que resuelven los Nullable Reference Types
+
+Supongamos una entidad de tu dominio:
+
+```csharp
+public class Technician
+{
+    public string Name { get; set; }
+}
+```
+
+A primera vista parece que `Name` siempre tendrá un valor.
+
+Pero C# históricamente permitía esto:
+
+```csharp
+var technician = new Technician();
+
+Console.WriteLine(technician.Name.Length);
+```
+
+Si `Name` es `null`, tendremos:
+
+```text
+NullReferenceException
+```
+
+Es uno de los errores clásicos de .NET.
+
+---
+
+# 2. ¿Qué significa `string?`
+
+Con Nullable Reference Types activados:
+
+```csharp
+public string Name { get; set; }
+```
+
+significa:
+
+> `Name` **no debería ser null**.
+
+Mientras que:
+
+```csharp
+public string? Name { get; set; }
+```
+
+significa:
+
+> `Name` **puede ser null**.
+
+La diferencia visual es solamente `?`, pero conceptualmente es muy importante.
+
+```text
+string
+   ↓
+NO debería ser null
+
+string?
+   ↓
+PUEDE ser null
+```
+
+---
+
+# 3. Activar Nullable Reference Types
+
+En un proyecto .NET moderno normalmente encontrarás:
+
+```xml
+<Nullable>enable</Nullable>
+```
+
+Por ejemplo:
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>
+```
+
+Para tu arquitectura esto debería estar habilitado en los proyectos donde escribes C#:
+
+```text
+TribuSoft.Domain
+TribuSoft.Application
+TribuSoft.Infrastructure
+TribuSoft.Api
+```
+
+---
+
+# 4. `string` vs `string?`
+
+Veamos un ejemplo sencillo:
+
+```csharp
+string name = "Rodney";
+```
+
+Aquí:
+
+```text
+name
+ ↓
+NO nullable
+```
+
+El compilador asume que no debe ser `null`.
+
+En cambio:
+
+```csharp
+string? name = null;
+```
+
+Aquí:
+
+```text
+name
+ ↓
+nullable
+ ↓
+puede ser null
+```
+
+Por eso esto produce advertencia:
+
+```csharp
+string? name = null;
+
+Console.WriteLine(name.Length);
+```
+
+El compilador te está diciendo básicamente:
+
+> "Cuidado, `name` podría ser null."
+
+---
+
+# 5. ¿`?` crea un tipo diferente?
+
+Esta es una pregunta muy importante.
+
+Para tipos referencia:
+
+```csharp
+string
+```
+
+y
+
+```csharp
+string?
+```
+
+**no son dos tipos CLR completamente diferentes**.
+
+El `?` principalmente representa **información de nulabilidad para el compilador**.
+
+Por ejemplo:
+
+```csharp
+string name;
+string? description;
+```
+
+Ambos siguen siendo referencias a `System.String`.
+
+La diferencia está en el **contrato de nulabilidad**.
+
+---
+
+# 6. Nullable Reference Types vs Nullable Value Types
+
+Aquí hay que tener cuidado porque existe otra sintaxis:
+
+```csharp
+int?
+```
+
+Esto sí tiene un significado diferente.
+
+Por ejemplo:
+
+```csharp
+int age;
+```
+
+no puede ser `null`.
+
+Pero:
+
+```csharp
+int? age;
+```
+
+puede ser:
+
+```text
+10
+20
+30
+null
+```
+
+Esto se llama:
+
+> **Nullable Value Type**
+
+Mientras que:
+
+```csharp
+string?
+```
+
+es:
+
+> **Nullable Reference Type**
+
+---
+
+# 7. Ejemplo completo
+
+```csharp
+string name = "Rodney";
+string? nickname = null;
+
+Console.WriteLine(name.Length);
+Console.WriteLine(nickname.Length);
+```
+
+El primero está bien:
+
+```csharp
+name.Length
+```
+
+porque:
+
+```csharp
+string
+```
+
+indica que no debería ser `null`.
+
+El segundo genera advertencia:
+
+```csharp
+nickname.Length
+```
+
+porque:
+
+```csharp
+string?
+```
+
+indica que podría ser `null`.
+
+---
+
+# 8. ¿Cómo solucionamos el problema?
+
+Hay varias estrategias.
+
+La primera:
+
+```csharp
+if (nickname is not null)
+{
+    Console.WriteLine(nickname.Length);
+}
+```
+
+Después del `if`, el compilador entiende:
+
+```text
+nickname != null
+```
+
+y permite:
+
+```csharp
+nickname.Length
+```
+
+Esto se conoce como **null-state analysis**.
+
+---
+
+# 9. Null-state analysis
+
+C# analiza el estado de una variable.
+
+Por ejemplo:
+
+```csharp
+string? name = GetName();
+
+if (name is not null)
+{
+    Console.WriteLine(name.Length);
+}
+```
+
+Antes del `if`:
+
+```text
+name
+ ↓
+maybe null
+```
+
+Después:
+
+```csharp
+if (name is not null)
+```
+
+el compilador sabe:
+
+```text
+name
+ ↓
+not null
+```
+
+Esto es una de las características más importantes de NRT.
+
+---
+
+# 10. El operador `?.`
+
+Otra posibilidad:
+
+```csharp
+string? name = GetName();
+
+Console.WriteLine(name?.Length);
+```
+
+El operador:
+
+```csharp
+?.
+```
+
+significa aproximadamente:
+
+> "Accede a esta propiedad solamente si el objeto no es null."
+
+Por ejemplo:
+
+```csharp
+name?.Length
+```
+
+si `name` es:
+
+```text
+"Rodney"
+```
+
+obtienes:
+
+```text
+6
+```
+
+Si es:
+
+```text
+null
+```
+
+obtienes:
+
+```text
+null
+```
+
+---
+
+# 11. El operador `??`
+
+También tenemos:
+
+```csharp
+string? name = null;
+
+string result = name ?? "Sin nombre";
+```
+
+Significa:
+
+```text
+si name != null
+    usar name
+si name == null
+    usar "Sin nombre"
+```
+
+Por ejemplo:
+
+```csharp
+string displayName = technician.Name ?? "Sin nombre";
+```
+
+---
+
+# 12. El operador `??=`
+
+También existe:
+
+```csharp
+name ??= "Sin nombre";
+```
+
+Significa:
+
+> Si `name` es `null`, asigna `"Sin nombre"`.
+
+Por ejemplo:
+
+```csharp
+string? name = null;
+
+name ??= "Rodney";
+```
+
+Ahora:
+
+```text
+name = "Rodney"
+```
+
+---
+
+# 13. El operador `!`
+
+Este operador es especialmente importante porque suele generar confusión.
+
+```csharp
+string? name = GetName();
+
+Console.WriteLine(name!.Length);
+```
+
+El:
+
+```csharp
+!
+```
+
+se llama **null-forgiving operator**.
+
+Le estás diciendo al compilador:
+
+> "Confía en mí. Sé que aquí no es null."
+
+Pero cuidado:
+
+**NO convierte mágicamente `null` en un valor.**
+
+Si realmente es `null`:
+
+```csharp
+string? name = null;
+
+Console.WriteLine(name!.Length);
+```
+
+puedes seguir obteniendo:
+
+```text
+NullReferenceException
+```
+
+Por eso:
+
+```csharp
+!
+```
+
+debe utilizarse con criterio.
+
+---
+
+# 14. Aquí aparece DDD
+
+Ahora llevemos esto a tu proyecto de mantenimiento HVAC.
+
+Imaginemos:
+
+```csharp
+public class Equipment
+{
+    public string Name { get; set; }
+}
+```
+
+Si tienes:
+
+```csharp
+public string Name { get; set; }
+```
+
+estás diciendo:
+
+> Un equipo siempre debe tener nombre.
+
+Eso tiene mucho sentido en DDD.
+
+Pero imagina:
+
+```csharp
+public string? SerialNumber { get; set; }
+```
+
+Aquí estás diciendo:
+
+> El número de serie puede no existir.
+
+Esto es diferente.
+
+---
+
+# 15. NRT ayuda a expresar reglas del dominio
+
+Supongamos:
+
+```csharp
+public class Equipment
+{
+    public Guid Id { get; private set; }
+
+    public string Name { get; private set; }
+
+    public string? SerialNumber { get; private set; }
+
+    public string Brand { get; private set; }
+
+    public string? Model { get; private set; }
+}
+```
+
+Tenemos:
+
+| Propiedad      | Nulabilidad | Significado |
+| -------------- | ----------- | ----------- |
+| `Id`           | `Guid`      | obligatorio |
+| `Name`         | `string`    | obligatorio |
+| `SerialNumber` | `string?`   | opcional    |
+| `Brand`        | `string`    | obligatorio |
+| `Model`        | `string?`   | opcional    |
+
+Esto hace que el código sea más expresivo.
+
+---
+
+# 16. Pero existe un problema
+
+Este código:
+
+```csharp
+public class Equipment
+{
+    public string Name { get; private set; }
+}
+```
+
+puede generar una advertencia porque el compilador ve:
+
+```text
+Name
+ ↓
+NO nullable
+ ↓
+¿Dónde se inicializa?
+```
+
+Una opción sería:
+
+```csharp
+public string Name { get; private set; } = string.Empty;
+```
+
+Pero en **DDD** debemos preguntarnos:
+
+> ¿Tiene sentido que un `Equipment` pueda existir con `Name = ""`?
+
+Probablemente no.
+
+Y aquí comienza una distinción muy importante:
+
+**NRT no reemplaza las reglas del dominio.**
+
+---
+
+# 17. NRT no es validación de dominio
+
+Supongamos:
+
+```csharp
+public string Name { get; private set; } = string.Empty;
+```
+
+El compilador está satisfecho.
+
+Pero tu dominio podría decir:
+
+```text
+Equipment.Name
+NO puede estar vacío.
+```
+
+Entonces necesitamos una regla:
+
+```csharp
+if (string.IsNullOrWhiteSpace(name))
+{
+    throw new DomainException("El nombre es obligatorio.");
+}
+```
+
+Tenemos dos niveles:
+
+```text
+Nullable Reference Types
+        ↓
+seguridad del código
+        ↓
+evitar null accidental
+
+DDD
+        ↓
+reglas del negocio
+        ↓
+evitar estados inválidos
+```
+
+Son cosas diferentes.
+
+---
+
+# 18. Ejemplo DDD correcto
+
+Podríamos tener:
+
+```csharp
+public class Equipment
+{
+    public Guid Id { get; private set; }
+
+    public string Name { get; private set; }
+
+    public string? SerialNumber { get; private set; }
+
+    public string Brand { get; private set; }
+
+    private Equipment()
+    {
+    }
+
+    public Equipment(
+        Guid id,
+        string name,
+        string brand,
+        string? serialNumber)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new DomainException("El nombre es obligatorio.");
+
+        if (string.IsNullOrWhiteSpace(brand))
+            throw new DomainException("La marca es obligatoria.");
+
+        Id = id;
+        Name = name;
+        Brand = brand;
+        SerialNumber = serialNumber;
+    }
+}
+```
+
+Aquí tenemos:
+
+### NRT
+
+```csharp
+string Name
+string Brand
+string? SerialNumber
+```
+
+### DDD
+
+```csharp
+if (string.IsNullOrWhiteSpace(name))
+```
+
+Las dos cosas trabajan juntas.
+
+---
+
+# 19. ¿Por qué `private set`?
+
+En DDD normalmente queremos controlar cómo cambia el estado:
+
+```csharp
+public string Name { get; private set; }
+```
+
+Esto evita:
+
+```csharp
+equipment.Name = "";
+```
+
+desde cualquier lugar.
+
+En cambio, podríamos tener:
+
+```csharp
+public void Rename(string name)
+{
+    if (string.IsNullOrWhiteSpace(name))
+        throw new DomainException("El nombre es obligatorio.");
+
+    Name = name;
+}
+```
+
+Esto protege la invariabilidad del Aggregate.
+
+---
+
+# 20. NRT en un Aggregate Root
+
+Imagina:
+
+```csharp
+public class MaintenanceOrder
+{
+    public Guid Id { get; private set; }
+
+    public string Number { get; private set; }
+
+    public Equipment Equipment { get; private set; }
+
+    public DateTime ScheduledDate { get; private set; }
+
+    public string? Observations { get; private set; }
+}
+```
+
+Podemos interpretar:
+
+```text
+Id
+ ↓
+obligatorio
+
+Number
+ ↓
+obligatorio
+
+Equipment
+ ↓
+obligatorio
+
+ScheduledDate
+ ↓
+obligatorio
+
+Observations
+ ↓
+opcional
+```
+
+Esto comunica bastante sobre el modelo.
+
+---
+
+# 21. ¿Qué pasa con las colecciones?
+
+Aquí hay una práctica muy importante.
+
+Evita:
+
+```csharp
+public List<MaintenanceActivity>? Activities { get; private set; }
+```
+
+si conceptualmente una orden de mantenimiento **siempre tiene una colección**, aunque esté vacía.
+
+Preferible:
+
+```csharp
+private readonly List<MaintenanceActivity> _activities = [];
+
+public IReadOnlyCollection<MaintenanceActivity> Activities =>
+    _activities.AsReadOnly();
+```
+
+La colección nunca debería ser:
+
+```text
+null
+```
+
+sino:
+
+```text
+[]
+```
+
+Una colección vacía representa:
+
+> No hay actividades.
+
+`null` representaría algo diferente:
+
+> La colección no existe / no está disponible.
+
+---
+
+# 22. Esto es especialmente importante en DDD
+
+Por ejemplo:
+
+```csharp
+MaintenanceOrder order = ...;
+
+foreach (var activity in order.Activities)
+{
+    ...
+}
+```
+
+Si `Activities` nunca es `null`, el código es mucho más seguro.
+
+No necesitamos:
+
+```csharp
+if (order.Activities != null)
+{
+    foreach (...)
+}
+```
+
+---
+
+# 23. NRT y DTOs
+
+Ahora pasemos a Clean Architecture.
+
+Supongamos:
+
+```text
+Domain
+Application
+Infrastructure
+Api
+```
+
+En `Application` tienes:
+
+```csharp
+public sealed record EquipmentDto(
+    Guid Id,
+    string Name,
+    string Brand,
+    string? SerialNumber);
+```
+
+Esto comunica claramente al consumidor:
+
+```text
+Name
+ ↓
+siempre viene
+
+Brand
+ ↓
+siempre viene
+
+SerialNumber
+ ↓
+puede venir null
+```
+
+Esto es muy útil para APIs.
+
+---
+
+# 24. Request DTO
+
+Supongamos:
+
+```csharp
+public sealed record CreateEquipmentRequest(
+    string Name,
+    string Brand,
+    string? SerialNumber);
+```
+
+Estamos diciendo:
+
+```text
+Name
+    requerido
+
+Brand
+    requerido
+
+SerialNumber
+    opcional
+```
+
+Pero nuevamente:
+
+**NRT no valida automáticamente que el usuario haya enviado un nombre válido.**
+
+La validación de entrada puede estar en:
+
+```text
+API
+Application
+Domain
+```
+
+dependiendo del tipo de regla.
+
+---
+
+# 25. Una distinción muy importante en Clean Architecture
+
+No confundas:
+
+```csharp
+string?
+```
+
+con:
+
+```text
+campo opcional en la base de datos
+```
+
+Son conceptos relacionados, pero no idénticos.
+
+Por ejemplo:
+
+```csharp
+public string? SerialNumber { get; private set; }
+```
+
+puede mapearse a una columna nullable:
+
+```sql
+SerialNumber nvarchar(100) NULL
+```
+
+Pero la decisión debe venir del **modelo del dominio**, no simplemente de la base de datos.
+
+DDD pregunta:
+
+> ¿El número de serie es obligatorio según el negocio?
+
+---
+
+# 26. NRT con EF Core
+
+Aquí tenemos una situación muy interesante.
+
+Supongamos:
+
+```csharp
+public class Equipment
+{
+    public string Name { get; private set; }
+
+    public string? SerialNumber { get; private set; }
+}
+```
+
+EF Core puede interpretar la nulabilidad para configurar el modelo.
+
+Conceptualmente:
+
+```text
+string
+   ↓
+Required
+
+string?
+   ↓
+Optional
+```
+
+Por eso es importante tener NRT correctamente configurado.
+
+---
+
+# 27. ¿Y `required`?
+
+C# también tiene:
+
+```csharp
+required
+```
+
+Por ejemplo:
+
+```csharp
+public class Equipment
+{
+    public required string Name { get; set; }
+
+    public string? SerialNumber { get; set; }
+}
+```
+
+Ahora:
+
+```csharp
+var equipment = new Equipment();
+```
+
+genera un error porque falta:
+
+```csharp
+Name
+```
+
+Debemos hacer:
+
+```csharp
+var equipment = new Equipment
+{
+    Name = "Minisplit",
+    SerialNumber = null
+};
+```
+
+---
+
+# 28. `required` y NRT no son lo mismo
+
+Esta diferencia es muy importante.
+
+```csharp
+public required string Name { get; set; }
+```
+
+significa:
+
+> El inicializador debe proporcionar `Name`.
+
+Mientras:
+
+```csharp
+public string Name { get; set; }
+```
+
+significa:
+
+> `Name` no debería ser null.
+
+Son conceptos diferentes.
+
+Puedes tener:
+
+```csharp
+public required string Name { get; set; }
+```
+
+y además:
+
+```csharp
+public string? SerialNumber { get; set; }
+```
+
+---
+
+# 29. En DDD normalmente prefiero otra estrategia
+
+En una entidad rica en comportamiento, muchas veces prefiero:
+
+```csharp
+public class Equipment
+{
+    public string Name { get; private set; }
+
+    private Equipment()
+    {
+    }
+
+    public Equipment(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new DomainException("El nombre es obligatorio.");
+
+        Name = name;
+    }
+}
+```
+
+¿Por qué?
+
+Porque el constructor se convierte en una **puerta de entrada al estado válido**.
+
+```text
+Create Equipment
+       ↓
+constructor
+       ↓
+validación
+       ↓
+Equipment válido
+```
+
+Esto encaja muy bien con DDD.
+
+---
+
+# 30. ¿Y por qué constructor privado vacío?
+
+Probablemente ya hayas visto esto con EF Core:
+
+```csharp
+private Equipment()
+{
+}
+```
+
+EF Core necesita poder materializar la entidad.
+
+Pero desde el dominio:
+
+```csharp
+new Equipment(...)
+```
+
+es la forma controlada de crearla.
+
+Así tenemos:
+
+```text
+Aplicación
+    ↓
+constructor público
+    ↓
+Dominio
+    ↓
+estado válido
+```
+
+y:
+
+```text
+EF Core
+    ↓
+constructor privado
+    ↓
+materialización
+```
+
+---
+
+# 31. Un ejemplo completo para tu dominio HVAC
+
+Podríamos tener:
+
+```csharp
+public class Equipment
+{
+    private readonly List<EquipmentComponent> _components = [];
+
+    public Guid Id { get; private set; }
+
+    public string Name { get; private set; }
+
+    public string Brand { get; private set; }
+
+    public string? Model { get; private set; }
+
+    public string? SerialNumber { get; private set; }
+
+    public IReadOnlyCollection<EquipmentComponent> Components =>
+        _components.AsReadOnly();
+
+    private Equipment()
+    {
+    }
+
+    public Equipment(
+        Guid id,
+        string name,
+        string brand,
+        string? model,
+        string? serialNumber)
+    {
+        if (id == Guid.Empty)
+            throw new DomainException("El Id es obligatorio.");
+
+        if (string.IsNullOrWhiteSpace(name))
+            throw new DomainException("El nombre es obligatorio.");
+
+        if (string.IsNullOrWhiteSpace(brand))
+            throw new DomainException("La marca es obligatoria.");
+
+        Id = id;
+        Name = name;
+        Brand = brand;
+        Model = model;
+        SerialNumber = serialNumber;
+    }
+
+    public void AddComponent(EquipmentComponent component)
+    {
+        ArgumentNullException.ThrowIfNull(component);
+
+        _components.Add(component);
+    }
+}
+```
+
+Fíjate en la combinación:
+
+```text
+NRT
+│
+├── string
+├── string?
+└── colecciones no-null
+│
+DDD
+│
+├── constructor
+├── invariantes
+├── encapsulación
+└── comportamiento
+```
+
+---
+
+# 32. `ArgumentNullException.ThrowIfNull`
+
+En C# moderno puedes hacer:
+
+```csharp
+ArgumentNullException.ThrowIfNull(component);
+```
+
+en lugar de:
+
+```csharp
+if (component == null)
+{
+    throw new ArgumentNullException(nameof(component));
+}
+```
+
+Por ejemplo:
+
+```csharp
+public void AddComponent(EquipmentComponent component)
+{
+    ArgumentNullException.ThrowIfNull(component);
+
+    _components.Add(component);
+}
+```
+
+Esto es muy útil cuando el parámetro **no puede ser null**.
+
+---
+
+# 33. Parámetros nullable
+
+También puedes expresar esto:
+
+```csharp
+public void UpdateSerialNumber(string? serialNumber)
+{
+    SerialNumber = serialNumber;
+}
+```
+
+Aquí:
+
+```csharp
+string? serialNumber
+```
+
+significa:
+
+> El método acepta que el número de serie sea null.
+
+Mientras:
+
+```csharp
+public void Rename(string name)
+```
+
+significa:
+
+> El método no espera recibir null.
+
+---
+
+# 34. Esto afecta las interfaces
+
+En Clean Architecture podemos tener:
+
+```csharp
+public interface IEquipmentRepository
+{
+    Task<Equipment?> GetByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+}
+```
+
+Este ejemplo es excelente para entender NRT.
+
+¿Por qué:
+
+```csharp
+Equipment?
+```
+
+?
+
+Porque el repositorio puede no encontrar el equipo.
+
+Tenemos:
+
+```text
+GetByIdAsync
+       ↓
+¿Existe?
+  ┌────┴────┐
+ Sí         No
+ ↓          ↓
+Equipment Equipment?
+           = null
+```
+
+---
+
+# 35. Entonces Application debe manejarlo
+
+Por ejemplo:
+
+```csharp
+var equipment = await repository.GetByIdAsync(
+    request.EquipmentId,
+    cancellationToken);
+
+if (equipment is null)
+{
+    throw new EquipmentNotFoundException(
+        request.EquipmentId);
+}
+```
+
+Después del `if`, el compilador sabe:
+
+```text
+equipment
+    ↓
+NO null
+```
+
+por lo que:
+
+```csharp
+equipment.AddComponent(component);
+```
+
+es seguro.
+
+---
+
+# 36. Este patrón aparece muchísimo en Clean Architecture
+
+Una interfaz:
+
+```csharp
+Task<Equipment?> GetByIdAsync(...);
+```
+
+indica explícitamente:
+
+> Puede no existir.
+
+Una interfaz:
+
+```csharp
+Task<Equipment> GetRequiredByIdAsync(...);
+```
+
+podría indicar:
+
+> Si no existe, la implementación lanza una excepción.
+
+La nulabilidad se convierte así en parte del **contrato de la aplicación**.
+
+---
+
+# 37. Error común #1
+
+No hagas esto solamente para eliminar advertencias:
+
+```csharp
+public string Name { get; set; } = null!;
+```
+
+Sí, compila.
+
+Pero:
+
+```csharp
+null!
+```
+
+básicamente le dice:
+
+> "Compilador, cállate; yo sé lo que hago."
+
+Si abusas de esto:
+
+```csharp
+public string Name { get; set; } = null!;
+public string Brand { get; set; } = null!;
+public string Type { get; set; } = null!;
+public string Category { get; set; } = null!;
+```
+
+puedes estar ocultando problemas reales.
+
+---
+
+# 38. ¿Cuándo puede tener sentido `null!`?
+
+Principalmente en escenarios donde **un framework garantiza posteriormente la inicialización**.
+
+Por ejemplo, determinadas propiedades materializadas por EF Core.
+
+Pero incluso ahí conviene preguntarse si existe una alternativa mejor mediante:
+
+```text
+constructor
+factory
+backing field
+required
+configuración de EF
+```
+
+No usar `null!` como solución universal.
+
+---
+
+# 39. Error común #2
+
+Hacer todo nullable:
+
+```csharp
+public string? Name { get; set; }
+
+public string? Brand { get; set; }
+
+public string? Type { get; set; }
+
+public string? Category { get; set; }
+```
+
+Esto elimina muchas advertencias, pero destruye parte del valor de NRT.
+
+Si el dominio dice:
+
+```text
+Equipment debe tener:
+- Name
+- Brand
+- Type
+```
+
+entonces deberían ser:
+
+```csharp
+string Name
+string Brand
+string Type
+```
+
+No:
+
+```csharp
+string?
+```
+
+---
+
+# 40. Regla mental que te recomiendo
+
+Cuando declares una propiedad de dominio pregúntate:
+
+> **¿Puede este concepto no existir en un estado válido del negocio?**
+
+Si la respuesta es:
+
+### No
+
+```csharp
+string
+```
+
+Si la respuesta es:
+
+### Sí
+
+```csharp
+string?
+```
+
+Por ejemplo:
+
+```csharp
+public string Brand { get; private set; }
+public string Model { get; private set; }
+public string? SerialNumber { get; private set; }
+```
+
+si tu negocio determina que algunos equipos no tienen serial.
+
+---
+
+# 41. Arquitectura completa
+
+En tu proyecto podría quedar conceptualmente así:
+
+```text
+┌─────────────────────────────┐
+│            API              │
+│                             │
+│ Requests / Responses        │
+│ string / string?            │
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│        APPLICATION          │
+│                             │
+│ Use Cases                   │
+│ DTOs                        │
+│ Interfaces                  │
+│                             │
+│ Equipment?                  │
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│           DOMAIN            │
+│                             │
+│ Entities                    │
+│ Aggregates                  │
+│ Value Objects               │
+│ Domain Rules                │
+│                             │
+│ string / string?            │
+└──────────────┬──────────────┘
+               ▲
+               │
+┌──────────────┴──────────────┐
+│       INFRASTRUCTURE        │
+│                             │
+│ EF Core                     │
+│ Repositories                │
+│ Database                    │
+└─────────────────────────────┘
+```
+
+---
+
+# 42. Lo más importante que debes aprender
+
+Quédate con esta tabla:
+
+| Código                                | Significado                          |
+| ------------------------------------- | ------------------------------------ |
+| `string`                              | No debería ser null                  |
+| `string?`                             | Puede ser null                       |
+| `int`                                 | No puede ser null                    |
+| `int?`                                | Puede ser null                       |
+| `?.`                                  | Acceso condicional                   |
+| `??`                                  | Valor alternativo                    |
+| `??=`                                 | Asignar si es null                   |
+| `!`                                   | Indicar al compilador "confía en mí" |
+| `required`                            | Debe inicializarse                   |
+| `ArgumentNullException.ThrowIfNull()` | Rechazar null                        |
+| `List<T>` inicializada                | Mejor que colección nullable         |
+
+---
+
+# 43. Y la idea fundamental para DDD
+
+En tu proyecto HVAC, piensa así:
+
+```text
+Nullable Reference Types
+        ↓
+¿Qué valores pueden ser null?
+
+DDD
+        ↓
+¿Qué estados son válidos?
+
+Clean Architecture
+        ↓
+¿En qué capa se define cada contrato?
+```
+
+Por ejemplo:
+
+```csharp
+public class Equipment
+{
+    public string Name { get; private set; }
+
+    public string Brand { get; private set; }
+
+    public string? SerialNumber { get; private set; }
+}
+```
+
+Esto no significa simplemente:
+
+> "Así lo quiere C#."
+
+Está expresando parte del **modelo del negocio**:
+
+```text
+Equipment
+│
+├── Name
+│   └── obligatorio
+│
+├── Brand
+│   └── obligatorio
+│
+└── SerialNumber
+    └── opcional
+```
+
+Y ahí es donde **Nullable Reference Types empieza a ser realmente interesante con DDD**: no se trata solamente de quitar warnings, sino de hacer que el código comunique los contratos y estados posibles del dominio.
+
+### Siguiente paso recomendado
+
+Después de NRT, el tema que más te conviene estudiar es **`required` + constructores + `init` + `private set` + EF Core**, porque ahí aparecen muchas dudas cuando construyes entidades DDD. Especialmente conviene comparar:
+
+```csharp
+public string Name { get; set; } = null!;
+```
+
+vs.
+
+```csharp
+public required string Name { get; set; }
+```
+
+vs.
+
+```csharp
+public string Name { get; private set; }
+```
+
+vs.
+
+```csharp
+public string Name { get; init; }
+```
+
+y determinar **cuándo usar cada uno en Domain, DTOs y EF Core**.

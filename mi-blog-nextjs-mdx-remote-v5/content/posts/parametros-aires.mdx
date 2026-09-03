@@ -9,7 +9,7 @@ published: true
 featured: true
 ---
 
-cual es la diferencia valor nominal, valor minimo y valor maximo  ?  
+> cual es la diferencia valor nominal, valor minimo y valor maximo  ?  
 
 En ingeniería, finanzas y especificaciones técnicas, la diferencia radica en la **definición teórica** del componente frente a los **límites reales tolerados o alcanzados** durante su operación.
 
@@ -37,15 +37,15 @@ A continuación, se explican los casos más comunes donde aplica:
 Es la aplicación más crítica en aire acondicionado. El fabricante especifica un voltaje nominal (por ejemplo, **220 V**) y una tolerancia permisible, generalmente de **±10%**.
 
 * **Cálculo:**
-* **Valor nominal:** $220\text{ V}$
-* **Tolerancia:** $\pm 10\%$ ($\pm 22\text{ V}$)
+* **Valor nominal:** 
+* **Tolerancia:** 
 * **Rango aceptable:** Mínimo **198 V** – Máximo **242 V**.
 
 
 * **¿Qué significa?**
-* Si el voltaje suministrado está dentro de ese rango ($198\text{ V} - 242\text{ V}$), el compresor y los motores del ventilador funcionarán de forma segura.
-* Si cae por debajo del valor mínimo ($~`<`198\text{ V}$), el motor absorbe más corriente (amperaje), lo que genera **sobrecalentamiento en los devanados** y puede disparar el protector térmico.
-* Si supera el valor máximo ($>242\text{ V}$), se produce sobreesfuerzo en el aislamiento eléctrico y componentes electrónicos (tarjetas inverter).
+* Si el voltaje suministrado está dentro de ese rango 198 - 242, el compresor y los motores del ventilador funcionarán de forma segura.
+* Si cae por debajo del valor mínimo 198, el motor absorbe más corriente (amperaje), lo que genera **sobrecalentamiento en los devanados** y puede disparar el protector térmico.
+* Si supera el valor máximo 242, se produce sobreesfuerzo en el aislamiento eléctrico y componentes electrónicos (tarjetas inverter).
 
 
 
@@ -55,11 +55,11 @@ Es la aplicación más crítica en aire acondicionado. El fabricante especifica 
 
 Los capacitores del compresor y del motor del ventilador incluyen una tolerancia impresa en su carcasa, típicamente de **±5%** o **±10%**.
 
-* **Ejemplo:** Un capacitor nominal de $45\ \mu\text{F}$ con tolerancia de $\pm 5\%$:
-* **Rango permitido:** $42.75\ \mu\text{F}$ a $47.25\ \mu\text{F}$.
+* **Ejemplo:** Un capacitor nominal de $45 con tolerancia de  5%:
+* **Rango permitido:** $42.75.
 
 
-* **Aplicación práctica:** Cuando se mide la capacitancia durante un mantenimiento, si el multímetro marca un valor por debajo del límite mínimo aceptable (por ejemplo, $40\ \mu\text{F}$), el capacitor ha perdido sus propiedades y debe reemplazarse aunque el equipo siga arrancando.
+* **Aplicación práctica:** Cuando se mide la capacitancia durante un mantenimiento, si el multímetro marca un valor por debajo del límite mínimo aceptable por ejemplo, $40, el capacitor ha perdido sus propiedades y debe reemplazarse aunque el equipo siga arrancando.
 
 ---
 
@@ -67,7 +67,7 @@ Los capacitores del compresor y del motor del ventilador incluyen una tolerancia
 
 En sistemas modernos (especialmente equipos Inverter o de R-410A / R-32), la tolerancia en el peso de la carga de refrigerante es muy estrecha:
 
-* **Ejemplo de etiqueta:** Carga nominal de $850\text{ g} \pm 20\text{ g}$.
+* **Ejemplo de etiqueta:** Carga nominal de $850.
 * **Significado:** El sistema tolerará entre **830 g** y **870 g**. Un exceso o falta fuera de este porcentaje de tolerancia altera las presiones de trabajo, disminuye la eficiencia energética y puede provocar retorno de líquido al compresor.
 
 ---
@@ -76,5 +76,450 @@ En sistemas modernos (especialmente equipos Inverter o de R-410A / R-32), la tol
 
 El porcentaje de tolerancia define la **ventana de seguridad técnica** especificada por el fabricante para garantizar la vida útil del equipo frente a fluctuaciones en la red eléctrica o pequeñas desviaciones en los componentes.  
 
+---
+
+
+> explicame esta actividad de mantenimiento de aires acondicionado: Compresor #1 Lectura de Amperaje: RS - RT - ST ?  
+
+La lectura de amperaje **RS, RT y ST** en un compresor de aire acondicionado trifásico mide la corriente eléctrica que consume el motor a través de sus tres fases principales (R, S, T).
+
+En sistemas comerciales o industriales, la energía eléctrica llega en un sistema trifásico compuesto por tres líneas de corriente alterna (Línea 1, Línea 2, Línea 3), identificadas comúnmente con las letras **R, S y T**.
+
+---
+
+**Significado de las mediciones**
+
+Cada par de letras representa la medición de corriente entre dos líneas de alimentación específicas utilizando una pinza amperimétrica:
+
+* **RS:** Amperaje consumido entre la Fase R y la Fase S.
+* **RT:** Amperaje consumido entre la Fase R y la Fase T.
+* **ST:** Amperaje consumido entre la Fase S y la Fase T.
+
+---
+
+**Objetivo del mantenimiento**
+
+El propósito fundamental de esta prueba es evaluar la **salud eléctrica del compresor** y prevenir fallas severas mediante tres verificaciones:
+
+1. **Balance de fases:** El valor de amperaje en las tres lecturas debe ser **prácticamente idéntico**. Un desbalance de corriente superior al **5%** entre fases genera sobrecalentamiento en los devanados del motor y acorta drásticamente la vida útil del compresor.
+2. **Consumo nominal:** Las lecturas obtenidas se comparan con la corriente nominal de trabajo (RLA - *Rated Load Amps*) especificada en la placa del fabricante. Si las tres lecturas están por encima de lo normal, el compresor trabaja sobrecargado (alta presión de condensación, bajo voltaje o falla mecánica).
+3. **Detección de fallas internas:** Un desbalance severo o la ausencia de consumo en una fase indica problemas como contactos sulfatados en el contactor, desequilibrio de voltaje de red o daño en el aislamiento de las bobinas internas.
+
+> exite un rango de respuesta valido en cada medida o eso depende del tipo de equipo ?
+
+**Sí, el rango de respuesta válido depende completamente de las especificaciones de cada equipo y de sus condiciones de operación en el momento.** No existe un valor fijo estándar (como decir "debe dar 20 A"), pero sí existen límites técnicos universales sobre **cómo interpretar esa lectura**.
+
+---
+
+**Factores de referencia para validar las lecturas**
+
+| Criterio | Límite Técnico Permisible | ¿De qué depende? |
+| --- | --- | --- |
+| **Límite máximo de corriente (RLA / FLA)** | < 100% del RLA indicado en placa | Capacidad del compresor (tonelaje/BTU) y modelo del equipo. |
+| **Desbalance de corriente entre fases (% Desbalance)** | **≤ 5%** (Ideal) / **Máx 10%** | Calidad de la red eléctrica y simetría de las bobinas del motor. |
+| **Variación por condiciones operativas** | Cambia dinámicamente con la temperatura y la presión | Carga térmica del recinto, limpieza de serpentines y tipo de refrigerante. |
+
+---
+
+**Reglas prácticas para determinar si la medida es válida**
+
+1. **Revisar la placa del compresor (RLA / FLA):**
+* El dato de referencia principal es el **RLA** (*Rated Load Amps*) o **FLA** (*Full Load Amps*).
+* Si la placa dice `RLA: 22 A`, el amperaje en **RS, RT y ST** no debería superar los 22 Amperios en condiciones estándar. Si marca 26 A, el equipo está trabajando sobrecargado.
+
+
+2. **Calcular el % de desbalance de corriente:**
+Aunque el amperaje esté por debajo del límite de placa, las tres fases deben ser casi iguales. La fórmula estándar para evaluar la validez es:
+% Desbalance = Desviación Máxima respecto al Promedio / Promedio de las 3 fases
+
+
+* **Ejemplo Válido:** RS = 15.0, RT = 15.2, ST = 14.8 Promedio: 15.0, Desbalance: 1.3 **Correcto**.
+* **Ejemplo Anormal:** RS = 18.0, RT = 15.0, ST = 15.0 Promedio: 16.0, Desbalance: 12.5 **Falla detectada**.
+
+
+3. **Considerar la carga térmica momentánea:**
+Un equipo operando en un día caluroso o arrancando con el recinto muy caliente consumirá un amperaje cercano al 90-100% de su RLA. A medida que el recinto se enfría, el amperaje baja.
+
+---
+
+> Explicame como calcularlo ?
+
+Claro. La idea central es que **no basta con que el amperaje esté por debajo del RLA**: también debemos comprobar que las tres corrientes de las fases sean razonablemente equilibradas.
+
+Vamos paso a paso.
+
+### 1. ¿Qué estamos midiendo?
+
+En un compresor trifásico puedes medir la corriente entre las tres fases:
+
+* **RS** → corriente asociada a las fases R y S
+* **RT** → corriente asociada a R y T
+* **ST** → corriente asociada a S y T
+
+Por ejemplo:
+
+```text
+RS = 15.0 A
+RT = 15.2 A
+ST = 14.8 A
+```
+
+Tenemos tres valores y queremos saber si están suficientemente cerca entre sí.
+
+---
+
+## 2. Primero calculamos el promedio
+
+La fórmula del promedio es:
+
+
+Promedio =(RS + RT + ST)/{3}
+
+
+Con nuestro ejemplo:
+
+Promedio = (15.0 + 15.2 + 14.8)/3 
+
+
+Sumamos:
+
+15.0 + 15.2 + 14.8 = 45.0
+
+Y dividimos entre 3:
+
+Promedio = 45.0/3 = 15.0A
+
+Por tanto:
+
+**Promedio = 15.0 A**
+
+---
+
+## 3. ¿Qué significa "desviación respecto al promedio"?
+
+Ahora comparamos cada medición contra los **15.0 A**.
+
+### RS
+
+
+|15.0 - 15.0| = 0
+
+RS se desvía **0 A**.
+
+### RT
+
+
+|15.2 - 15.0| = 0.2
+
+
+RT se desvía **0.2 A**.
+
+### ST
+
+
+|14.8 - 15.0| = 0.2
+
+ST se desvía **0.2 A**.
+
+Tenemos entonces:
+
+| Medición | Corriente | Desviación del promedio |
+| -------- | --------: | ----------------------: |
+| RS       |    15.0 A |                   0.0 A |
+| RT       |    15.2 A |                   0.2 A |
+| ST       |    14.8 A |                   0.2 A |
+
+La **desviación máxima** es:
+
+0.2A
+
+---
+
+## 4. Ahora calculamos el porcentaje de desbalance
+
+La fórmula dice:
+
+Desbalance = Desviación máxima promedio / 100
+Sustituimos:
+
+Desbalance = (0.2 / 15.0) x 100
+
+=0.01333 x 100
+
+
+=1.33%
+
+
+Por eso obtenemos aproximadamente:
+
+**Desbalance = 1.3 %**
+
+
+---
+
+# 5. Veamos el ejemplo anormal
+
+Tenemos:
+
+```text
+RS = 18.0 A
+RT = 15.0 A
+ST = 15.0 A
+```
+
+### Paso 1: promedio
+
+
+Promedio = (18.0 + 15.0 + 15.0 ) / 3
+
+= 48 / 3
+=16.0A
+
+
+---
+
+### Paso 2: desviaciones
+
+RS:
+
+|18.0-16.0|=2.0A
+
+
+RT:
+
+
+|15.0-16.0|=1.0A
+
+
+ST:
+
+
+|15.0-16.0|=1.0A
+
+
+La desviación máxima es:
+
+
+2.0A
+
+
+---
+
+### Paso 3: porcentaje
+
+Desbalance = (2.0 / 16) x 100
+
+=12.5 %
+
+Por eso:
+
+**Desbalance = 12.5 %**
+
+Es muchísimo mayor que el ejemplo anterior.
+
+---
+
+# 6. La fórmula completa realmente significa esto
+
+Podemos escribirla de una manera más fácil de entender:
+
+
+
+Desbalance=
+(Mayor diferencia entre una medición y el promedio) / promedio
+
+
+En palabras:
+
+> **¿Qué tan lejos está la corriente más alejada del valor promedio, expresado como porcentaje del promedio?**
+
+---
+
+# 7. ¿Por qué necesitamos el promedio?
+
+Porque queremos establecer un punto de referencia.
+
+Imagina:
+
+```text
+RS ─────────── 15.0 A
+RT ─────────── 15.2 A
+ST ─────────── 14.8 A
+               ↑
+           promedio
+             15 A
+```
+
+Las tres mediciones están muy cerca del promedio.
+
+Ahora:
+
+```text
+RS ────────────────── 18 A
+RT ────────────────   15 A
+ST ────────────────   15 A
+                    ↑
+                  16 A
+```
+
+Aquí RS está bastante alejada del promedio.
+
+Eso es lo que detecta el cálculo.
+
+---
+
+# 8. ¿Y qué tiene que ver esto con el RLA?
+
+Aquí hay **dos comprobaciones diferentes** que conviene no mezclar.
+
+### Comprobación A — ¿Está consumiendo demasiado?
+
+Comparas la corriente con el RLA.
+
+Por ejemplo:
+
+```text
+RLA = 22 A
+
+RS = 20 A
+RT = 20.5 A
+ST = 20.2 A
+```
+
+Las corrientes están por debajo del RLA.
+
+### Comprobación B — ¿Las fases están equilibradas?
+
+Calculas:
+
+
+Desbalance
+
+
+Podrías tener:
+
+```text
+RLA = 22 A
+
+RS = 21 A
+RT = 21 A
+ST = 16 A
+```
+
+Aunque **ninguna corriente supere 22 A**, existe un problema importante de equilibrio.
+
+Por eso:
+
+> **RLA responde principalmente "¿cuánta corriente está consumiendo el compresor?"**
+
+Mientras que:
+
+> **% de desbalance responde "¿qué tan equilibradas están las corrientes de las fases?"**
+
+Son controles diferentes.
+
+---
+
+## 9. Una observación importante sobre tu ejemplo
+
+Hay un detalle técnico que conviene corregir en tu regla inicial:
+
+> "Si la placa dice RLA: 22 A, el amperaje en RS, RT y ST no debería superar los 22 A."
+
+Como **regla práctica de mantenimiento** puede servir como referencia, pero **RLA no debe interpretarse simplemente como un límite absoluto que nunca puede superarse en cualquier condición**. El significado exacto depende del fabricante, del tipo de compresor y de las condiciones de operación.
+
+Además, para diagnosticar una sobrecarga no deberíamos mirar únicamente el amperaje: también son importantes **voltaje, temperatura, presión de succión/descarga, refrigerante, condiciones ambientales y carga térmica**.
+
+---
+
+### 10. Llevándolo a tu sistema HVAC
+
+Para tu aplicación de mantenimiento, yo separaría estos parámetros:
+
+```text
+Equipo
+   │
+   ├── RLA / FLA
+   │
+   ├── Voltaje nominal
+   │
+   └── Otras especificaciones de placa
+           │
+           ▼
+Medición de mantenimiento
+   │
+   ├── RS = 15.0 A
+   ├── RT = 15.2 A
+   └── ST = 14.8 A
+           │
+           ▼
+Cálculo
+   │
+   ├── Promedio = 15.0 A
+   ├── Desviación máxima = 0.2 A
+   └── Desbalance = 1.33 %
+           │
+           ▼
+Evaluación
+   └── Dentro / Fuera del criterio establecido
+```
+
+Y esto encaja muy bien con lo que veníamos definiendo para tu modelo DDD: **RS, RT y ST son mediciones**, mientras que **RLA es una característica del equipo**. El rango/criterio de aceptación puede depender del equipo y del fabricante, por lo que no conviene "quemar" un valor universal dentro de la actividad.
+
+Si quieres, en el siguiente paso podemos convertir **esta fórmula exactamente en una regla de negocio de C#/.NET 10**, por ejemplo `CurrentImbalanceCalculator`, y ver cómo quedaría dentro de tu arquitectura DDD.
+
+
+
+**Consecuencia de lecturas fuera del rango**
+
+* **Amperaje bajo en las 3 fases (< 50% RLA):** Indica falta de refrigerante (fuga) o baja carga de trabajo mecánica.
+* **Amperaje alto en las 3 fases (> RLA):** Condensador sucio, motor del ventilador exterior detenido, exceso de refrigerante o problema mecánico interno.
+* **Desbalance > 5% - 10%:** Caída o desbalance de voltaje en la red eléctrica, contactor desgastado/sulfatado o daño inminente en los devanados del compresor. 
+
+> explicame Compresor #1 Lectura de Presión (PSI) succión - descarga ?
+
+
+La lectura de presión de **succión y descarga** en PSI (*Pounds per Square Inch* o libras por pulgada cuadrada) mide la fuerza que ejerce el gas refrigerante en los dos extremos operativos del compresor.
+
+Sirve para verificar el "corazón" del sistema de refrigeración: la **succión** indica la presión del gas frío que regresa del evaporador (lado de baja presión), mientras que la **descarga** mide la presión del gas caliente y comprimido que sale hacia el condensador (lado de alta presión).
+
+---
+
+**Definición de las mediciones**
+
+* **Presión de Succión (Baja Presión / *Low Side*):**
+* Se mide con el manómetro azul (*L. Succión*) en el puerto de servicio de la tubería más gruesa.
+* Refleja cómo está absorbiendo calor el evaporador dentro del espacio a acondicionar.
+
+
+* **Presión de Descarga (Alta Presión / *High Side*):**
+* Se mide con el manómetro rojo (*L. Descarga*) en el puerto de servicio de la tubería más delgada o directamente a la salida del compresor.
+* Refleja la capacidad del condensador para expulsar el calor al exterior.
+
+
+
+---
+
+**Valores de referencia típicos según el refrigerante**
+
+Los valores exactos dependen de la temperatura ambiente y del tipo de gas refrigerante utilizado en el equipo:
+
+| Tipo de Gas Refrigerante | Presión de Succión Típica (Baja) | Presión de Descarga Típica (Alta) |
+| --- | --- | --- |
+| **R-410A** (Sistemas modernos) | 110 – 135 PSI | 350 – 450 PSI |
+| **R-32** (Sistemas de alta eficiencia) | 115 – 140 PSI | 360 – 470 PSI |
+| **R-22** (Sistemas antiguos) | 60 – 75 PSI | 220 – 275 PSI |
+| **R-134a** (Sistemas de precisión/chillers) | 30 – 45 PSI | 150 – 200 PSI |
+
+---
+
+**Diagnóstico mediante la combinación de presiones**
+
+| Lectura de Succión | Lectura de Descarga | Diagnóstico Probable |
+| --- | --- | --- |
+| **Baja** | **Baja** | Fuga o falta de carga de refrigerante / Obstrucción antes del evaporador. |
+| **Alta** | **Alta** | Condensador sucio, ventilador exterior defectuoso o sobrecarga de refrigerante. |
+| **Baja** | **Alta** | Obstrucción en el dispositivo de expansión (tubo capilar/válvula VTX) o filtro secador tapado. |
+| **Alta** | **Baja** | Compresor descompresionado (válvulas internas rotas o desgaste mecánico; no logra comprimir). |  
 
 

@@ -1,0 +1,1180 @@
+---
+title: "Colecciones en CSharp"
+date: "2026-09-04"
+description: "Colecciones enfocado en DDD y Clean Arquitecture en el 2026"
+slug: "colecciones-csharp"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Claro. Vamos a verlo **de menor a mayor nivel de capacidad**, y luego lo aterrizamos a **DDD + Clean Architecture en .NET 10 / C# 14**.
+
+La idea fundamental es esta:
+
+> **Cuanto más específica sea la interfaz de colección que expones, más capacidades le estás dando al consumidor.**
+
+Podemos visualizarlo así:
+
+```text
+IEnumerable<T>
+      ↑
+IReadOnlyCollection<T>
+      ↑
+IReadOnlyList<T>
+
+ICollection<T>
+      ↑
+     List<T>
+```
+
+Pero ojo: **no significa que sean una jerarquía directa entre todas ellas**. Lo importante es entender las capacidades que proporciona cada interfaz.
+
+---
+
+# 1. Primero: ¿qué significa `IEnumerable<T>`?
+
+`IEnumerable<T>` representa:
+
+> "Tengo una secuencia de elementos que puedes recorrer."
+
+Ejemplo:
+
+```csharp
+IEnumerable<string> nombres =
+[
+    "Juan",
+    "Pedro",
+    "María"
+];
+
+foreach (string nombre in nombres)
+{
+    Console.WriteLine(nombre);
+}
+```
+
+El consumidor puede hacer:
+
+```csharp
+foreach (var nombre in nombres)
+{
+    // ...
+}
+```
+
+Y también puede utilizar LINQ:
+
+```csharp
+var nombresMayuscula = nombres
+    .Where(x => x.Length > 4)
+    .Select(x => x.ToUpper());
+```
+
+Pero `IEnumerable<T>` **no promete**:
+
+* que puedas conocer el número de elementos;
+* que puedas acceder por índice;
+* que puedas agregar elementos;
+* que puedas eliminar elementos;
+* que puedas modificar elementos.
+
+Por ejemplo:
+
+```csharp
+IEnumerable<string> nombres = ...;
+
+// ❌ No existe
+nombres.Add("Carlos");
+
+// ❌ No existe
+nombres.Remove("Juan");
+
+// ❌ No existe
+nombres[0];
+```
+
+Eso es precisamente lo interesante.
+
+## `IEnumerable<T>` dice muy poco
+
+Solo estás diciendo:
+
+```text
+"Te voy a entregar una secuencia de T."
+```
+
+Por eso es una interfaz muy buena para **lectura/recorrido** cuando no necesitas garantizar más capacidades.
+
+---
+
+# 2. ¿Qué significa la `T`?
+
+Cuando ves:
+
+```csharp
+IEnumerable<T>
+```
+
+`T` significa:
+
+> Tipo genérico.
+
+Por ejemplo:
+
+```csharp
+IEnumerable<Equipment>
+```
+
+significa:
+
+```text
+Una secuencia de Equipment
+```
+
+Mientras:
+
+```csharp
+IEnumerable<Activity>
+```
+
+significa:
+
+```text
+Una secuencia de Activity
+```
+
+---
+
+# 3. Ejemplo con tu dominio HVAC
+
+Supongamos que tenemos:
+
+```csharp
+public class Equipment
+{
+    public Guid Id { get; private set; }
+
+    public string Name { get; private set; }
+
+    public Equipment(Guid id, string name)
+    {
+        Id = id;
+        Name = name;
+    }
+}
+```
+
+Podemos tener:
+
+```csharp
+IEnumerable<Equipment> equipment = ...
+```
+
+El consumidor solamente sabe:
+
+> "Aquí hay una secuencia de equipos."
+
+No sabe si internamente tienes:
+
+```csharp
+List<Equipment>
+```
+
+o:
+
+```csharp
+Equipment[]
+```
+
+o:
+
+```csharp
+HashSet<Equipment>
+```
+
+o incluso una consulta de base de datos que todavía no se ha ejecutado.
+
+Esto es muy importante en arquitectura.
+
+---
+
+# 4. `ICollection<T>`
+
+Ahora aumentamos las capacidades.
+
+```csharp
+ICollection<T>
+```
+
+representa:
+
+> "Tengo una colección de elementos que puede ser modificada."
+
+Por ejemplo:
+
+```csharp
+ICollection<Equipment> equipment = new List<Equipment>();
+```
+
+Ahora podemos:
+
+```csharp
+equipment.Add(new Equipment(
+    Guid.NewGuid(),
+    "Chiller #1"
+));
+```
+
+También:
+
+```csharp
+equipment.Remove(equipment.First());
+```
+
+Y:
+
+```csharp
+equipment.Clear();
+```
+
+Además:
+
+```csharp
+int cantidad = equipment.Count;
+```
+
+Y podemos recorrerla:
+
+```csharp
+foreach (var item in equipment)
+{
+    Console.WriteLine(item.Name);
+}
+```
+
+---
+
+# 5. ¿Qué capacidades tiene `ICollection<T>`?
+
+Principalmente:
+
+| Capacidad    | `ICollection<T>` |
+| ------------ | ---------------: |
+| Recorrer     |                ✅ |
+| LINQ         |                ✅ |
+| `Count`      |                ✅ |
+| `Add()`      |                ✅ |
+| `Remove()`   |                ✅ |
+| `Clear()`    |                ✅ |
+| Índice `[0]` |                ❌ |
+
+Por ejemplo:
+
+```csharp
+ICollection<Equipment> equipment = ...;
+
+equipment.Add(equipment);
+```
+
+No existe.
+
+Tampoco:
+
+```csharp
+equipment[0]
+```
+
+Porque una `ICollection<T>` **no garantiza que exista acceso por índice**.
+
+---
+
+# 6. `IReadOnlyCollection<T>`
+
+Aquí aparece una interfaz especialmente interesante para **DDD**.
+
+```csharp
+IReadOnlyCollection<T>
+```
+
+significa:
+
+> "Puedes leer la colección y conocer cuántos elementos tiene, pero no puedes modificarla mediante esta interfaz."
+
+Ejemplo:
+
+```csharp
+IReadOnlyCollection<Equipment> equipment = ...;
+```
+
+Puedes hacer:
+
+```csharp
+int cantidad = equipment.Count;
+```
+
+Y:
+
+```csharp
+foreach (var item in equipment)
+{
+    Console.WriteLine(item.Name);
+}
+```
+
+Pero no:
+
+```csharp
+// ❌
+equipment.Add(...);
+
+// ❌
+equipment.Remove(...);
+
+// ❌
+equipment.Clear();
+```
+
+---
+
+# 7. ¿Por qué es importante en DDD?
+
+Aquí empieza lo interesante.
+
+Supongamos un agregado:
+
+```csharp
+public class MaintenanceOrder
+{
+    private readonly List<Activity> _activities = [];
+
+    public IReadOnlyCollection<Activity> Activities =>
+        _activities.AsReadOnly();
+}
+```
+
+Tenemos internamente:
+
+```csharp
+private readonly List<Activity> _activities;
+```
+
+pero externamente:
+
+```csharp
+public IReadOnlyCollection<Activity> Activities
+```
+
+Esto es excelente porque estamos diciendo:
+
+> "La orden de mantenimiento administra sus actividades. El exterior puede consultarlas, pero no puede modificarlas directamente."
+
+---
+
+# 8. ¿Por qué NO hacer esto?
+
+Una implementación problemática sería:
+
+```csharp
+public class MaintenanceOrder
+{
+    public List<Activity> Activities { get; set; } = [];
+}
+```
+
+Ahora cualquier código puede hacer:
+
+```csharp
+order.Activities.Clear();
+```
+
+o:
+
+```csharp
+order.Activities.Add(activity);
+```
+
+o:
+
+```csharp
+order.Activities.Remove(activity);
+```
+
+El problema es que **cualquier parte de la aplicación puede modificar el estado interno del agregado**.
+
+Eso debilita el encapsulamiento del dominio.
+
+---
+
+# 9. Mejor diseño DDD
+
+Podemos hacer:
+
+```csharp
+public class MaintenanceOrder
+{
+    private readonly List<Activity> _activities = [];
+
+    public IReadOnlyCollection<Activity> Activities =>
+        _activities.AsReadOnly();
+
+    public void AddActivity(Activity activity)
+    {
+        _activities.Add(activity);
+    }
+
+    public void RemoveActivity(Activity activity)
+    {
+        _activities.Remove(activity);
+    }
+}
+```
+
+Ahora:
+
+```csharp
+order.AddActivity(activity);
+```
+
+es válido.
+
+Pero:
+
+```csharp
+order.Activities.Add(activity);
+```
+
+no compila.
+
+Esto es exactamente lo que queremos.
+
+---
+
+# 10. ¿Por qué es mejor?
+
+Porque el agregado mantiene el control.
+
+En lugar de:
+
+```text
+Código externo
+      ↓
+List<Activity>
+      ↓
+modificación directa
+```
+
+tenemos:
+
+```text
+Código externo
+      ↓
+AddActivity()
+      ↓
+MaintenanceOrder
+      ↓
+validaciones
+      ↓
+List<Activity>
+```
+
+Esto permite agregar reglas de negocio.
+
+Por ejemplo:
+
+```csharp
+public void AddActivity(Activity activity)
+{
+    if (activity is null)
+        throw new ArgumentNullException(nameof(activity));
+
+    if (_activities.Any(x => x.Code == activity.Code))
+        throw new DomainException(
+            "La actividad ya existe en la orden.");
+
+    _activities.Add(activity);
+}
+```
+
+Ahora el agregado protege sus invariantes.
+
+---
+
+# 11. `IReadOnlyList<T>`
+
+Ahora tenemos otra interfaz:
+
+```csharp
+IReadOnlyList<T>
+```
+
+Es similar a:
+
+```csharp
+IReadOnlyCollection<T>
+```
+
+pero agrega una capacidad importante:
+
+> **acceso por índice.**
+
+Por ejemplo:
+
+```csharp
+IReadOnlyList<Activity> activities = ...;
+```
+
+Podemos hacer:
+
+```csharp
+var first = activities[0];
+```
+
+Y:
+
+```csharp
+var second = activities[1];
+```
+
+También:
+
+```csharp
+int cantidad = activities.Count;
+```
+
+Y:
+
+```csharp
+foreach (var activity in activities)
+{
+    ...
+}
+```
+
+Pero seguimos sin poder hacer:
+
+```csharp
+// ❌
+activities.Add(activity);
+
+// ❌
+activities.Remove(activity);
+
+// ❌
+activities.Clear();
+```
+
+---
+
+# 12. Diferencia fundamental
+
+Podemos resumirlo así:
+
+### `IEnumerable<T>`
+
+```text
+Recorrer
+```
+
+### `IReadOnlyCollection<T>`
+
+```text
+Recorrer
++
+conocer Count
+```
+
+### `IReadOnlyList<T>`
+
+```text
+Recorrer
++
+conocer Count
++
+acceder por índice
+```
+
+### `ICollection<T>`
+
+```text
+Recorrer
++
+Count
++
+agregar
++
+eliminar
++
+limpiar
+```
+
+---
+
+# 13. Comparación completa
+
+| Capacidad    | `IEnumerable<T>` | `IReadOnlyCollection<T>` | `IReadOnlyList<T>` | `ICollection<T>` |
+| ------------ | ---------------: | -----------------------: | -----------------: | ---------------: |
+| `foreach`    |                ✅ |                        ✅ |                  ✅ |                ✅ |
+| LINQ         |                ✅ |                        ✅ |                  ✅ |                ✅ |
+| `Count`      |               ❌* |                        ✅ |                  ✅ |                ✅ |
+| `[index]`    |                ❌ |                        ❌ |                  ✅ |                ❌ |
+| `Add()`      |                ❌ |                        ❌ |                  ❌ |                ✅ |
+| `Remove()`   |                ❌ |                        ❌ |                  ❌ |                ✅ |
+| `Clear()`    |                ❌ |                        ❌ |                  ❌ |                ✅ |
+| Lectura      |                ✅ |                        ✅ |                  ✅ |                ✅ |
+| Modificación |                ❌ |                        ❌ |                  ❌ |                ✅ |
+
+* `IEnumerable<T>` no garantiza `Count` como propiedad, aunque LINQ permite `Count()`.
+
+---
+
+# 14. Un concepto muy importante: interfaz vs implementación
+
+Supongamos:
+
+```csharp
+List<Activity> activities = [];
+```
+
+`List<T>` es una **clase concreta**.
+
+Mientras:
+
+```csharp
+IReadOnlyCollection<Activity>
+```
+
+es una **abstracción**.
+
+Podemos hacer:
+
+```csharp
+IReadOnlyCollection<Activity> result = activities;
+```
+
+El objeto real sigue siendo:
+
+```text
+List<Activity>
+```
+
+pero el consumidor solamente recibe:
+
+```text
+IReadOnlyCollection<Activity>
+```
+
+Por lo tanto, el consumidor no tiene acceso a las operaciones de `List<T>`.
+
+---
+
+# 15. Esto es encapsulamiento
+
+Este concepto es fundamental en DDD.
+
+Tenemos:
+
+```csharp
+private readonly List<Activity> _activities = [];
+```
+
+La implementación interna puede cambiar.
+
+Mañana podríamos cambiarla por otra estructura compatible con nuestro diseño.
+
+Pero el contrato público puede continuar siendo:
+
+```csharp
+public IReadOnlyCollection<Activity> Activities
+```
+
+El consumidor no necesita conocer cómo almacenamos los datos.
+
+---
+
+# 16. Ejemplo completo con un Aggregate Root
+
+Imaginemos:
+
+```csharp
+public class MaintenanceOrder
+{
+    private readonly List<Activity> _activities = [];
+
+    public Guid Id { get; private set; }
+
+    public IReadOnlyCollection<Activity> Activities =>
+        _activities.AsReadOnly();
+
+    public void AddActivity(Activity activity)
+    {
+        if (activity is null)
+            throw new ArgumentNullException(nameof(activity));
+
+        _activities.Add(activity);
+    }
+}
+```
+
+Desde Application:
+
+```csharp
+var order = await repository.GetByIdAsync(id);
+
+foreach (var activity in order.Activities)
+{
+    Console.WriteLine(activity.Name);
+}
+```
+
+Application puede leer.
+
+Pero no puede hacer:
+
+```csharp
+order.Activities.Add(activity);
+```
+
+Debe utilizar:
+
+```csharp
+order.AddActivity(activity);
+```
+
+Esto mantiene las reglas de negocio dentro del dominio.
+
+---
+
+# 17. ¿Y `ICollection<T>` dónde aparece en DDD?
+
+Puede aparecer perfectamente, pero debemos pensar **quién debe tener capacidad de modificar la colección**.
+
+Por ejemplo, internamente:
+
+```csharp
+private readonly ICollection<Activity> _activities = [];
+```
+
+Pero personalmente prefiero frecuentemente:
+
+```csharp
+private readonly List<Activity> _activities = [];
+```
+
+porque el agregado conoce su implementación interna.
+
+Y públicamente:
+
+```csharp
+public IReadOnlyCollection<Activity> Activities =>
+    _activities.AsReadOnly();
+```
+
+Es decir:
+
+```text
+                    DOMAIN
+                       │
+                       ▼
+          ┌────────────────────────┐
+          │   MaintenanceOrder     │
+          │                        │
+          │ List<Activity>         │
+          │       │                │
+          │       ▼                │
+          │ AddActivity()          │
+          │ RemoveActivity()       │
+          └─────────┬──────────────┘
+                    │
+                    │ IReadOnlyCollection<Activity>
+                    ▼
+             Application
+                    │
+                    ▼
+             Presentation
+```
+
+---
+
+# 18. ¿Y cuándo utilizar `IEnumerable<T>`?
+
+Es muy útil cuando solamente necesitas expresar:
+
+> "Necesito una secuencia de elementos."
+
+Por ejemplo, un servicio de dominio:
+
+```csharp
+public decimal CalculateTotal(
+    IEnumerable<MaintenanceActivity> activities)
+{
+    return activities.Sum(x => x.Cost);
+}
+```
+
+Aquí no necesitas:
+
+```csharp
+Add()
+Remove()
+[0]
+Count
+```
+
+Solo necesitas recorrer/calcular.
+
+Entonces:
+
+```csharp
+IEnumerable<MaintenanceActivity>
+```
+
+es una buena abstracción.
+
+---
+
+# 19. Ejemplo en Clean Architecture
+
+Imaginemos:
+
+```text
+src
+├── Domain
+│   ├── Entities
+│   ├── ValueObjects
+│   └── Repositories
+│
+├── Application
+│   ├── UseCases
+│   ├── DTOs
+│   └── Interfaces
+│
+├── Infrastructure
+│   ├── Persistence
+│   └── Repositories
+│
+└── Api
+    └── Controllers
+```
+
+Supongamos un repositorio:
+
+```csharp
+public interface IMaintenanceOrderRepository
+{
+    Task<MaintenanceOrder?> GetByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+}
+```
+
+El repositorio devuelve el agregado:
+
+```csharp
+MaintenanceOrder
+```
+
+Y el agregado controla sus colecciones:
+
+```csharp
+public IReadOnlyCollection<Activity> Activities =>
+    _activities.AsReadOnly();
+```
+
+Esto evita que Application pueda manipular directamente el estado interno.
+
+---
+
+# 20. ¿Qué pasa con EF Core?
+
+Aquí hay una distinción importante.
+
+En DDD podemos tener:
+
+```csharp
+private readonly List<Activity> _activities = [];
+```
+
+y:
+
+```csharp
+public IReadOnlyCollection<Activity> Activities =>
+    _activities.AsReadOnly();
+```
+
+Mientras EF Core puede mapear la navegación.
+
+Por ejemplo:
+
+```csharp
+builder
+    .HasMany(x => x.Activities)
+    .WithOne()
+    .HasForeignKey(x => x.MaintenanceOrderId);
+```
+
+La idea es que:
+
+```text
+EF Core
+   │
+   ▼
+colección interna
+   │
+   ▼
+Aggregate Root
+   │
+   ▼
+IReadOnlyCollection
+   │
+   ▼
+Application
+```
+
+El dominio mantiene el control de cómo se modifica.
+
+---
+
+# 21. ¿Por qué no utilizar siempre `IReadOnlyList<T>`?
+
+Porque debes preguntarte:
+
+> **¿El orden y el acceso por posición son parte del significado del dominio?**
+
+Por ejemplo, imaginemos actividades:
+
+```text
+1. Inspeccionar equipo
+2. Medir amperaje
+3. Medir presión
+4. Limpiar filtros
+```
+
+Si el orden tiene significado de negocio, podría tener sentido:
+
+```csharp
+IReadOnlyList<Activity>
+```
+
+porque:
+
+```csharp
+order.Activities[0]
+```
+
+tiene significado.
+
+Pero si simplemente tienes:
+
+```text
+Actividades realizadas durante el mantenimiento
+```
+
+y no importa la posición, probablemente:
+
+```csharp
+IReadOnlyCollection<Activity>
+```
+
+sea más apropiado.
+
+---
+
+# 22. Regla práctica para tu proyecto HVAC
+
+Para tu aplicación de mantenimiento HVAC yo usaría como regla inicial:
+
+### Colección que solamente quieres recorrer
+
+```csharp
+IEnumerable<T>
+```
+
+Ejemplo:
+
+```csharp
+public decimal CalculateTotal(
+    IEnumerable<Activity> activities)
+```
+
+---
+
+### Colección que expones desde una entidad/agregado
+
+```csharp
+IReadOnlyCollection<T>
+```
+
+Ejemplo:
+
+```csharp
+public IReadOnlyCollection<Activity> Activities =>
+    _activities.AsReadOnly();
+```
+
+---
+
+### Colección donde el índice es parte del dominio
+
+```csharp
+IReadOnlyList<T>
+```
+
+Por ejemplo, si tu modelo tuviera explícitamente una secuencia ordenada:
+
+```csharp
+public IReadOnlyList<MaintenanceStep> Steps
+```
+
+---
+
+### Colección que realmente necesita ser modificada por el consumidor
+
+```csharp
+ICollection<T>
+```
+
+Por ejemplo, en ciertos DTOs o modelos de infraestructura donde la mutabilidad sea intencional.
+
+---
+
+# 23. Una regla de diseño que quiero que recuerdes
+
+En DDD y Clean Architecture:
+
+> **No expongas más capacidades de las que el consumidor necesita.**
+
+Si solamente necesita leer:
+
+```csharp
+IReadOnlyCollection<T>
+```
+
+es preferible a:
+
+```csharp
+List<T>
+```
+
+Si solamente necesita recorrer:
+
+```csharp
+IEnumerable<T>
+```
+
+puede ser suficiente.
+
+Si necesita índice:
+
+```csharp
+IReadOnlyList<T>
+```
+
+Si necesita modificar:
+
+```csharp
+ICollection<T>
+```
+
+---
+
+# 24. Un ejemplo final comparando las cuatro
+
+```csharp
+public class MaintenanceOrder
+{
+    private readonly List<Activity> _activities = [];
+
+    // Solo recorrer
+    public IEnumerable<Activity> GetActivities()
+        => _activities;
+
+    // Leer + Count
+    public IReadOnlyCollection<Activity> Activities
+        => _activities.AsReadOnly();
+
+    // Leer + Count + índice
+    public IReadOnlyList<Activity> OrderedActivities
+        => _activities;
+
+    // Modificación interna
+    private ICollection<Activity> InternalActivities
+        => _activities;
+
+    public void AddActivity(Activity activity)
+    {
+        _activities.Add(activity);
+    }
+}
+```
+
+Pero **no recomiendo tener las cuatro** en una entidad real. El ejemplo solamente sirve para visualizar las capacidades.
+
+Un diseño más limpio sería:
+
+```csharp
+public class MaintenanceOrder
+{
+    private readonly List<Activity> _activities = [];
+
+    public IReadOnlyCollection<Activity> Activities =>
+        _activities.AsReadOnly();
+
+    public void AddActivity(Activity activity)
+    {
+        // Reglas de negocio
+        _activities.Add(activity);
+    }
+}
+```
+
+Y para operaciones que solamente consumen una secuencia:
+
+```csharp
+private decimal CalculateTotal(
+    IEnumerable<Activity> activities)
+{
+    return activities.Sum(x => x.Cost);
+}
+```
+
+### La idea central
+
+```text
+IEnumerable<T>
+    │
+    │ "puedes recorrer"
+    ▼
+IReadOnlyCollection<T>
+    │
+    │ "puedes recorrer + saber Count"
+    ▼
+IReadOnlyList<T>
+    │
+    │ "puedes recorrer + Count + índice"
+    ▼
+
+ICollection<T>
+    │
+    │ "puedes modificar"
+    ▼
+Add / Remove / Clear
+```
+
+Y en **DDD**, la combinación que probablemente vas a utilizar muchísimo en tu proyecto HVAC será:
+
+```csharp
+private readonly List<Activity> _activities = [];
+
+public IReadOnlyCollection<Activity> Activities =>
+    _activities.AsReadOnly();
+
+public void AddActivity(Activity activity)
+{
+    // reglas del dominio
+    _activities.Add(activity);
+}
+```
+
+Eso te da **encapsulamiento + control del agregado + protección de invariantes**, que es mucho más importante en DDD que simplemente elegir una interfaz de colección.

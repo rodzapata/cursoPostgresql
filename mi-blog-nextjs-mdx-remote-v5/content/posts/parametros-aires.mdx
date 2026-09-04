@@ -472,9 +472,9 @@ Si quieres, en el siguiente paso podemos convertir **esta fórmula exactamente e
 
 **Consecuencia de lecturas fuera del rango**
 
-* **Amperaje bajo en las 3 fases (< 50% RLA):** Indica falta de refrigerante (fuga) o baja carga de trabajo mecánica.
-* **Amperaje alto en las 3 fases (> RLA):** Condensador sucio, motor del ventilador exterior detenido, exceso de refrigerante o problema mecánico interno.
-* **Desbalance > 5% - 10%:** Caída o desbalance de voltaje en la red eléctrica, contactor desgastado/sulfatado o daño inminente en los devanados del compresor. 
+* **Amperaje bajo en las 3 fases (`< ` 50% RLA):** Indica falta de refrigerante (fuga) o baja carga de trabajo mecánica.
+* **Amperaje alto en las 3 fases (`>` RLA):** Condensador sucio, motor del ventilador exterior detenido, exceso de refrigerante o problema mecánico interno.
+* **Desbalance `>` 5% - 10%:** Caída o desbalance de voltaje en la red eléctrica, contactor desgastado/sulfatado o daño inminente en los devanados del compresor. 
 
 > explicame Compresor #1 Lectura de Presión (PSI) succión - descarga ?
 
@@ -483,7 +483,6 @@ La lectura de presión de **succión y descarga** en PSI (*Pounds per Square Inc
 
 Sirve para verificar el "corazón" del sistema de refrigeración: la **succión** indica la presión del gas frío que regresa del evaporador (lado de baja presión), mientras que la **descarga** mide la presión del gas caliente y comprimido que sale hacia el condensador (lado de alta presión).
 
----
 
 **Definición de las mediciones**
 
@@ -496,9 +495,6 @@ Sirve para verificar el "corazón" del sistema de refrigeración: la **succión*
 * Se mide con el manómetro rojo (*L. Descarga*) en el puerto de servicio de la tubería más delgada o directamente a la salida del compresor.
 * Refleja la capacidad del condensador para expulsar el calor al exterior.
 
-
-
----
 
 **Valores de referencia típicos según el refrigerante**
 
@@ -523,3 +519,402 @@ Los valores exactos dependen de la temperatura ambiente y del tipo de gas refrig
 | **Alta** | **Baja** | Compresor descompresionado (válvulas internas rotas o desgaste mecánico; no logra comprimir). |  
 
 
+> Configuracion de respuetas segun DDD 
+
+Sí. Y aquí hay una decisión de diseño **muy importante en DDD**: yo no crearía una estructura de respuesta diferente por cada actividad.
+
+La actividad debería definir **qué tipo de respuesta espera**, y una entidad genérica de `RespuestaActividad` debería almacenar el valor correspondiente.
+
+Por ejemplo:
+
+| Actividad              | Tipo de respuesta | Respuesta            |
+| ---------------------- | ----------------- | -------------------- |
+| Lectura de Amperaje RS | Decimal           | 18.5 A               |
+| Lectura de Amperaje RT | Decimal           | 18.7 A               |
+| Lectura de Amperaje ST | Decimal           | 18.4 A               |
+| Chequeo ventilador     | Boolean           | `true`               |
+| Presión descarga PSI   | Decimal           | 325.5                |
+| Observación del equipo | Texto             | "Presenta vibración" |
+
+### Mi recomendación para tu modelo
+
+Separaría **Actividad**, **Tipo de respuesta** y **Respuesta registrada**.
+
+```text
+Actividad
+   │
+   ├── TipoRespuesta
+   ├── UnidadMedida
+   └── ...
+        │
+        ▼
+RespuestaActividad
+   ├── ValorNumerico
+   ├── ValorBooleano
+   ├── ValorTexto
+   └── ...
+```
+
+Por ejemplo:
+
+```csharp
+public enum TipoRespuesta
+{
+    Numerica,
+    Boolean,
+    Texto
+}
+```
+
+Y tu actividad podría tener:
+
+```csharp
+public class Actividad
+{
+    public Guid Id { get; private set; }
+
+    public string Nombre { get; private set; }
+
+    public TipoRespuesta TipoRespuesta { get; private set; }
+
+    public string? UnidadMedida { get; private set; }
+}
+```
+
+Entonces:
+
+```text
+Actividad:
+"Presión descarga"
+
+TipoRespuesta:
+Numerica
+
+UnidadMedida:
+PSI
+```
+
+Mientras que:
+
+```text
+Actividad:
+"Chequeo ventilador"
+
+TipoRespuesta:
+Boolean
+```
+
+---
+
+## ¿Y qué hacemos con RS - RT - ST?
+
+Aquí está la parte interesante.
+
+Yo **no modelaría**:
+
+```text
+AmperajeRS
+AmperajeRT
+AmperajeST
+```
+
+como columnas de la tabla de respuestas.
+
+Porque mañana podrías tener:
+
+```text
+R-S-T
+R-N
+S-N
+T-N
+```
+
+o una medición de:
+
+```text
+Temperatura entrada
+Temperatura salida
+Temperatura ambiente
+```
+
+y terminarías agregando columnas constantemente.
+
+En DDD es mejor modelar que una actividad puede tener **varios puntos de respuesta**.
+
+Por ejemplo:
+
+```text
+Actividad
+   "Lectura de Amperaje Compresor #1"
+          │
+          ├── RS → 18.5 A
+          ├── RT → 18.7 A
+          └── ST → 18.4 A
+```
+
+Puedes crear un concepto como `ParametroRespuesta` o `ItemActividad`.
+
+```csharp
+public class Actividad
+{
+    public Guid Id { get; private set; }
+
+    public string Nombre { get; private set; }
+
+    private readonly List<CampoActividad> _campos = [];
+
+    public IReadOnlyCollection<CampoActividad> Campos => _campos;
+}
+```
+
+Y:
+
+```csharp
+public class CampoActividad
+{
+    public Guid Id { get; private set; }
+
+    public string Nombre { get; private set; }
+
+    public TipoRespuesta TipoRespuesta { get; private set; }
+
+    public string? UnidadMedida { get; private set; }
+}
+```
+
+Así defines:
+
+```text
+Actividad:
+Lectura de Amperaje - Compresor #1
+
+Campos:
+
+RS → Numérico → A
+RT → Numérico → A
+ST → Numérico → A
+```
+
+Pero otra actividad:
+
+```text
+Chequeo ventilador
+
+Campos:
+
+Estado → Boolean
+```
+
+Y:
+
+```text
+Presión descarga
+
+Campos:
+
+Presión → Numérico → PSI
+```
+
+---
+
+# La respuesta registrada
+
+Ahora sí puedes tener una entidad genérica:
+
+```csharp
+public class RespuestaActividad
+{
+    public Guid Id { get; private set; }
+
+    public Guid CampoActividadId { get; private set; }
+
+    public decimal? ValorNumerico { get; private set; }
+
+    public bool? ValorBooleano { get; private set; }
+
+    public string? ValorTexto { get; private set; }
+}
+```
+
+De esta manera **no necesitas tres tablas diferentes**:
+
+```text
+RespuestaNumerica
+RespuestaBoolean
+RespuestaTexto
+```
+
+ni tampoco crear columnas como:
+
+```text
+RS
+RT
+ST
+PresionDescarga
+ChequeoVentilador
+TemperaturaEntrada
+...
+```
+
+La estructura queda mucho más flexible.
+
+---
+
+## Ejemplo completo
+
+Supongamos que tienes una orden de mantenimiento:
+
+```text
+Orden #1001
+       │
+       └── Actividades
+              │
+              ├── Lectura amperaje Compresor #1
+              │       ├── RS → 18.5 A
+              │       ├── RT → 18.7 A
+              │       └── ST → 18.4 A
+              │
+              ├── Chequeo ventilador
+              │       └── Estado → true
+              │
+              └── Presión descarga
+                      └── Presión → 325 PSI
+```
+
+En una base de datos podrías terminar teniendo algo conceptualmente así:
+
+### Actividad
+
+```text
+Id       Nombre
+------------------------------------------------
+1        Lectura amperaje Compresor #1
+2        Chequeo ventilador
+3        Presión descarga
+```
+
+### CampoActividad
+
+```text
+Id       ActividadId    Nombre    Tipo       Unidad
+------------------------------------------------------
+11       1              RS        Numerico   A
+12       1              RT        Numerico   A
+13       1              ST        Numerico   A
+14       2              Estado    Boolean    NULL
+15       3              Presion   Numerico   PSI
+```
+
+### RespuestaActividad
+
+```text
+Id       CampoId    ValorNumerico    ValorBooleano    ValorTexto
+-----------------------------------------------------------------
+101      11         18.5             NULL             NULL
+102      12         18.7             NULL             NULL
+103      13         18.4             NULL             NULL
+104      14         NULL             true             NULL
+105      15         325              NULL             NULL
+```
+
+---
+
+# Pero haría una pequeña mejora para tu dominio HVAC
+
+En tu caso, **no pondría `Compresor #1` dentro del nombre de la actividad**.
+
+Es mejor separar:
+
+```text
+Equipo
+   Compresor #1
+
+Actividad
+   Lectura de amperaje
+
+CampoActividad
+   RS
+   RT
+   ST
+```
+
+Porque la misma actividad puede ejecutarse sobre:
+
+```text
+Compresor #1
+Compresor #2
+Compresor #3
+```
+
+Entonces:
+
+```text
+Equipo: Compresor #1
+Actividad: Lectura de amperaje
+   RS = 18.5 A
+   RT = 18.7 A
+   ST = 18.4 A
+```
+
+y:
+
+```text
+Equipo: Compresor #2
+Actividad: Lectura de amperaje
+   RS = 21.2 A
+   RT = 21.0 A
+   ST = 21.4 A
+```
+
+Eso encaja mucho mejor con DDD porque estás separando **qué se hace** de **sobre qué equipo se hace** y de **qué resultado produjo**.
+
+### En resumen
+
+Yo iría hacia este modelo:
+
+```text
+Actividad
+    │
+    └── CampoActividad
+             │
+             ├── TipoRespuesta
+             └── UnidadMedida
+
+Equipo
+    │
+    └── EjecuciónActividad
+             │
+             └── RespuestaActividad
+                       │
+                       ├── ValorNumerico
+                       ├── ValorBooleano
+                       └── ValorTexto
+```
+
+Y **no** hacia una tabla con una columna por cada posible respuesta.
+
+Este diseño además te permitirá posteriormente manejar fácilmente actividades como:
+
+```text
+Temperatura de retorno
+    → Numérico → °C
+
+Temperatura de suministro
+    → Numérico → °C
+
+¿Filtro limpio?
+    → Boolean
+
+Estado del aislamiento
+    → Texto
+
+Presión succión
+    → Numérico → PSI
+
+Voltaje
+    → RS → Numérico → V
+    → RT → Numérico → V
+    → ST → Numérico → V
+```
+
+Si quieres, el siguiente paso sería diseñar **las entidades `Actividad`, `CampoActividad`, `EjecucionActividad` y `RespuestaActividad` completas en C# 14/.NET 10 siguiendo DDD + Clean Architecture + EF Core 10**, incluyendo cómo quedarían las tablas SQL.

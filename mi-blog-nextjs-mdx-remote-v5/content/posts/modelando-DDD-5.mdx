@@ -1,0 +1,1054 @@
+---
+title: "Modelando DDD parte 5 Tipo de Respuesta falso o verdadero"
+date: "2026-09-10"
+description: "Las respuestas que bolean ahora son: Correcto, No correcto, No aplica"
+slug: "modelando-DDD-5"
+category: "clean Arquitecture"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+
+
+> en las respuesta que teniamos como logico falso o verdadero ahora hay que agregar una tercera opcion, osea que ahora quedaria de la siguiente forma: Corrrecto, NO correcto, No aplica en preguntas como: Ajuste de tortillería, como quedaria ahora el tipo de respuesta ?
+
+
+Exactamente. En ese caso **ya no es correcto modelarlo como `bool`**, porque `true/false` solamente representa dos estados.
+
+Para una pregunta como:
+
+> **Ajuste de tornillería**
+
+tienes tres resultados de negocio:
+
+```text
+Correcto
+No correcto
+No aplica
+```
+
+Yo lo modelaría como un **tipo de respuesta de selección/estado**, no como booleano.
+
+### 1. Crear un tipo específico
+
+En C# 14 puedes comenzar sencillamente con un `enum`:
+
+```csharp
+public enum ResultadoInspeccion
+{
+    Correcto = 1,
+    NoCorrecto = 2,
+    NoAplica = 3
+}
+```
+
+Entonces el parámetro de respuesta sería:
+
+```csharp
+public class ParametroRespuesta
+{
+    public Guid Id { get; private set; }
+
+    public string Nombre { get; private set; }
+
+    public TipoDatoRespuesta TipoDato { get; private set; }
+
+    public string? Unidad { get; private set; }
+
+    public bool Obligatorio { get; private set; }
+
+    public int Orden { get; private set; }
+
+    // ...
+}
+```
+
+Y `TipoDatoRespuesta` podría evolucionar a:
+
+```csharp
+public enum TipoDatoRespuesta
+{
+    Boolean = 1,
+    Decimal = 2,
+    Entero = 3,
+    Texto = 4,
+    ResultadoInspeccion = 5
+}
+```
+
+Pero aquí haría una **mejora de diseño importante**.
+
+---
+
+## 2. No llamaría a esto `Boolean`
+
+En nuestro modelo anterior teníamos:
+
+```text
+Boolean
+Decimal
+Entero
+Texto
+```
+
+Ahora tenemos:
+
+```text
+ResultadoInspeccion
+```
+
+porque:
+
+```text
+Correcto
+NoCorrecto
+NoAplica
+```
+
+no significa realmente:
+
+> verdadero/falso.
+
+Representa un **resultado de inspección**.
+
+Por ejemplo:
+
+```text
+Pregunta:
+"Ajuste de tornillería"
+
+Respuesta:
+ResultadoInspeccion.Correcto
+```
+
+o:
+
+```text
+ResultadoInspeccion.NoCorrecto
+```
+
+o:
+
+```text
+ResultadoInspeccion.NoAplica
+```
+
+---
+
+# 3. Pero hay una cuestión más importante
+
+Yo no limitaría `TipoDatoRespuesta` únicamente a los tipos de C#.
+
+Porque en tu sistema HVAC realmente estás describiendo **tipos de respuesta del negocio**.
+
+Por ejemplo:
+
+| Actividad              | Tipo de respuesta    |
+| ---------------------- | -------------------- |
+| Ajuste de tornillería  | Resultado inspección |
+| ¿Equipo encendido?     | Sí/No                |
+| Presión de descarga    | Decimal              |
+| Temperatura de retorno | Decimal              |
+| Observaciones          | Texto                |
+| Amperaje RS/RT/ST      | Decimal compuesto    |
+
+Entonces podríamos tener:
+
+```csharp
+public enum TipoRespuesta
+{
+    SiNo = 1,
+    ResultadoInspeccion = 2,
+    Decimal = 3,
+    Entero = 4,
+    Texto = 5,
+    Compuesta = 6
+}
+```
+
+Esto me parece **más apropiado para tu dominio** que llamarlo `TipoDatoRespuesta`.
+
+Porque el sistema no está simplemente preguntando:
+
+> ¿Qué tipo de dato C# voy a guardar?
+
+Está preguntando:
+
+> **¿Qué clase de respuesta espera esta actividad?**
+
+---
+
+# 4. ¿Y qué hacemos con `No aplica`?
+
+Aquí aparece una distinción muy importante.
+
+`No aplica` **no es lo mismo que una respuesta vacía o `null`**.
+
+Por ejemplo:
+
+### Caso 1
+
+```text
+Ajuste de tornillería
+→ Correcto
+```
+
+Significa:
+
+> La actividad fue aplicable y estaba correcta.
+
+### Caso 2
+
+```text
+Ajuste de tornillería
+→ No correcto
+```
+
+Significa:
+
+> La actividad era aplicable pero se encontró un problema.
+
+### Caso 3
+
+```text
+Ajuste de tornillería
+→ No aplica
+```
+
+Significa:
+
+> La actividad no corresponde a ese equipo o situación.
+
+Por eso **no recomiendo utilizar `null` para representar `No aplica`**.
+
+---
+
+# 5. Esto incluso puede tener reglas de dominio
+
+Por ejemplo:
+
+```csharp
+public enum ResultadoInspeccion
+{
+    Correcto = 1,
+    NoCorrecto = 2,
+    NoAplica = 3
+}
+```
+
+Podríamos posteriormente agregar comportamiento:
+
+```csharp
+public static bool EsConforme(
+    ResultadoInspeccion resultado)
+{
+    return resultado == ResultadoInspeccion.Correcto
+        || resultado == ResultadoInspeccion.NoAplica;
+}
+```
+
+Aunque aquí habría que analizar la regla real del negocio: en algunos procesos `No aplica` puede significar que la actividad no debe evaluarse, no necesariamente que el equipo sea "conforme".
+
+---
+
+# 6. Y esto encaja muy bien con nuestro modelo anterior
+
+Tendríamos:
+
+```text
+ActividadCatalogo
+│
+└── ParámetrosRespuesta
+       │
+       ├── Tipo: ResultadoInspeccion
+       │
+       └── Nombre: "Estado del ajuste"
+```
+
+Y cuando el técnico realiza la actividad:
+
+```text
+ActividadRealizada
+│
+└── Medicion
+       │
+       └── ValorRespuesta
+              │
+              └── ResultadoInspeccion.NoCorrecto
+```
+
+Por ejemplo:
+
+```text
+┌───────────────────────────────┐
+│ Actividad                     │
+│ Ajuste de tornillería         │
+├───────────────────────────────┤
+│ Resultado                     │
+│ No correcto                   │
+└───────────────────────────────┘
+```
+
+---
+
+## 7. Incluso podríamos tener más opciones posteriormente
+
+Y esta es precisamente la razón por la que **no usaría `bool`**.
+
+Hoy:
+
+```text
+Correcto
+No correcto
+No aplica
+```
+
+Mañana el negocio podría necesitar:
+
+```text
+Correcto
+No correcto
+No aplica
+Pendiente
+Corregido
+```
+
+o incluso:
+
+```text
+Bueno
+Regular
+Malo
+No aplica
+```
+
+Eso ya no es un booleano.
+
+---
+
+### Mi recomendación para tu modelo
+
+Por ahora lo dejaría así:
+
+```csharp
+public enum TipoRespuesta
+{
+    SiNo = 1,
+    ResultadoInspeccion = 2,
+    Decimal = 3,
+    Entero = 4,
+    Texto = 5,
+    Compuesta = 6
+}
+```
+
+y:
+
+```csharp
+public enum ResultadoInspeccion
+{
+    Correcto = 1,
+    NoCorrecto = 2,
+    NoAplica = 3
+}
+```
+
+**Pero hay un detalle que vale la pena resolver antes de continuar con `ValorRespuesta`:** tu catálogo probablemente tendrá otros tipos como *Bueno/Regular/Malo*, *Abierto/Cerrado*, *Sí/No*, etc. En ese punto veremos que un `enum` C# diferente para cada pregunta puede empezar a quedarse corto.
+
+La solución más flexible para tu HVAC sería permitir que **el catálogo defina las opciones de respuesta** (`Correcto`, `No correcto`, `No aplica`, etc.), en lugar de tener que modificar el código C# cada vez que aparezca un nuevo conjunto de opciones. Esa sería la siguiente pieza que yo diseñaría antes de cerrar definitivamente `ValorRespuesta`.
+
+
+> continuemos creandos las clases en charp 14 de nuestro proyecto HVAC
+
+Perfecto. Continuemos desde donde quedamos, pero voy a hacer un pequeño ajuste respecto a la propuesta anterior: **no vamos a crear todavía un `ValorRespuesta` lleno de propiedades como `ValorBoolean`, `ValorDecimal`, `ValorTexto`, etc.** Primero vamos a construir correctamente el modelo de dominio.
+
+La estructura que propongo para nuestro proyecto HVAC queda así:
+
+```text
+                    ┌──────────────────────┐
+                    │  ActividadCatalogo   │
+                    │   Aggregate Root     │
+                    └──────────┬───────────┘
+                               │
+                 ┌─────────────┴─────────────┐
+                 │                           │
+        ParámetrosRespuesta          EtapasConfiguradas
+                 │
+                 │
+                 ▼
+       ┌──────────────────────┐
+       │ ParametroRespuesta   │
+       └──────────────────────┘
+
+
+                    ┌──────────────────────┐
+                    │ OrdenMantenimiento   │
+                    │   Aggregate Root     │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │ ActividadRealizada   │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │       Medicion       │
+                    │  Antes / Después     │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │   ValorRespuesta     │
+                    └──────────────────────┘
+```
+
+Vamos por partes.
+
+---
+
+# 8. `TipoRespuesta`
+
+Primero definimos los tipos de respuesta que nuestro sistema soporta.
+
+```csharp
+namespace TribuSoft.Domain.Enums;
+
+public enum TipoRespuesta
+{
+    SiNo = 1,
+
+    ResultadoInspeccion = 2,
+
+    Decimal = 3,
+
+    Entero = 4,
+
+    Texto = 5,
+
+    Compuesta = 6
+}
+```
+
+Por ejemplo:
+
+| Pregunta              | TipoRespuesta         |
+| --------------------- | --------------------- |
+| ¿Equipo encendido?    | `SiNo`                |
+| Ajuste de tornillería | `ResultadoInspeccion` |
+| Presión de descarga   | `Decimal`             |
+| Cantidad de filtros   | `Entero`              |
+| Observaciones         | `Texto`               |
+| Amperaje RS/RT/ST     | `Compuesta`           |
+
+---
+
+# 9. `ResultadoInspeccion`
+
+Para la pregunta:
+
+> Ajuste de tornillería
+
+tenemos:
+
+```csharp
+namespace TribuSoft.Domain.Enums;
+
+public enum ResultadoInspeccion
+{
+    Correcto = 1,
+
+    NoCorrecto = 2,
+
+    NoAplica = 3
+}
+```
+
+Esto es diferente de:
+
+```csharp
+bool
+```
+
+porque tenemos tres estados.
+
+---
+
+# 10. `EtapaMantenimiento`
+
+Ahora incorporamos el concepto que acabamos de discutir:
+
+```csharp
+namespace TribuSoft.Domain.Enums;
+
+public enum EtapaMantenimiento
+{
+    Antes = 1,
+
+    Despues = 2
+}
+```
+
+Por ejemplo:
+
+```text
+Lectura amperaje
+    │
+    ├── Antes
+    │
+    └── Después
+```
+
+---
+
+# 11. `ParametroRespuesta`
+
+Ahora creamos la definición de **qué debe responder el técnico**.
+
+```csharp
+using TribuSoft.Domain.Enums;
+
+namespace TribuSoft.Domain.Entities;
+
+public class ParametroRespuesta
+{
+    public Guid Id { get; private set; }
+
+    public string Nombre { get; private set; } = null!;
+
+    public TipoRespuesta TipoRespuesta { get; private set; }
+
+    public string? Unidad { get; private set; }
+
+    public bool Obligatorio { get; private set; }
+
+    public int Orden { get; private set; }
+
+    private ParametroRespuesta()
+    {
+    }
+
+    public ParametroRespuesta(
+        string nombre,
+        TipoRespuesta tipoRespuesta,
+        string? unidad,
+        bool obligatorio,
+        int orden)
+    {
+        if (string.IsNullOrWhiteSpace(nombre))
+            throw new ArgumentException(
+                "El nombre del parámetro es obligatorio.",
+                nameof(nombre));
+
+        if (orden < 1)
+            throw new ArgumentOutOfRangeException(
+                nameof(orden));
+
+        Id = Guid.NewGuid();
+        Nombre = nombre;
+        TipoRespuesta = tipoRespuesta;
+        Unidad = unidad;
+        Obligatorio = obligatorio;
+        Orden = orden;
+    }
+}
+```
+
+### Ejemplo
+
+Para:
+
+> Presión de descarga
+
+tendríamos:
+
+```csharp
+new ParametroRespuesta(
+    "Presión de descarga",
+    TipoRespuesta.Decimal,
+    "PSI",
+    true,
+    1);
+```
+
+Para amperaje:
+
+```text
+RS → Decimal → A
+RT → Decimal → A
+ST → Decimal → A
+```
+
+---
+
+# 12. `EtapaActividad`
+
+Ahora definimos qué etapas requiere una actividad.
+
+```csharp
+using TribuSoft.Domain.Enums;
+
+namespace TribuSoft.Domain.Entities;
+
+public class EtapaActividad
+{
+    public Guid Id { get; private set; }
+
+    public EtapaMantenimiento Etapa { get; private set; }
+
+    private EtapaActividad()
+    {
+    }
+
+    public EtapaActividad(
+        EtapaMantenimiento etapa)
+    {
+        Id = Guid.NewGuid();
+        Etapa = etapa;
+    }
+}
+```
+
+Entonces:
+
+```text
+Actividad:
+Lectura amperaje compresor #1
+
+Etapas:
+    Antes
+    Después
+```
+
+---
+
+# 13. `ActividadCatalogo`
+
+Ahora podemos construir nuestro primer Aggregate Root.
+
+```csharp
+using TribuSoft.Domain.Enums;
+
+namespace TribuSoft.Domain.Entities;
+
+public class ActividadCatalogo
+{
+    public Guid Id { get; private set; }
+
+    public string Nombre { get; private set; } = null!;
+
+    public string? Descripcion { get; private set; }
+
+    private readonly List<ParametroRespuesta> _parametrosRespuesta = [];
+
+    public IReadOnlyCollection<ParametroRespuesta>
+        ParametrosRespuesta =>
+        _parametrosRespuesta.AsReadOnly();
+
+    private readonly List<EtapaActividad> _etapas = [];
+
+    public IReadOnlyCollection<EtapaActividad>
+        Etapas =>
+        _etapas.AsReadOnly();
+
+    private ActividadCatalogo()
+    {
+    }
+
+    public ActividadCatalogo(
+        string nombre,
+        string? descripcion = null)
+    {
+        if (string.IsNullOrWhiteSpace(nombre))
+            throw new ArgumentException(
+                "El nombre de la actividad es obligatorio.",
+                nameof(nombre));
+
+        Id = Guid.NewGuid();
+        Nombre = nombre;
+        Descripcion = descripcion;
+    }
+
+    public void AgregarParametro(
+        ParametroRespuesta parametro)
+    {
+        ArgumentNullException.ThrowIfNull(parametro);
+
+        if (_parametrosRespuesta.Any(
+                p => p.Nombre.Equals(
+                    parametro.Nombre,
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new DomainException(
+                $"El parámetro '{parametro.Nombre}' ya existe.");
+        }
+
+        _parametrosRespuesta.Add(parametro);
+    }
+
+    public void AgregarEtapa(
+        EtapaMantenimiento etapa)
+    {
+        if (_etapas.Any(e => e.Etapa == etapa))
+        {
+            throw new DomainException(
+                $"La etapa '{etapa}' ya está configurada.");
+        }
+
+        _etapas.Add(
+            new EtapaActividad(etapa));
+    }
+}
+```
+
+Aquí estamos aplicando algo importante:
+
+```csharp
+private readonly List<ParametroRespuesta> _parametrosRespuesta = [];
+```
+
+pero afuera solamente exponemos:
+
+```csharp
+IReadOnlyCollection<ParametroRespuesta>
+```
+
+Por lo tanto, el consumidor no puede modificar directamente la colección.
+
+Debe utilizar:
+
+```csharp
+actividad.AgregarParametro(...);
+```
+
+Eso protege las reglas del Aggregate.
+
+---
+
+# 14. Necesitamos nuestra excepción de dominio
+
+En el código anterior usamos:
+
+```csharp
+DomainException
+```
+
+La podemos crear:
+
+```csharp
+namespace TribuSoft.Domain.Exceptions;
+
+public class DomainException : Exception
+{
+    public DomainException(string message)
+        : base(message)
+    {
+    }
+}
+```
+
+Y agregamos:
+
+```csharp
+using TribuSoft.Domain.Exceptions;
+```
+
+a `ActividadCatalogo`.
+
+---
+
+# 15. Ahora viene `ActividadRealizada`
+
+Esta representa la ejecución de una actividad específica.
+
+```csharp
+namespace TribuSoft.Domain.Entities;
+
+public class ActividadRealizada
+{
+    public Guid Id { get; private set; }
+
+    public Guid ActividadCatalogoId { get; private set; }
+
+    private readonly List<Medicion> _mediciones = [];
+
+    public IReadOnlyCollection<Medicion> Mediciones =>
+        _mediciones.AsReadOnly();
+
+    private ActividadRealizada()
+    {
+    }
+
+    public ActividadRealizada(
+        Guid actividadCatalogoId)
+    {
+        if (actividadCatalogoId == Guid.Empty)
+            throw new ArgumentException(
+                "La actividad de catálogo es obligatoria.",
+                nameof(actividadCatalogoId));
+
+        Id = Guid.NewGuid();
+
+        ActividadCatalogoId =
+            actividadCatalogoId;
+    }
+
+    public void AgregarMedicion(
+        Medicion medicion)
+    {
+        ArgumentNullException.ThrowIfNull(medicion);
+
+        if (_mediciones.Any(
+                m => m.Etapa == medicion.Etapa))
+        {
+            throw new DomainException(
+                $"Ya existe una medición para la etapa '{medicion.Etapa}'.");
+        }
+
+        _mediciones.Add(medicion);
+    }
+}
+```
+
+Aquí aparece una regla interesante:
+
+```csharp
+if (_mediciones.Any(
+    m => m.Etapa == medicion.Etapa))
+```
+
+Estamos diciendo:
+
+> No puede haber dos mediciones `Antes` para la misma actividad realizada.
+
+Pero **ojo**: esta regla solamente será correcta si nuestro negocio realmente establece una medición por etapa.
+
+Si posteriormente descubrimos que puede haber:
+
+```text
+Antes 1
+Antes 2
+Después 1
+Después 2
+```
+
+tendremos que modificar esta regla.
+
+Esto es precisamente por lo que estamos diseñando el dominio antes de hacer las tablas.
+
+---
+
+# 16. `Medicion`
+
+Ahora:
+
+```csharp
+using TribuSoft.Domain.Enums;
+
+namespace TribuSoft.Domain.Entities;
+
+public class Medicion
+{
+    public Guid Id { get; private set; }
+
+    public EtapaMantenimiento Etapa { get; private set; }
+
+    private readonly List<ValorRespuesta> _valores = [];
+
+    public IReadOnlyCollection<ValorRespuesta> Valores =>
+        _valores.AsReadOnly();
+
+    private Medicion()
+    {
+    }
+
+    public Medicion(
+        EtapaMantenimiento etapa)
+    {
+        Id = Guid.NewGuid();
+
+        Etapa = etapa;
+    }
+
+    public void AgregarValor(
+        ValorRespuesta valor)
+    {
+        ArgumentNullException.ThrowIfNull(valor);
+
+        if (_valores.Any(
+                v => v.ParametroRespuestaId ==
+                     valor.ParametroRespuestaId))
+        {
+            throw new DomainException(
+                "Ya existe una respuesta para este parámetro.");
+        }
+
+        _valores.Add(valor);
+    }
+}
+```
+
+Ahora nuestra estructura queda:
+
+```text
+ActividadRealizada
+│
+├── Medición ANTES
+│     ├── RS
+│     ├── RT
+│     └── ST
+│
+└── Medición DESPUÉS
+      ├── RS
+      ├── RT
+      └── ST
+```
+
+---
+
+# 17. `ValorRespuesta`
+
+Aquí tenemos que tomar una decisión importante.
+
+Para mantener el modelo sencillo inicialmente:
+
+```csharp
+namespace TribuSoft.Domain.Entities;
+
+public class ValorRespuesta
+{
+    public Guid Id { get; private set; }
+
+    public Guid ParametroRespuestaId { get; private set; }
+
+    public string Valor { get; private set; } = null!;
+
+    private ValorRespuesta()
+    {
+    }
+
+    public ValorRespuesta(
+        Guid parametroRespuestaId,
+        string valor)
+    {
+        if (parametroRespuestaId == Guid.Empty)
+            throw new ArgumentException(
+                "El parámetro es obligatorio.",
+                nameof(parametroRespuestaId));
+
+        if (string.IsNullOrWhiteSpace(valor))
+            throw new ArgumentException(
+                "El valor es obligatorio.",
+                nameof(valor));
+
+        Id = Guid.NewGuid();
+
+        ParametroRespuestaId =
+            parametroRespuestaId;
+
+        Valor = valor;
+    }
+}
+```
+
+**Pero no considero esta versión definitiva.**
+
+¿Por qué?
+
+Porque ahora tenemos:
+
+```text
+Valor = "20.1"
+Valor = "Correcto"
+Valor = "No aplica"
+Valor = "Observación..."
+```
+
+Todo como `string`.
+
+Eso funciona técnicamente, pero perdemos parte de la seguridad del dominio.
+
+---
+
+# 18. El siguiente paso importante
+
+Tenemos dos caminos:
+
+### Opción A — valor tipado
+
+```text
+ValorBoolean
+ValorDecimal
+ValorEntero
+ValorTexto
+```
+
+### Opción B — Value Objects / polimorfismo
+
+Algo conceptualmente así:
+
+```text
+ValorRespuesta
+    │
+    ├── ValorBoolean
+    ├── ValorDecimal
+    ├── ValorEntero
+    ├── ValorTexto
+    └── ValorResultadoInspeccion
+```
+
+Para tu proyecto **me inclino por la opción B**, pero no quiero implementarla todavía sin analizar cómo queremos persistirla con EF Core 10.
+
+Además, tenemos otro punto que debemos resolver antes de cerrar el modelo:
+
+> **`Correcto / No correcto / No aplica` no necesariamente debería ser un `enum` fijo.**
+
+Como ya vimos, mañana podrías tener:
+
+```text
+Bueno
+Regular
+Malo
+No aplica
+```
+
+o:
+
+```text
+Sí
+No
+No aplica
+```
+
+y no sería buena práctica tener que modificar el código C# cada vez que el administrador cree una nueva opción.
+
+Por eso el siguiente paso natural sería crear:
+
+```text
+TipoRespuesta
+       │
+       └── OpcionesRespuesta
+               │
+               ├── Correcto
+               ├── No correcto
+               └── No aplica
+```
+
+De esa manera **las opciones pertenecen al catálogo de actividades y no al código C#**.
+
+Y esto nos permitirá modelar correctamente tanto:
+
+```text
+Ajuste de tornillería
+→ Correcto / No correcto / No aplica
+```
+
+como:
+
+```text
+Estado filtro
+→ Limpio / Sucio / No aplica
+```
+
+sin crear un nuevo `enum` para cada caso.

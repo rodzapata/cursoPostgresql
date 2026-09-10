@@ -1,0 +1,1187 @@
+---
+title: "Record en CSharp"
+date: "2026-09-09"
+description: "Uso de Record en DTO hoy en el 2026"
+slug: "record-csharp"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Claro. Para tu proyecto de **mantenimiento HVAC**, los `record` son especialmente interesantes porque encajan muy bien con **DTOs, Value Objects y objetos inmutables** de DDD.
+
+La idea importante es esta:
+
+> **Un `record` representa principalmente datos cuyo valor importa más que su identidad.**
+
+Eso lo hace muy apropiado para muchos **Value Objects** y **DTOs**, pero no necesariamente para **Entities**.
+
+---
+
+# 1. ¿Qué es un `record`?
+
+En C# un `record` es un tipo diseñado para trabajar con **datos y valores**, especialmente cuando queremos:
+
+* inmutabilidad
+* comparación por valor
+* sintaxis compacta
+* objetos que representan información
+* facilidad para crear nuevas copias modificadas
+
+Por ejemplo:
+
+```csharp
+public record Person(
+    string Name,
+    string LastName);
+```
+
+Podemos crear:
+
+```csharp
+var person1 = new Person("Rodney", "Zapata");
+```
+
+Y acceder:
+
+```csharp
+Console.WriteLine(person1.Name);
+Console.WriteLine(person1.LastName);
+```
+
+---
+
+# 2. `record` vs `class`
+
+Esta es la primera diferencia fundamental.
+
+Con una `class`:
+
+```csharp
+public class Person
+{
+    public string Name { get; set; }
+    public string LastName { get; set; }
+}
+```
+
+Tenemos:
+
+```csharp
+var person1 = new Person
+{
+    Name = "Rodney",
+    LastName = "Zapata"
+};
+
+var person2 = new Person
+{
+    Name = "Rodney",
+    LastName = "Zapata"
+};
+
+Console.WriteLine(person1 == person2);
+```
+
+Resultado:
+
+```text
+False
+```
+
+¿Por qué?
+
+Porque las clases normalmente se comparan por **referencia**.
+
+---
+
+Con `record`:
+
+```csharp
+public record Person(
+    string Name,
+    string LastName);
+```
+
+Tenemos:
+
+```csharp
+var person1 = new Person("Rodney", "Zapata");
+var person2 = new Person("Rodney", "Zapata");
+
+Console.WriteLine(person1 == person2);
+```
+
+Resultado:
+
+```text
+True
+```
+
+Porque los `record` utilizan **igualdad por valor**.
+
+Es decir:
+
+```text
+Person 1
+Name = Rodney
+LastName = Zapata
+
+        ↓
+
+mismo valor
+
+        ↓
+
+Person 2
+Name = Rodney
+LastName = Zapata
+```
+
+---
+
+# 3. ¿Por qué esto es importante en DDD?
+
+Aquí aparece una conexión muy importante con DDD.
+
+DDD diferencia entre:
+
+**Entity**
+
+Tiene **identidad**.
+
+Por ejemplo:
+
+```text
+Equipment
+Id = 125
+```
+
+Aunque cambie su nombre:
+
+```text
+Equipment
+Id = 125
+Name = Compresor #1
+```
+
+sigue siendo el mismo equipo.
+
+---
+
+**Value Object**
+
+No tiene identidad propia.
+
+Su importancia está en sus **valores**.
+
+Por ejemplo:
+
+```text
+Voltage
+220 V
+```
+
+Si tenemos:
+
+```text
+Voltage(220)
+```
+
+y:
+
+```text
+Voltage(220)
+```
+
+son conceptualmente el mismo valor.
+
+Aquí un `record` resulta muy natural.
+
+---
+
+# 4. `record` como Value Object
+
+Por ejemplo, en tu sistema HVAC podemos representar una tensión:
+
+```csharp
+public record Voltage(decimal Value);
+```
+
+Uso:
+
+```csharp
+var voltage1 = new Voltage(220);
+var voltage2 = new Voltage(220);
+
+Console.WriteLine(voltage1 == voltage2);
+```
+
+Resultado:
+
+```text
+True
+```
+
+Esto expresa muy bien el concepto de DDD:
+
+> La identidad de `Voltage` no importa. Importa su valor.
+
+---
+
+# 5. Pero todavía tenemos un problema
+
+Esto:
+
+```csharp
+public record Voltage(decimal Value);
+```
+
+permite:
+
+```csharp
+var voltage = new Voltage(-500);
+```
+
+Desde el punto de vista del lenguaje es válido.
+
+Pero desde el dominio HVAC probablemente no tenga sentido.
+
+Aquí debemos introducir **reglas de dominio**.
+
+Por ejemplo:
+
+```csharp
+public sealed record Voltage
+{
+    public decimal Value { get; }
+
+    public Voltage(decimal value)
+    {
+        if (value <= 0)
+            throw new ArgumentException(
+                "El voltaje debe ser mayor que cero.");
+
+        Value = value;
+    }
+}
+```
+
+Ahora:
+
+```csharp
+var voltage = new Voltage(220);
+```
+
+es válido.
+
+Pero:
+
+```csharp
+var voltage = new Voltage(-10);
+```
+
+produce una excepción.
+
+Esto ya comienza a parecer un verdadero **Value Object de DDD**.
+
+---
+
+# 6. `record` posicional
+
+La forma más corta es:
+
+```csharp
+public record Voltage(decimal Value);
+```
+
+El compilador genera automáticamente muchas cosas para nosotros.
+
+Conceptualmente tenemos:
+
+```csharp
+public record Voltage
+{
+    public decimal Value { get; init; }
+
+    public Voltage(decimal Value)
+    {
+        this.Value = Value;
+    }
+}
+```
+
+No es exactamente todo lo que genera el compilador, pero sirve para entender la idea.
+
+---
+
+# 7. `init`
+
+Una característica importante de los `record` es el uso de `init`.
+
+Por ejemplo:
+
+```csharp
+public record EquipmentDto
+{
+    public int Id { get; init; }
+
+    public string Name { get; init; } = string.Empty;
+}
+```
+
+Podemos hacer:
+
+```csharp
+var equipment = new EquipmentDto
+{
+    Id = 10,
+    Name = "Compresor #1"
+};
+```
+
+Pero después no podemos hacer:
+
+```csharp
+equipment.Name = "Compresor #2";
+```
+
+porque `init` solamente permite asignar durante la construcción.
+
+Esto es muy útil para objetos que queremos que sean **inmutables**.
+
+---
+
+# 8. `record` y `with`
+
+Una característica muy interesante es `with`.
+
+Supongamos:
+
+```csharp
+public record EquipmentDto(
+    int Id,
+    string Name,
+    string SerialNumber);
+```
+
+Tenemos:
+
+```csharp
+var equipment1 = new EquipmentDto(
+    10,
+    "Compresor #1",
+    "ABC123");
+```
+
+Queremos crear otro objeto cambiando únicamente el nombre:
+
+```csharp
+var equipment2 = equipment1 with
+{
+    Name = "Compresor #2"
+};
+```
+
+Tenemos:
+
+```text
+equipment1
+
+Id = 10
+Name = Compresor #1
+Serial = ABC123
+```
+
+y:
+
+```text
+equipment2
+
+Id = 10
+Name = Compresor #2
+Serial = ABC123
+```
+
+El objeto original no fue modificado.
+
+Esto es muy útil cuando trabajamos con objetos inmutables.
+
+---
+
+# 9. `record` en Clean Architecture
+
+Aquí debemos diferenciar dónde utilizarlo.
+
+Una estructura podría ser:
+
+```text
+TribuSoft
+│
+├── Domain
+│   ├── Entities
+│   ├── ValueObjects
+│   ├── Enums
+│   └── Exceptions
+│
+├── Application
+│   ├── DTOs
+│   ├── UseCases
+│   └── Interfaces
+│
+├── Infrastructure
+│   └── Persistence
+│
+└── Api
+    └── Controllers
+```
+
+Los `record` pueden aparecer principalmente en:
+
+```text
+Domain
+    ↓
+Value Objects
+
+Application
+    ↓
+DTOs
+```
+
+---
+
+# 10. `record` para DTOs
+
+Aquí es donde probablemente utilizarás `record` con mucha frecuencia.
+
+Por ejemplo:
+
+```csharp
+public record EquipmentResponse(
+    int Id,
+    string Name,
+    string SerialNumber);
+```
+
+Un Use Case puede devolver:
+
+```csharp
+public async Task<EquipmentResponse> ExecuteAsync(
+    int id)
+{
+    // ...
+
+    return new EquipmentResponse(
+        equipment.Id,
+        equipment.Name,
+        equipment.SerialNumber);
+}
+```
+
+Y el Controller:
+
+```csharp
+[HttpGet("{id}")]
+public async Task<IActionResult> Get(int id)
+{
+    var response = await _getEquipment.ExecuteAsync(id);
+
+    return Ok(response);
+}
+```
+
+Esto encaja muy bien con Clean Architecture.
+
+---
+
+# 11. `record` para Request DTO
+
+También puedes utilizarlo para los datos que llegan a un endpoint.
+
+Por ejemplo:
+
+```csharp
+public record CreateEquipmentRequest(
+    string Name,
+    string SerialNumber,
+    int EquipmentTypeId);
+```
+
+Controller:
+
+```csharp
+[HttpPost]
+public async Task<IActionResult> Create(
+    CreateEquipmentRequest request)
+{
+    // ...
+
+    return Ok();
+}
+```
+
+Por ejemplo, JSON:
+
+```json
+{
+    "name": "Compresor #1",
+    "serialNumber": "ABC123",
+    "equipmentTypeId": 10
+}
+```
+
+---
+
+# 12. `record` para comandos CQRS
+
+Si posteriormente utilizas CQRS/MediatR, los `record` encajan todavía mejor.
+
+Por ejemplo:
+
+```csharp
+public record CreateEquipmentCommand(
+    string Name,
+    string SerialNumber,
+    int EquipmentTypeId);
+```
+
+Y:
+
+```csharp
+public class CreateEquipmentHandler
+{
+    public async Task<int> Handle(
+        CreateEquipmentCommand command)
+    {
+        // crear Equipment
+
+        return 10;
+    }
+}
+```
+
+El comando representa:
+
+> "Estos son los datos necesarios para ejecutar esta operación."
+
+No necesitamos identidad para el comando.
+
+---
+
+# 13. `record` para Value Objects HVAC
+
+Aquí tenemos un caso todavía más interesante para tu proyecto.
+
+Podemos tener:
+
+```csharp
+public sealed record Amperage(decimal Value);
+```
+
+Entonces:
+
+```csharp
+var amperage = new Amperage(18.5m);
+```
+
+Otro:
+
+```csharp
+public sealed record Pressure(decimal Psi);
+```
+
+Uso:
+
+```csharp
+var pressure = new Pressure(125);
+```
+
+Otro:
+
+```csharp
+public sealed record Temperature(decimal Celsius);
+```
+
+Uso:
+
+```csharp
+var temperature = new Temperature(7.5m);
+```
+
+---
+
+# 14. Pero podemos hacer Value Objects más ricos
+
+Por ejemplo, tu medición:
+
+```text
+Compresor #1
+Lectura de amperaje
+
+RS = 18.2 A
+RT = 18.5 A
+ST = 18.1 A
+```
+
+Podríamos representar esto como un Value Object:
+
+```csharp
+public sealed record CompressorAmperage
+{
+    public decimal Rs { get; }
+    public decimal Rt { get; }
+    public decimal St { get; }
+
+    public CompressorAmperage(
+        decimal rs,
+        decimal rt,
+        decimal st)
+    {
+        if (rs < 0)
+            throw new ArgumentException("RS inválido.");
+
+        if (rt < 0)
+            throw new ArgumentException("RT inválido.");
+
+        if (st < 0)
+            throw new ArgumentException("ST inválido.");
+
+        Rs = rs;
+        Rt = rt;
+        St = st;
+    }
+}
+```
+
+Ahora:
+
+```csharp
+var amperage = new CompressorAmperage(
+    18.2m,
+    18.5m,
+    18.1m);
+```
+
+Y podemos añadir comportamiento:
+
+```csharp
+public decimal Average =>
+    (Rs + Rt + St) / 3;
+```
+
+Y:
+
+```csharp
+public decimal Max =>
+    Math.Max(Rs, Math.Max(Rt, St));
+```
+
+---
+
+# 15. Incluso podemos poner la regla de desbalance
+
+Esto es particularmente interesante para tu dominio.
+
+```csharp
+public decimal ImbalancePercentage
+{
+    get
+    {
+        var average = Average;
+
+        if (average == 0)
+            return 0;
+
+        var maxDeviation =
+            Math.Max(
+                Math.Abs(Rs - average),
+                Math.Max(
+                    Math.Abs(Rt - average),
+                    Math.Abs(St - average)));
+
+        return maxDeviation / average * 100;
+    }
+}
+```
+
+Entonces:
+
+```csharp
+var amperage = new CompressorAmperage(
+    18.2m,
+    18.5m,
+    18.1m);
+
+Console.WriteLine(amperage.Average);
+Console.WriteLine(amperage.ImbalancePercentage);
+```
+
+El `record` ya no es simplemente un contenedor de datos.
+
+Ahora representa un concepto del **dominio**.
+
+Esto es mucho más cercano a DDD.
+
+---
+
+# 16. `record` NO significa "DTO"
+
+Este es un error muy común.
+
+Podemos pensar:
+
+```text
+record
+   │
+   ├── DTO
+   │
+   ├── Value Object
+   │
+   ├── Command
+   │
+   └── otros objetos basados en valor
+```
+
+Pero:
+
+```text
+record ≠ DTO
+```
+
+`record` es una característica del lenguaje.
+
+DTO es un concepto arquitectónico.
+
+Value Object es un concepto de DDD.
+
+Por ejemplo:
+
+```csharp
+public record CreateEquipmentRequest(...);
+```
+
+es un DTO.
+
+Mientras:
+
+```csharp
+public record Voltage(...);
+```
+
+puede ser un Value Object.
+
+---
+
+# 17. ¿Debemos utilizar `record` para Entity?
+
+Aquí hay que tener cuidado.
+
+Supongamos:
+
+```csharp
+public record Equipment(
+    int Id,
+    string Name);
+```
+
+Puede parecer atractivo.
+
+Pero para DDD normalmente **no recomiendo utilizar `record` como Entity principal**.
+
+¿Por qué?
+
+Porque una Entity se define por su **identidad**, no solamente por sus valores.
+
+Por ejemplo:
+
+```text
+Equipment A
+Id = 100
+Name = Compresor 1
+```
+
+y:
+
+```text
+Equipment B
+Id = 200
+Name = Compresor 1
+```
+
+Tienen exactamente el mismo nombre pero **no son el mismo equipo**.
+
+En DDD queremos algo más cercano a:
+
+```csharp
+public class Equipment
+{
+    public int Id { get; private set; }
+
+    public string Name { get; private set; }
+
+    // comportamiento...
+}
+```
+
+La Entity controla su identidad y comportamiento.
+
+---
+
+# 18. Una regla práctica para tu proyecto
+
+Para tu sistema HVAC podríamos utilizar esta regla:
+
+| Concepto       | Recomendación |
+| -------------- | ------------- |
+| Entity         | `class`       |
+| Aggregate Root | `class`       |
+| Value Object   | `record`      |
+| DTO Request    | `record`      |
+| DTO Response   | `record`      |
+| Command        | `record`      |
+| Query          | `record`      |
+| Event          | `record`      |
+| Enum           | `enum`        |
+
+No es una ley absoluta, pero es una excelente guía inicial.
+
+---
+
+# 19. Ejemplo completo HVAC
+
+Podríamos tener:
+
+### Domain
+
+```csharp
+public sealed record Voltage
+{
+    public decimal Value { get; }
+
+    public Voltage(decimal value)
+    {
+        if (value <= 0)
+            throw new ArgumentException(
+                "El voltaje debe ser mayor que cero.");
+
+        Value = value;
+    }
+}
+```
+
+Entity:
+
+```csharp
+public class Equipment
+{
+    public int Id { get; private set; }
+
+    public string Name { get; private set; }
+
+    public Voltage NominalVoltage { get; private set; }
+
+    public Equipment(
+        string name,
+        Voltage nominalVoltage)
+    {
+        Name = name;
+        NominalVoltage = nominalVoltage;
+    }
+}
+```
+
+Aquí tenemos una separación muy interesante:
+
+```text
+Equipment
+   │
+   │ Entity
+   │
+   ├── Id
+   ├── Name
+   │
+   └── Voltage
+          │
+          └── Value Object
+```
+
+---
+
+# 20. Y Application
+
+Request:
+
+```csharp
+public record CreateEquipmentRequest(
+    string Name,
+    decimal NominalVoltage);
+```
+
+Response:
+
+```csharp
+public record EquipmentResponse(
+    int Id,
+    string Name,
+    decimal NominalVoltage);
+```
+
+Entonces:
+
+```text
+HTTP
+ │
+ ▼
+CreateEquipmentRequest
+ │
+ ▼
+Use Case
+ │
+ ▼
+Equipment Entity
+ │
+ ├── Name
+ │
+ └── Voltage Value Object
+ │
+ ▼
+Repository
+ │
+ ▼
+Database
+```
+
+Y al regresar:
+
+```text
+Database
+   │
+   ▼
+Equipment
+   │
+   ▼
+Use Case
+   │
+   ▼
+EquipmentResponse
+   │
+   ▼
+HTTP JSON
+```
+
+---
+
+# 21. `record class` y `record struct`
+
+En C# también existen diferentes formas.
+
+### Record class
+
+```csharp
+public record Voltage(decimal Value);
+```
+
+Es un **reference type**.
+
+También puedes escribir explícitamente:
+
+```csharp
+public record class Voltage(decimal Value);
+```
+
+Son conceptualmente equivalentes.
+
+---
+
+### Record struct
+
+```csharp
+public readonly record struct Voltage(decimal Value);
+```
+
+Es un **value type**.
+
+Esto cambia cuestiones de memoria, copia, `null`, boxing, etc.
+
+Para comenzar con DDD no necesitas utilizar `record struct` indiscriminadamente.
+
+Para tus Value Objects de dominio, yo empezaría principalmente con:
+
+```csharp
+public sealed record ...
+```
+
+y utilizaría `readonly record struct` solamente cuando exista una razón clara para que sea un `struct`.
+
+---
+
+# 22. `sealed record`
+
+Para Value Objects puedes encontrar esta forma:
+
+```csharp
+public sealed record Voltage(decimal Value);
+```
+
+`sealed` evita que otra clase herede de él.
+
+En un Value Object suele ser una decisión razonable porque queremos mantener muy claro el concepto y evitar una jerarquía innecesaria.
+
+---
+
+# 23. Una característica MUY importante: igualdad
+
+Con:
+
+```csharp
+public record Voltage(decimal Value);
+```
+
+tenemos:
+
+```csharp
+var v1 = new Voltage(220);
+var v2 = new Voltage(220);
+var v3 = new Voltage(240);
+```
+
+Entonces:
+
+```csharp
+v1 == v2
+```
+
+es:
+
+```text
+True
+```
+
+mientras:
+
+```csharp
+v1 == v3
+```
+
+es:
+
+```text
+False
+```
+
+Esto es exactamente lo que normalmente queremos de un Value Object.
+
+---
+
+# 24. Comparación conceptual DDD
+
+Piensa así:
+
+**Entity**
+
+```text
+Equipment
+ID = 100
+```
+
+Su identidad importa.
+
+```text
+Equipment 100
+      ≠
+Equipment 200
+```
+
+aunque tengan los mismos datos.
+
+---
+
+**Value Object**
+
+```text
+Voltage
+220 V
+```
+
+Su identidad no importa.
+
+```text
+Voltage(220)
+      =
+Voltage(220)
+```
+
+Esto coincide perfectamente con la semántica natural de `record`.
+
+---
+
+# 25. ¿Entonces cuándo usar `record`?
+
+Para tu proyecto .NET 10 + C# 14 + DDD + Clean Architecture, yo utilizaría principalmente `record` en tres zonas:
+
+### 1. Value Objects
+
+```csharp
+public sealed record Voltage(decimal Value);
+```
+
+### 2. DTOs
+
+```csharp
+public record EquipmentResponse(
+    int Id,
+    string Name);
+```
+
+### 3. CQRS
+
+```csharp
+public record CreateEquipmentCommand(
+    string Name,
+    decimal Voltage);
+```
+
+Mientras mantendría las entidades como:
+
+```csharp
+public class Equipment
+{
+    public int Id { get; private set; }
+
+    // comportamiento y reglas de dominio
+}
+```
+
+---
+
+## La idea que debes quedarte
+
+No pienses:
+
+> "`record` es una versión moderna de `class`."
+
+Piensa mejor:
+
+> **`class` suele ser adecuada cuando la identidad y el comportamiento importan; `record` es especialmente adecuada cuando el valor y la inmutabilidad importan.**
+
+Y eso conecta directamente con DDD:
+
+```text
+                    C#
+                     │
+          ┌──────────┴──────────┐
+          │                     │
+       class                  record
+          │                     │
+          ▼                     ▼
+      Identidad              Valor
+          │                     │
+          ▼                     ▼
+      Entity               Value Object
+      Aggregate             DTO
+      Aggregate Root         Command
+                            Event
+```
+
+Para tu sistema HVAC, el siguiente paso especialmente útil sería estudiar **`record` + Value Objects + EF Core**, porque ahí aparece una pregunta importante: **¿cómo persisto un `record` Value Object como `Voltage`, `Pressure` o `CompressorAmperage` en PostgreSQL mediante EF Core 10 sin romper las reglas de DDD?**

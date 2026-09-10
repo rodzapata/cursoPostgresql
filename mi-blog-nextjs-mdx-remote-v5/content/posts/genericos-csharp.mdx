@@ -1,0 +1,1377 @@
+---
+title: "Genericos en CSharp"
+date: "2026-09-10"
+description: "Genericos en CSharp"
+slug: "genericos-csharp"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Claro. Vamos a estudiar **Genéricos (`Generics`) en .NET 10 / C# 14**, pero no como una explicación aislada de C#, sino aplicándolos progresivamente a **DDD + Clean Architecture**, usando ejemplos relacionados con tu proyecto de **mantenimiento HVAC**.
+
+---
+
+# 1. ¿Qué son los genéricos?
+
+Un genérico permite crear una clase, interfaz, método o estructura que pueda trabajar con **diferentes tipos**, sin tener que duplicar código.
+
+Por ejemplo, sin genéricos:
+
+```csharp
+public class CustomerRepository
+{
+    public Customer? GetById(int id)
+    {
+        // ...
+        return null;
+    }
+}
+
+public class TechnicianRepository
+{
+    public Technician? GetById(int id)
+    {
+        // ...
+        return null;
+    }
+}
+```
+
+Estamos repitiendo prácticamente la misma estructura.
+
+Con genéricos:
+
+```csharp
+public class Repository<T>
+{
+    public T? GetById(int id)
+    {
+        // ...
+        return default;
+    }
+}
+```
+
+Ahora `T` representa **el tipo que se utilizará**.
+
+Podemos tener:
+
+```csharp
+Repository<Customer>
+Repository<Technician>
+Repository<Equipment>
+Repository<MaintenanceOrder>
+```
+
+La idea fundamental es:
+
+> **`T` es un tipo que se determinará posteriormente.**
+
+---
+
+# 2. El ejemplo más sencillo
+
+Supongamos:
+
+```csharp
+public class Box<T>
+{
+    public T Value { get; }
+
+    public Box(T value)
+    {
+        Value = value;
+    }
+}
+```
+
+Podemos utilizarlo así:
+
+```csharp
+var numberBox = new Box<int>(10);
+
+var textBox = new Box<string>("Hola");
+
+var customerBox = new Box<Customer>(customer);
+```
+
+El mismo código funciona para diferentes tipos.
+
+Visualmente:
+
+```text
+Box<T>
+   │
+   ├── Box<int>
+   │
+   ├── Box<string>
+   │
+   ├── Box<Customer>
+   │
+   └── Box<Equipment>
+```
+
+---
+
+# 3. ¿Por qué son importantes en DDD?
+
+En DDD vamos a trabajar constantemente con conceptos como:
+
+```text
+Entity
+Value Object
+Repository
+Result
+Domain Event
+Specification
+Use Case
+DTO
+```
+
+Muchos de estos conceptos necesitan funcionar con **diferentes tipos de entidades**.
+
+Por ejemplo:
+
+```csharp
+IRepository<Customer>
+IRepository<Technician>
+IRepository<Equipment>
+IRepository<MaintenanceOrder>
+```
+
+En lugar de crear:
+
+```csharp
+ICustomerRepository
+ITechnicianRepository
+IEquipmentRepository
+IMaintenanceOrderRepository
+```
+
+para las operaciones genéricas comunes.
+
+---
+
+# 4. Genéricos en interfaces
+
+Este es uno de los usos más importantes para DDD.
+
+Podemos definir:
+
+```csharp
+public interface IRepository<T>
+{
+    Task<T?> GetByIdAsync(Guid id);
+
+    Task AddAsync(T entity);
+
+    Task DeleteAsync(T entity);
+}
+```
+
+Aquí:
+
+```csharp
+T
+```
+
+representa una entidad cualquiera.
+
+Entonces:
+
+```csharp
+IRepository<Customer>
+```
+
+significa:
+
+> Repositorio que trabaja con `Customer`.
+
+Mientras que:
+
+```csharp
+IRepository<Equipment>
+```
+
+significa:
+
+> Repositorio que trabaja con `Equipment`.
+
+---
+
+# 5. Aplicándolo a nuestro dominio HVAC
+
+Supongamos:
+
+```csharp
+public class Customer
+{
+    public Guid Id { get; private set; }
+
+    public string Name { get; private set; } = string.Empty;
+}
+```
+
+Y:
+
+```csharp
+public class Equipment
+{
+    public Guid Id { get; private set; }
+
+    public string SerialNumber { get; private set; } = string.Empty;
+}
+```
+
+Podemos utilizar:
+
+```csharp
+IRepository<Customer>
+```
+
+y:
+
+```csharp
+IRepository<Equipment>
+```
+
+sin crear dos interfaces completamente diferentes.
+
+---
+
+# 6. Pero aquí aparece un problema importante
+
+No todas las clases deberían ser repositorios.
+
+En DDD, normalmente el repositorio representa el acceso a **Aggregates / Aggregate Roots**.
+
+Por eso podemos mejorar nuestra abstracción.
+
+Por ejemplo:
+
+```csharp
+public interface IAggregateRoot
+{
+}
+```
+
+Y:
+
+```csharp
+public class Customer : IAggregateRoot
+{
+    public Guid Id { get; private set; }
+
+    public string Name { get; private set; } = string.Empty;
+}
+```
+
+```csharp
+public class Equipment : IAggregateRoot
+{
+    public Guid Id { get; private set; }
+
+    public string SerialNumber { get; private set; } = string.Empty;
+}
+```
+
+Entonces:
+
+```csharp
+public interface IRepository<T>
+    where T : IAggregateRoot
+{
+    Task<T?> GetByIdAsync(Guid id);
+
+    Task AddAsync(T entity);
+}
+```
+
+Aquí tenemos algo muy importante.
+
+---
+
+# 7. ¿Qué significa `where T : IAggregateRoot`?
+
+Esto se llama una **restricción genérica** (*generic constraint*).
+
+Estamos diciendo:
+
+> `T` puede ser cualquier tipo, pero debe implementar `IAggregateRoot`.
+
+Por ejemplo:
+
+```csharp
+IRepository<Customer>
+```
+
+es válido porque:
+
+```csharp
+Customer : IAggregateRoot
+```
+
+También:
+
+```csharp
+IRepository<Equipment>
+```
+
+es válido.
+
+Pero esto:
+
+```csharp
+IRepository<string>
+```
+
+no sería válido.
+
+Porque:
+
+```text
+string
+  ↓
+no implementa IAggregateRoot
+```
+
+---
+
+# 8. ¿Por qué esto es muy útil en DDD?
+
+Porque podemos hacer que el compilador nos ayude a proteger las reglas arquitectónicas.
+
+Por ejemplo:
+
+```csharp
+public interface IRepository<T>
+    where T : IAggregateRoot
+{
+}
+```
+
+Estamos diciendo:
+
+```text
+Repository
+    │
+    └── solamente Aggregate Roots
+```
+
+No queremos que alguien haga:
+
+```csharp
+IRepository<MaintenanceAnswer>
+```
+
+si `MaintenanceAnswer` es una entidad interna de otro agregado.
+
+Esto ayuda a expresar una regla de DDD directamente mediante el sistema de tipos de C#.
+
+---
+
+# 9. Genéricos en métodos
+
+Los genéricos no solamente funcionan con clases e interfaces.
+
+También podemos crear métodos genéricos.
+
+```csharp
+public static T GetDefault<T>()
+{
+    return default!;
+}
+```
+
+Podemos llamar:
+
+```csharp
+var number = GetDefault<int>();
+
+var text = GetDefault<string>();
+
+var customer = GetDefault<Customer>();
+```
+
+Pero este ejemplo es demasiado abstracto.
+
+Veamos uno más práctico.
+
+---
+
+# 10. Un método genérico para buscar entidades
+
+Supongamos:
+
+```csharp
+public static T? FindById<T>(
+    IEnumerable<T> entities,
+    Guid id)
+    where T : class
+{
+    return entities.FirstOrDefault();
+}
+```
+
+Podríamos utilizar:
+
+```csharp
+var customer = FindById<Customer>(
+    customers,
+    customerId);
+```
+
+o:
+
+```csharp
+var equipment = FindById<Equipment>(
+    equipments,
+    equipmentId);
+```
+
+El método es reutilizable.
+
+---
+
+# 11. Genéricos + Clean Architecture
+
+Aquí es donde comienzan a ser realmente interesantes.
+
+Una arquitectura simplificada sería:
+
+```text
+TribuSoft.Api
+      │
+      ↓
+Application
+      │
+      ↓
+Domain
+      ↑
+      │
+Infrastructure
+```
+
+Supongamos que en `Domain` tenemos:
+
+```text
+Domain
+ ├── Entities
+ ├── ValueObjects
+ ├── Aggregates
+ └── Interfaces
+```
+
+Podemos definir:
+
+```csharp
+public interface IRepository<T>
+    where T : IAggregateRoot
+{
+    Task<T?> GetByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task AddAsync(
+        T entity,
+        CancellationToken cancellationToken);
+}
+```
+
+La interfaz pertenece a la abstracción que necesita la aplicación/dominio, mientras que la implementación concreta puede estar en Infrastructure.
+
+---
+
+# 12. Implementación en Infrastructure
+
+Podríamos tener:
+
+```csharp
+public class Repository<T> : IRepository<T>
+    where T : class, IAggregateRoot
+{
+    private readonly AppDbContext _context;
+
+    public Repository(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<T?> GetByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        return await _context.Set<T>()
+            .FindAsync(
+                [id],
+                cancellationToken);
+    }
+
+    public async Task AddAsync(
+        T entity,
+        CancellationToken cancellationToken)
+    {
+        await _context.Set<T>()
+            .AddAsync(entity, cancellationToken);
+    }
+}
+```
+
+Observa:
+
+```csharp
+_context.Set<T>()
+```
+
+Este es un ejemplo muy importante de genéricos en EF Core.
+
+Si:
+
+```csharp
+T = Customer
+```
+
+entonces:
+
+```csharp
+_context.Set<T>()
+```
+
+representa:
+
+```csharp
+_context.Set<Customer>()
+```
+
+Si:
+
+```csharp
+T = Equipment
+```
+
+representa:
+
+```csharp
+_context.Set<Equipment>()
+```
+
+---
+
+# 13. ¿Qué significa `Set<T>()`?
+
+EF Core utiliza este concepto para acceder al conjunto de entidades:
+
+```csharp
+DbSet<Customer>
+```
+
+```csharp
+DbSet<Equipment>
+```
+
+```csharp
+DbSet<MaintenanceOrder>
+```
+
+En lugar de escribir un método para cada entidad:
+
+```csharp
+DbSet<Customer> Customers
+DbSet<Equipment> Equipments
+DbSet<MaintenanceOrder> MaintenanceOrders
+```
+
+podemos acceder genéricamente mediante:
+
+```csharp
+_context.Set<T>()
+```
+
+---
+
+# 14. Genéricos en Use Cases
+
+También podemos utilizarlos en Application.
+
+Supongamos que tenemos un resultado genérico:
+
+```csharp
+public class Result<T>
+{
+    public bool IsSuccess { get; }
+
+    public T? Value { get; }
+
+    public string? Error { get; }
+
+    private Result(
+        bool isSuccess,
+        T? value,
+        string? error)
+    {
+        IsSuccess = isSuccess;
+        Value = value;
+        Error = error;
+    }
+
+    public static Result<T> Success(T value)
+    {
+        return new Result<T>(
+            true,
+            value,
+            null);
+    }
+
+    public static Result<T> Failure(string error)
+    {
+        return new Result<T>(
+            false,
+            default,
+            error);
+    }
+}
+```
+
+Ahora podemos devolver:
+
+```csharp
+Result<Customer>
+```
+
+o:
+
+```csharp
+Result<Equipment>
+```
+
+o:
+
+```csharp
+Result<MaintenanceOrder>
+```
+
+---
+
+# 15. Ejemplo práctico
+
+Nuestro caso de uso:
+
+```text
+GetEquipmentById
+```
+
+podría devolver:
+
+```csharp
+Result<EquipmentDto>
+```
+
+Mientras:
+
+```text
+GetCustomerById
+```
+
+devuelve:
+
+```csharp
+Result<CustomerDto>
+```
+
+Y:
+
+```text
+CreateMaintenanceOrder
+```
+
+podría devolver:
+
+```csharp
+Result<MaintenanceOrderDto>
+```
+
+Tenemos una estructura común:
+
+```text
+Result<T>
+    │
+    ├── Result<CustomerDto>
+    ├── Result<EquipmentDto>
+    └── Result<MaintenanceOrderDto>
+```
+
+---
+
+# 16. Genéricos con DTOs
+
+Por ejemplo:
+
+```csharp
+public record ApiResponse<T>(
+    T Data,
+    string Message);
+```
+
+Podemos hacer:
+
+```csharp
+ApiResponse<CustomerDto>
+```
+
+Resultado conceptual:
+
+```json
+{
+    "data": {
+        "id": "...",
+        "name": "Cliente ABC"
+    },
+    "message": "Cliente encontrado"
+}
+```
+
+O:
+
+```csharp
+ApiResponse<EquipmentDto>
+```
+
+---
+
+# 17. Genéricos y Value Objects
+
+También podemos utilizar genéricos para crear abstracciones relacionadas con Value Objects.
+
+Por ejemplo:
+
+```csharp
+public abstract class ValueObject
+{
+    protected abstract IEnumerable<object?> GetEqualityComponents();
+
+    public override bool Equals(object? obj)
+    {
+        if (obj is not ValueObject other)
+            return false;
+
+        return GetEqualityComponents()
+            .SequenceEqual(
+                other.GetEqualityComponents());
+    }
+
+    public override int GetHashCode()
+    {
+        return GetEqualityComponents()
+            .Aggregate(
+                0,
+                HashCode.Combine);
+    }
+}
+```
+
+No necesariamente necesitamos genéricos aquí, pero podemos crear abstracciones genéricas cuando el concepto realmente lo justifique.
+
+---
+
+# 18. Genéricos con identificadores
+
+Este concepto es especialmente interesante para DDD.
+
+En lugar de utilizar siempre:
+
+```csharp
+Guid
+```
+
+podríamos crear:
+
+```csharp
+public readonly record struct EntityId<T>(Guid Value);
+```
+
+Ahora:
+
+```csharp
+EntityId<Customer>
+```
+
+es diferente de:
+
+```csharp
+EntityId<Equipment>
+```
+
+Aunque internamente ambos contienen un `Guid`.
+
+Esto permite evitar errores como:
+
+```text
+CustomerId
+    ↓
+pasado accidentalmente como
+    ↓
+EquipmentId
+```
+
+Conceptualmente:
+
+```text
+EntityId<Customer>
+        ≠
+EntityId<Equipment>
+```
+
+Esto es un excelente ejemplo de cómo **generics + DDD + type safety** pueden trabajar juntos.
+
+---
+
+# 19. Genéricos en eventos de dominio
+
+Supongamos:
+
+```csharp
+public interface IDomainEvent
+{
+    DateTime OccurredOn { get; }
+}
+```
+
+Podemos tener:
+
+```csharp
+public record EquipmentCreatedEvent(
+    Guid EquipmentId) : IDomainEvent
+{
+    public DateTime OccurredOn { get; } = DateTime.UtcNow;
+}
+```
+
+Y un handler genérico:
+
+```csharp
+public interface IDomainEventHandler<TEvent>
+    where TEvent : IDomainEvent
+{
+    Task HandleAsync(
+        TEvent domainEvent,
+        CancellationToken cancellationToken);
+}
+```
+
+Entonces:
+
+```csharp
+public class EquipmentCreatedEventHandler
+    : IDomainEventHandler<EquipmentCreatedEvent>
+{
+    public Task HandleAsync(
+        EquipmentCreatedEvent domainEvent,
+        CancellationToken cancellationToken)
+    {
+        // lógica
+
+        return Task.CompletedTask;
+    }
+}
+```
+
+Aquí:
+
+```csharp
+IDomainEventHandler<TEvent>
+```
+
+permite crear una abstracción reutilizable para cualquier evento de dominio.
+
+---
+
+# 20. Una restricción todavía más interesante
+
+Podemos combinar varias restricciones.
+
+Por ejemplo:
+
+```csharp
+public class Repository<T>
+    where T : class, IAggregateRoot
+{
+}
+```
+
+Significa:
+
+```text
+T debe ser:
+
+class
++
+IAggregateRoot
+```
+
+También existen restricciones como:
+
+```csharp
+where T : struct
+```
+
+```csharp
+where T : class
+```
+
+```csharp
+where T : new()
+```
+
+```csharp
+where T : BaseEntity
+```
+
+```csharp
+where T : IAggregateRoot
+```
+
+Y podemos combinarlas.
+
+---
+
+# 21. `where T : new()`
+
+Por ejemplo:
+
+```csharp
+public static T Create<T>()
+    where T : new()
+{
+    return new T();
+}
+```
+
+Entonces:
+
+```csharp
+var customer = Create<Customer>();
+```
+
+Esto significa que `T` debe tener un constructor público sin parámetros.
+
+Pero **ojo con DDD**.
+
+No deberíamos abusar de:
+
+```csharp
+where T : new()
+```
+
+porque nuestras entidades normalmente deberían controlar cómo se crean.
+
+Por ejemplo, preferimos:
+
+```csharp
+Customer.Create(...)
+```
+
+en lugar de:
+
+```csharp
+new Customer()
+```
+
+si la creación requiere reglas de negocio.
+
+---
+
+# 22. Genéricos no significan "hacer todo genérico"
+
+Esto es MUY importante.
+
+Un error frecuente es pensar:
+
+> "Como puedo usar generics, debo hacer todo genérico."
+
+No.
+
+En DDD debemos preguntarnos:
+
+> **¿Existe realmente un concepto común?**
+
+Por ejemplo:
+
+```csharp
+IRepository<T>
+```
+
+puede tener sentido.
+
+Pero esto:
+
+```csharp
+IMaintenanceService<T>
+```
+
+solo porque podemos hacerlo genérico no necesariamente tiene sentido.
+
+---
+
+# 23. Generic Repository: una advertencia importante
+
+Seguramente encontrarás ejemplos de:
+
+```csharp
+IGenericRepository<T>
+```
+
+con métodos como:
+
+```csharp
+GetAll()
+GetById()
+Add()
+Update()
+Delete()
+```
+
+Esto puede ser útil para operaciones técnicas comunes.
+
+Pero en **DDD no debemos convertir el Generic Repository en una excusa para eliminar el comportamiento del dominio**.
+
+Por ejemplo, si nuestro agregado:
+
+```csharp
+MaintenanceOrder
+```
+
+tiene reglas complejas:
+
+```csharp
+order.StartMaintenance();
+
+order.CompleteMaintenance();
+
+order.AddAnswer(...);
+
+order.RegisterSignature(...);
+```
+
+no queremos que Application simplemente haga:
+
+```csharp
+repository.Update(order);
+```
+
+sin respetar las reglas del agregado.
+
+El repositorio persiste el agregado.
+
+**El agregado protege las reglas del negocio.**
+
+---
+
+# 24. Una arquitectura que te recomiendo
+
+Para tu proyecto HVAC, podríamos terminar teniendo algo parecido a:
+
+```text
+Domain
+│
+├── Entities
+│   ├── Customer.cs
+│   ├── Technician.cs
+│   ├── Equipment.cs
+│   └── MaintenanceOrder.cs
+│
+├── Aggregates
+│
+├── ValueObjects
+│
+├── Events
+│
+└── Interfaces
+    └── IRepository<T>
+```
+
+Application:
+
+```text
+Application
+│
+├── DTOs
+│
+├── UseCases
+│
+├── Interfaces
+│
+└── Results
+    └── Result<T>
+```
+
+Infrastructure:
+
+```text
+Infrastructure
+│
+├── Persistence
+│   ├── AppDbContext.cs
+│   └── Repository<T>.cs
+│
+└── Configurations
+```
+
+API:
+
+```text
+Api
+│
+├── Controllers
+│
+└── Middleware
+```
+
+---
+
+# 25. Ejemplo completo
+
+Tenemos:
+
+```csharp
+public interface IAggregateRoot
+{
+}
+```
+
+Entidad:
+
+```csharp
+public class Equipment : IAggregateRoot
+{
+    public Guid Id { get; private set; }
+
+    public string SerialNumber { get; private set; }
+
+    private Equipment()
+    {
+        SerialNumber = string.Empty;
+    }
+
+    public Equipment(string serialNumber)
+    {
+        Id = Guid.NewGuid();
+        SerialNumber = serialNumber;
+    }
+}
+```
+
+Repositorio:
+
+```csharp
+public interface IRepository<T>
+    where T : class, IAggregateRoot
+{
+    Task<T?> GetByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task AddAsync(
+        T entity,
+        CancellationToken cancellationToken);
+}
+```
+
+Implementación:
+
+```csharp
+public class Repository<T> : IRepository<T>
+    where T : class, IAggregateRoot
+{
+    private readonly AppDbContext _context;
+
+    public Repository(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<T?> GetByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        return await _context.Set<T>()
+            .FindAsync(
+                [id],
+                cancellationToken);
+    }
+
+    public async Task AddAsync(
+        T entity,
+        CancellationToken cancellationToken)
+    {
+        await _context.Set<T>()
+            .AddAsync(entity, cancellationToken);
+    }
+}
+```
+
+Y nuestro resultado:
+
+```csharp
+public record Result<T>(
+    bool IsSuccess,
+    T? Value,
+    string? Error)
+{
+    public static Result<T> Success(T value)
+        => new(true, value, null);
+
+    public static Result<T> Failure(string error)
+        => new(false, default, error);
+}
+```
+
+Ahora podemos combinar ambos conceptos.
+
+---
+
+# 26. El flujo completo
+
+Imagina:
+
+```text
+HTTP Request
+     │
+     ▼
+Controller
+     │
+     ▼
+Use Case
+     │
+     ▼
+IRepository<Equipment>
+     │
+     ▼
+Repository<Equipment>
+     │
+     ▼
+EF Core
+     │
+     ▼
+PostgreSQL
+```
+
+Y el resultado:
+
+```text
+PostgreSQL
+     │
+     ▼
+Equipment
+     │
+     ▼
+Use Case
+     │
+     ▼
+Result<EquipmentDto>
+     │
+     ▼
+Controller
+     │
+     ▼
+HTTP Response
+```
+
+Aquí estamos utilizando **genéricos en varios niveles**, pero cada uno tiene una responsabilidad clara.
+
+---
+
+# 27. Las 5 formas de genéricos que debes dominar
+
+Para tu aprendizaje de C# 14 + DDD, yo las estudiaría en este orden:
+
+### 1. Clases genéricas
+
+```csharp
+class Repository<T>
+```
+
+### 2. Interfaces genéricas
+
+```csharp
+interface IRepository<T>
+```
+
+### 3. Métodos genéricos
+
+```csharp
+T Get<T>()
+```
+
+### 4. Restricciones genéricas
+
+```csharp
+where T : IAggregateRoot
+```
+
+### 5. Genéricos combinados con DDD
+
+```csharp
+IRepository<T>
+Result<T>
+IDomainEventHandler<TEvent>
+EntityId<T>
+```
+
+---
+
+# 28. La idea más importante
+
+Quédate con esta imagen mental:
+
+```text
+                 GENERIC
+                    │
+                    ▼
+              IRepository<T>
+                    │
+          ┌─────────┼─────────┐
+          ▼         ▼         ▼
+      Customer   Equipment   Order
+```
+
+`T` significa:
+
+> **"No sé todavía qué tipo será, pero quien utilice esta abstracción me lo indicará."**
+
+Y las restricciones permiten decir:
+
+> **"Acepto cualquier tipo, pero solamente si cumple determinadas reglas."**
+
+Por ejemplo:
+
+```csharp
+where T : IAggregateRoot
+```
+
+Esto es especialmente poderoso en DDD porque el **sistema de tipos de C# puede ayudarnos a expresar restricciones arquitectónicas y de dominio**.
+
+---
+
+## Siguiente paso recomendado
+
+Para tu proyecto HVAC, el siguiente ejercicio sería construir juntos, **desde cero y paso a paso**, un `IRepository<T>` profesional para **.NET 10 + EF Core 10 + PostgreSQL + DDD + Clean Architecture**, incluyendo:
+
+```text
+IAggregateRoot
+      ↓
+IRepository<T>
+      ↓
+Repository<T>
+      ↓
+DbContext.Set<T>()
+      ↓
+Dependency Injection
+      ↓
+Use Case
+      ↓
+Controller
+```
+
+y después ver **cuándo NO conviene usar un Generic Repository** y cuándo es mejor un repositorio específico como `IMaintenanceOrderRepository`.

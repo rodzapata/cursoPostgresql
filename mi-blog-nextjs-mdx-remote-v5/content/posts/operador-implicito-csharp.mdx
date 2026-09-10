@@ -1,0 +1,804 @@
+---
+title: "Operador implicito"
+date: "2026-09-10"
+description: "Operador Imlicito en csharp 14"
+slug: "operador-implicito-csharp"
+category: "clean Arquitecture"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Claro. En C# 14, el **operador implícito (`implicit operator`)** permite definir una conversión automática entre dos tipos, sin que quien usa la clase tenga que escribir un cast explícito.
+
+En **DDD** es especialmente útil para **Value Objects**, porque permite que el dominio sea expresivo sin llenar el código de conversiones.
+
+---
+
+# 1. ¿Qué es el operador `implicit`?
+
+Supongamos que tenemos:
+
+```csharp
+public class Temperature
+{
+    public decimal Value { get; }
+
+    public Temperature(decimal value)
+    {
+        Value = value;
+    }
+}
+```
+
+Normalmente tendríamos que hacer:
+
+```csharp
+Temperature temperature = new Temperature(22.5m);
+```
+
+Pero podemos definir:
+
+```csharp
+public static implicit operator Temperature(decimal value)
+{
+    return new Temperature(value);
+}
+```
+
+Entonces podemos escribir:
+
+```csharp
+Temperature temperature = 22.5m;
+```
+
+C# automáticamente convierte:
+
+```text
+decimal
+   ↓
+Temperature
+```
+
+---
+
+# 2. Sintaxis
+
+La sintaxis general es:
+
+```csharp
+public static implicit operator TipoDestino(TipoOrigen value)
+{
+    return ...;
+}
+```
+
+Por ejemplo:
+
+```csharp
+public static implicit operator Temperature(decimal value)
+{
+    return new Temperature(value);
+}
+```
+
+Aquí:
+
+```csharp
+decimal
+```
+
+es el tipo origen.
+
+Y:
+
+```csharp
+Temperature
+```
+
+es el tipo destino.
+
+Por eso:
+
+```csharp
+Temperature temperature = 22.5m;
+```
+
+funciona automáticamente.
+
+---
+
+# 3. También podemos convertir en sentido contrario
+
+Podemos definir otro operador:
+
+```csharp
+public static implicit operator decimal(Temperature temperature)
+{
+    return temperature.Value;
+}
+```
+
+Ahora tenemos:
+
+```text
+decimal → Temperature
+Temperature → decimal
+```
+
+Por ejemplo:
+
+```csharp
+Temperature temperature = 22.5m;
+
+decimal value = temperature;
+```
+
+C# entiende:
+
+```csharp
+decimal value = temperature.Value;
+```
+
+automáticamente.
+
+---
+
+# 4. Aplicándolo a DDD
+
+Aquí es donde empieza a ser interesante.
+
+En DDD queremos evitar que nuestro dominio esté lleno de tipos primitivos:
+
+```csharp
+public class Equipment
+{
+    public decimal RefrigerantPressure { get; set; }
+}
+```
+
+Esto tiene un problema.
+
+¿Qué representa ese `decimal`?
+
+¿Presión?
+
+¿Temperatura?
+
+¿Amperaje?
+
+¿Voltaje?
+
+¿Peso?
+
+El tipo no nos dice nada.
+
+Podemos crear un **Value Object**:
+
+```csharp
+public sealed class Pressure
+{
+    public decimal Value { get; }
+
+    public Pressure(decimal value)
+    {
+        if (value < 0)
+            throw new ArgumentException(
+                "La presión no puede ser negativa.");
+
+        Value = value;
+    }
+
+    public static implicit operator Pressure(decimal value)
+    {
+        return new Pressure(value);
+    }
+
+    public static implicit operator decimal(Pressure pressure)
+    {
+        return pressure.Value;
+    }
+}
+```
+
+Ahora nuestro dominio es mucho más expresivo.
+
+---
+
+# 5. Utilización
+
+Podemos hacer:
+
+```csharp
+Pressure pressure = 120.5m;
+```
+
+En realidad C# está haciendo:
+
+```csharp
+Pressure pressure = new Pressure(120.5m);
+```
+
+Pero nosotros no necesitamos escribirlo.
+
+También:
+
+```csharp
+decimal value = pressure;
+```
+
+equivale a:
+
+```csharp
+decimal value = pressure.Value;
+```
+
+---
+
+# 6. ¿Qué ventaja tiene en DDD?
+
+Observa esta entidad:
+
+```csharp
+public class MaintenanceReading
+{
+    public Pressure DischargePressure { get; private set; }
+
+    public MaintenanceReading(Pressure dischargePressure)
+    {
+        DischargePressure = dischargePressure;
+    }
+}
+```
+
+Podemos crearla así:
+
+```csharp
+var reading = new MaintenanceReading(120.5m);
+```
+
+Gracias al operador implícito:
+
+```text
+120.5m
+   ↓
+Pressure
+   ↓
+MaintenanceReading
+```
+
+Sin embargo, el dominio sigue trabajando con:
+
+```csharp
+Pressure
+```
+
+y no con:
+
+```csharp
+decimal
+```
+
+Esto es muy importante.
+
+---
+
+# 7. Ejemplo aplicado a tu proyecto HVAC
+
+En tu sistema HVAC tienes diferentes tipos de mediciones:
+
+* amperaje
+* voltaje
+* presión
+* temperatura
+* capacitancia
+* peso de refrigerante
+
+Podríamos tener:
+
+```csharp
+public sealed class Amperage
+{
+    public decimal Value { get; }
+
+    public Amperage(decimal value)
+    {
+        if (value < 0)
+            throw new ArgumentException(
+                "El amperaje no puede ser negativo.");
+
+        Value = value;
+    }
+
+    public static implicit operator Amperage(decimal value)
+        => new(value);
+
+    public static implicit operator decimal(Amperage amperage)
+        => amperage.Value;
+}
+```
+
+Y:
+
+```csharp
+public sealed class Voltage
+{
+    public decimal Value { get; }
+
+    public Voltage(decimal value)
+    {
+        if (value < 0)
+            throw new ArgumentException(
+                "El voltaje no puede ser negativo.");
+
+        Value = value;
+    }
+
+    public static implicit operator Voltage(decimal value)
+        => new(value);
+
+    public static implicit operator decimal(Voltage voltage)
+        => voltage.Value;
+}
+```
+
+Y:
+
+```csharp
+public sealed class Pressure
+{
+    public decimal Value { get; }
+
+    public Pressure(decimal value)
+    {
+        if (value < 0)
+            throw new ArgumentException(
+                "La presión no puede ser negativa.");
+
+        Value = value;
+    }
+
+    public static implicit operator Pressure(decimal value)
+        => new(value);
+
+    public static implicit operator decimal(Pressure pressure)
+        => pressure.Value;
+}
+```
+
+Entonces:
+
+```csharp
+Amperage current = 18.5m;
+
+Voltage voltage = 220m;
+
+Pressure pressure = 125m;
+```
+
+El código es muy fácil de leer.
+
+---
+
+# 8. Un punto MUY importante
+
+El operador implícito **no debe utilizarse simplemente porque podemos hacerlo**.
+
+Hay que preguntarnos:
+
+> ¿La conversión es obvia, segura y no sorprendente?
+
+Por ejemplo:
+
+```csharp
+decimal → Pressure
+```
+
+puede ser razonable si el contexto deja claro que ese decimal representa una presión.
+
+Pero esto:
+
+```csharp
+string → Customer
+```
+
+normalmente sería mala idea.
+
+Por ejemplo:
+
+```csharp
+Customer customer = "Rodney";
+```
+
+¿Qué significa exactamente `"Rodney"`?
+
+¿Nombre?
+
+¿ID?
+
+¿Código?
+
+¿Email?
+
+¿Número de documento?
+
+La conversión no es obvia.
+
+En ese caso es mejor:
+
+```csharp
+var customer = Customer.Create("Rodney");
+```
+
+o:
+
+```csharp
+var customer = new Customer("Rodney");
+```
+
+---
+
+# 9. `implicit` vs `explicit`
+
+C# tiene dos operadores relacionados:
+
+```csharp
+implicit
+```
+
+y:
+
+```csharp
+explicit
+```
+
+**implicit**
+
+La conversión ocurre automáticamente:
+
+```csharp
+Pressure pressure = 120m;
+```
+
+**explicit**
+
+El desarrollador debe indicar la conversión:
+
+```csharp
+Pressure pressure = (Pressure)120m;
+```
+
+Por ejemplo:
+
+```csharp
+public static explicit operator Pressure(decimal value)
+{
+    return new Pressure(value);
+}
+```
+
+Ahora esto:
+
+```csharp
+Pressure pressure = 120m;
+```
+
+❌ No funciona.
+
+Tenemos que escribir:
+
+```csharp
+Pressure pressure = (Pressure)120m;
+```
+
+---
+
+# 10. ¿Cuándo usar `implicit` en un Value Object?
+
+Una buena regla práctica es:
+
+**implicit**
+
+Cuando la conversión es:
+
+* natural
+* segura
+* obvia
+* sin pérdida de información
+* sin decisiones de negocio ambiguas
+
+Ejemplo:
+
+```text
+Money → decimal
+```
+
+puede ser discutible dependiendo del diseño, porque eliminar la moneda puede perder información.
+
+En cambio:
+
+```text
+Temperature → decimal
+```
+
+también puede ser peligroso si existen Celsius y Fahrenheit.
+
+Por eso hay que tener cuidado.
+
+---
+
+# 11. En HVAC hay un detalle todavía más importante
+
+Por ejemplo:
+
+```csharp
+Temperature temperature = 25m;
+```
+
+¿Qué significa?
+
+¿25 °C?
+
+¿25 °F?
+
+El número solo no contiene esa información.
+
+Por eso podría ser mejor:
+
+```csharp
+Temperature temperature = Temperature.Celsius(25m);
+```
+
+o:
+
+```csharp
+var temperature = new Temperature(
+    25m,
+    TemperatureUnit.Celsius);
+```
+
+En este caso **no usaría `implicit` necesariamente**.
+
+DDD nos obliga a pensar primero en el significado del dominio y después en la comodidad sintáctica.
+
+---
+
+# 12. Ejemplo más completo para tu proyecto
+
+Imagina una lectura de amperaje:
+
+```csharp
+public sealed class Amperage
+{
+    public decimal Value { get; }
+
+    private Amperage(decimal value)
+    {
+        if (value < 0)
+            throw new ArgumentException(
+                "El amperaje no puede ser negativo.");
+
+        Value = value;
+    }
+
+    public static Amperage Create(decimal value)
+        => new(value);
+
+    public static implicit operator Amperage(decimal value)
+        => new(value);
+
+    public static implicit operator decimal(Amperage amperage)
+        => amperage.Value;
+}
+```
+
+Ahora:
+
+```csharp
+Amperage rs = 18.2m;
+Amperage rt = 18.7m;
+Amperage st = 18.4m;
+```
+
+Y podrías tener:
+
+```csharp
+public sealed class CompressorCurrentReading
+{
+    public Amperage RS { get; }
+    public Amperage RT { get; }
+    public Amperage ST { get; }
+
+    public CompressorCurrentReading(
+        Amperage rs,
+        Amperage rt,
+        Amperage st)
+    {
+        RS = rs;
+        RT = rt;
+        ST = st;
+    }
+}
+```
+
+Entonces:
+
+```csharp
+var reading = new CompressorCurrentReading(
+    18.2m,
+    18.7m,
+    18.4m);
+```
+
+Gracias a `implicit`, los tres `decimal` se convierten automáticamente en:
+
+```text
+18.2m → Amperage
+18.7m → Amperage
+18.4m → Amperage
+```
+
+El resultado sigue siendo un modelo de dominio fuertemente tipado.
+
+---
+
+# 13. `implicit` no reemplaza el Value Object
+
+Esto es fundamental.
+
+No deberíamos pensar:
+
+> "Uso implicit para evitar crear Value Objects."
+
+Es exactamente al contrario.
+
+Creamos el Value Object porque queremos expresar una **regla del dominio**.
+
+Después podemos utilizar `implicit` para hacer su uso más cómodo cuando la conversión sea apropiada.
+
+La prioridad sería:
+
+```text
+1. Modelo del dominio
+       ↓
+2. Reglas e invariantes
+       ↓
+3. Value Objects
+       ↓
+4. Usabilidad del código
+       ↓
+5. implicit si tiene sentido
+```
+
+No:
+
+```text
+implicit
+   ↓
+evitar escribir código
+```
+
+---
+
+# 14. ¿Dónde colocar el operador?
+
+En DDD, el operador pertenece al propio Value Object:
+
+```text
+Domain
+ └── ValueObjects
+      └── Pressure.cs
+```
+
+Por ejemplo:
+
+```csharp
+namespace HVAC.Domain.ValueObjects;
+
+public sealed class Pressure
+{
+    public decimal Value { get; }
+
+    private Pressure(decimal value)
+    {
+        if (value < 0)
+            throw new ArgumentException(
+                "Pressure cannot be negative.");
+
+        Value = value;
+    }
+
+    public static Pressure Create(decimal value)
+        => new(value);
+
+    public static implicit operator Pressure(decimal value)
+        => new(value);
+
+    public static implicit operator decimal(Pressure pressure)
+        => pressure.Value;
+}
+```
+
+No lo pondríamos en:
+
+```text
+Infrastructure
+```
+
+ni en:
+
+```text
+API
+```
+
+porque la conversión forma parte del comportamiento del Value Object.
+
+---
+
+# 15. Cuidado con las conversiones implícitas excesivas
+
+Un diseño como este puede volverse problemático:
+
+```csharp
+decimal
+ ↓
+Pressure
+ ↓
+double
+ ↓
+string
+ ↓
+PressureDto
+ ↓
+PressureResponse
+```
+
+Si tenemos demasiadas conversiones automáticas, el código puede empezar a ocultar lo que realmente está ocurriendo.
+
+Por eso, en un proyecto DDD profesional, yo aplicaría esta regla:
+
+> **Usa `implicit` solamente cuando la conversión sea realmente natural para el dominio.**
+
+Y cuando exista una transformación importante:
+
+```csharp
+Pressure → PressureDto
+```
+
+es preferible hacerlo explícitamente:
+
+```csharp
+new PressureDto
+{
+    Value = pressure.Value
+};
+```
+
+---
+
+# 16. Resumen
+
+| Concepto          | Ejemplo                           | Comportamiento                     |
+| ----------------- | --------------------------------- | ---------------------------------- |
+| Conversión normal | `new Pressure(120)`               | Explícita                          |
+| `implicit`        | `Pressure p = 120`                | Automática                         |
+| `explicit`        | `Pressure p = (Pressure)120`      | Requiere cast                      |
+| Value Object      | `Pressure`                        | Representa un concepto del dominio |
+| DDD               | `Amperage`, `Voltage`, `Pressure` | Evita primitivas ambiguas          |
+
+La idea central es:
+
+```csharp
+Pressure pressure = 120m;
+```
+
+es una comodidad proporcionada por:
+
+```csharp
+public static implicit operator Pressure(decimal value)
+    => new(value);
+```
+
+pero **el verdadero valor DDD está en que `Pressure` sea un concepto del dominio y pueda proteger sus invariantes**.
+
+Para tu proyecto HVAC, el siguiente paso interesante sería ver **`implicit` aplicado a Value Objects reales como `Amperage`, `Voltage`, `Pressure`, `Temperature` y `Percentage`, incluyendo cuándo NO conviene usarlo y cómo afecta a EF Core 10 y a los DTOs de Clean Architecture**.

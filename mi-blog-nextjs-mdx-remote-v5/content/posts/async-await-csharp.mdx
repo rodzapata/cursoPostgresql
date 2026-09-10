@@ -1,0 +1,1325 @@
+---
+title: "asyc/await en CSharp"
+date: "2026-09-08"
+description: "Aprender asyc/await en CSharp hoy en el 2026"
+slug: "async-await-csharp"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Claro. Vamos a verlo **desde cero y paso a paso**, pero aterrizado a **.NET 10 + C# 14 + Clean Architecture + DDD**, usando ejemplos parecidos a tu proyecto de **mantenimiento HVAC**.
+
+La idea principal que debes quedarte desde el comienzo es:
+
+> **`async/await` no significa "crear un hilo nuevo".**
+> Significa principalmente: **"esperar una operación sin bloquear el hilo mientras esa operación está esperando"**.
+
+---
+
+# 1. ¿Qué problema resuelve `async/await`?
+
+Imagina que tu API recibe:
+
+```http
+GET /api/equipos/123
+```
+
+Tu aplicación necesita consultar SQL Server.
+
+El flujo sería:
+
+```text
+Cliente
+   │
+   ▼
+Controller
+   │
+   ▼
+Application
+   │
+   ▼
+Domain
+   │
+   ▼
+Infrastructure
+   │
+   ▼
+SQL Server
+```
+
+El problema aparece cuando SQL Server tarda, por ejemplo, 500 ms.
+
+### Código síncrono
+
+```csharp
+var equipo = repository.GetById(id);
+```
+
+Mientras SQL Server responde, el hilo que está atendiendo la petición queda esperando.
+
+Conceptualmente:
+
+```text
+Thread
+  │
+  ├── Ejecuta código
+  │
+  ├── SQL Server ──────────────┐
+  │                            │
+  │       ESPERANDO            │
+  │                            │
+  └────────────────────────────┘
+```
+
+En una aplicación web con muchas peticiones, esto puede convertirse en un problema.
+
+---
+
+# 2. Con `async/await`
+
+Con código asíncrono:
+
+```csharp
+var equipo = await repository.GetByIdAsync(id);
+```
+
+Mientras SQL Server está trabajando:
+
+```text
+Thread
+  │
+  ├── Ejecuta código
+  │
+  ├── await SQL
+  │
+  └── queda disponible para atender otra petición
+```
+
+Cuando SQL Server termina, la operación continúa.
+
+```text
+SQL Server
+     │
+     ▼
+operación termina
+     │
+     ▼
+continúa después del await
+```
+
+Por eso `async/await` es especialmente importante en:
+
+* APIs REST
+* EF Core
+* acceso a bases de datos
+* HTTP
+* archivos
+* servicios externos
+* operaciones de I/O
+
+---
+
+# 3. ¿Qué significa `async`?
+
+`async` indica que un método contiene una operación asíncrona y puede utilizar `await`.
+
+Por ejemplo:
+
+```csharp
+public async Task<string> ObtenerNombreAsync()
+{
+    return await Task.FromResult("Compresor");
+}
+```
+
+Pero normalmente no escribiremos métodos así.
+
+Lo habitual será:
+
+```csharp
+public async Task<Equipo?> ObtenerAsync(Guid id)
+{
+    ...
+}
+```
+
+Aquí aparecen dos conceptos:
+
+```csharp
+async
+Task<T>
+```
+
+Vamos uno por uno.
+
+---
+
+# 4. ¿Qué es `Task<T>`?
+
+`Task<T>` representa:
+
+> "Una operación que todavía puede no haber terminado y que finalmente producirá un `T`."
+
+Por ejemplo:
+
+```csharp
+Task<Equipo?>
+```
+
+significa:
+
+> "Una operación que devolverá eventualmente un `Equipo` o `null`."
+
+Mientras que:
+
+```csharp
+Task
+```
+
+significa:
+
+> "Una operación que terminará, pero no devuelve ningún valor."
+
+Por ejemplo:
+
+```csharp
+public async Task EliminarAsync(Guid id)
+{
+    ...
+}
+```
+
+---
+
+# 5. `await`
+
+Aquí está la parte más importante.
+
+Supongamos:
+
+```csharp
+var equipo = await repository.GetByIdAsync(id);
+```
+
+El `await` significa aproximadamente:
+
+> "Espera a que esta operación termine y después continúa ejecutando el método desde aquí."
+
+Por ejemplo:
+
+```csharp
+public async Task<EquipoDto?> ExecuteAsync(Guid id)
+{
+    var equipo = await repository.GetByIdAsync(id);
+
+    return equipo is null
+        ? null
+        : new EquipoDto
+        {
+            Id = equipo.Id,
+            Nombre = equipo.Nombre
+        };
+}
+```
+
+El método hace:
+
+```text
+1. Llama GetByIdAsync()
+2. La operación comienza
+3. await espera su resultado
+4. Cuando termina:
+5. continúa
+6. crea el DTO
+7. retorna
+```
+
+---
+
+# 6. Algo MUY importante: `await` no bloquea
+
+Esta diferencia es fundamental.
+
+### Bloqueante
+
+```csharp
+var equipo = repository.GetByIdAsync(id).Result;
+```
+
+o:
+
+```csharp
+var equipo = repository.GetByIdAsync(id).GetAwaiter().GetResult();
+```
+
+❌ No es la forma recomendada.
+
+Estás bloqueando el hilo esperando que termine la operación.
+
+---
+
+### Asíncrono
+
+```csharp
+var equipo = await repository.GetByIdAsync(id);
+```
+
+✅ Es la forma recomendada.
+
+El método queda esperando de forma asíncrona.
+
+---
+
+# 7. El error más común: mezclar síncrono y asíncrono
+
+Evita esto:
+
+```csharp
+public async Task<Equipo?> ObtenerAsync(Guid id)
+{
+    var equipo = repository.GetByIdAsync(id).Result;
+
+    return equipo;
+}
+```
+
+No tiene sentido utilizar:
+
+```csharp
+async
+```
+
+y después bloquear con:
+
+```csharp
+.Result
+```
+
+Si estás trabajando con código asíncrono:
+
+> **usa `await` hasta arriba de la cadena.**
+
+---
+
+# 8. Async debe propagarse
+
+Esta es una de las cosas más importantes para entenderlo en Clean Architecture.
+
+Supongamos:
+
+```text
+Controller
+    ↓
+Application
+    ↓
+Repository
+    ↓
+EF Core
+    ↓
+Database
+```
+
+Si el repositorio es asíncrono:
+
+```csharp
+Task<Equipo?> GetByIdAsync(Guid id);
+```
+
+el Application también debería ser asíncrono:
+
+```csharp
+Task<EquipoDto?> ExecuteAsync(Guid id);
+```
+
+y el Controller:
+
+```csharp
+public async Task<ActionResult<EquipoDto>> Get(Guid id)
+{
+    var result = await handler.ExecuteAsync(id);
+
+    return Ok(result);
+}
+```
+
+Visualmente:
+
+```text
+Controller
+    │
+    │ await
+    ▼
+Application
+    │
+    │ await
+    ▼
+Repository
+    │
+    │ await
+    ▼
+EF Core
+    │
+    │ await
+    ▼
+Database
+```
+
+Esto es perfectamente normal.
+
+---
+
+# 9. Aplicándolo a tu arquitectura Clean Architecture
+
+Podríamos tener:
+
+```text
+TribuSoft.Api
+TribuSoft.Application
+TribuSoft.Domain
+TribuSoft.Infrastructure
+```
+
+Y la responsabilidad sería aproximadamente:
+
+```text
+┌──────────────────────────────┐
+│            API               │
+│ Controller                   │
+└──────────────┬───────────────┘
+               │ await
+               ▼
+┌──────────────────────────────┐
+│        Application           │
+│ Use Case / Handler           │
+└──────────────┬───────────────┘
+               │ await
+               ▼
+┌──────────────────────────────┐
+│        Infrastructure        │
+│ Repository / EF Core         │
+└──────────────┬───────────────┘
+               │ await
+               ▼
+          SQL Server
+```
+
+El **Domain normalmente no necesita `async/await`**.
+
+Esto es muy importante en DDD.
+
+---
+
+# 10. ¿Por qué el Domain normalmente no usa async?
+
+Supongamos tu entidad:
+
+```csharp
+public class Equipo : AggregateRoot
+{
+    public string Nombre { get; private set; }
+
+    public void CambiarNombre(string nombre)
+    {
+        if (string.IsNullOrWhiteSpace(nombre))
+            throw new DomainException(
+                "El nombre es obligatorio.");
+
+        Nombre = nombre;
+    }
+}
+```
+
+Esto es lógica de dominio.
+
+No necesita:
+
+```csharp
+async
+```
+
+ni:
+
+```csharp
+await
+```
+
+porque está trabajando con datos que ya tiene en memoria.
+
+```text
+Domain
+   │
+   ├── Validaciones
+   ├── Reglas de negocio
+   ├── Invariantes
+   ├── Value Objects
+   └── Entidades
+```
+
+Normalmente:
+
+```text
+SIN async/await
+```
+
+---
+
+# 11. ¿Dónde sí usamos `async/await`?
+
+Principalmente cuando tenemos **I/O**.
+
+Por ejemplo:
+
+### Base de datos
+
+```csharp
+await dbContext.Equipos
+    .FirstOrDefaultAsync(e => e.Id == id);
+```
+
+### HTTP
+
+```csharp
+await httpClient.GetAsync(url);
+```
+
+### Guardar cambios
+
+```csharp
+await dbContext.SaveChangesAsync();
+```
+
+### Leer archivo
+
+```csharp
+await File.ReadAllTextAsync(path);
+```
+
+La palabra clave es:
+
+> **I/O**
+
+Input/Output.
+
+---
+
+# 12. Repository en DDD
+
+Supongamos que tenemos:
+
+```csharp
+public interface IEquipoRepository
+{
+    Task<Equipo?> GetByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken = default);
+
+    Task AddAsync(
+        Equipo equipo,
+        CancellationToken cancellationToken = default);
+}
+```
+
+Esta interfaz podría estar en:
+
+```text
+Domain
+```
+
+o, dependiendo de cómo estés estructurando tus abstracciones:
+
+```text
+Application
+```
+
+Lo importante es que el dominio no conozca EF Core.
+
+---
+
+# 13. Implementación con EF Core
+
+En Infrastructure:
+
+```csharp
+public class EquipoRepository : IEquipoRepository
+{
+    private readonly AppDbContext _context;
+
+    public EquipoRepository(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<Equipo?> GetByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.Equipos
+            .FirstOrDefaultAsync(
+                e => e.Id == id,
+                cancellationToken);
+    }
+
+    public async Task AddAsync(
+        Equipo equipo,
+        CancellationToken cancellationToken = default)
+    {
+        await _context.Equipos.AddAsync(
+            equipo,
+            cancellationToken);
+    }
+}
+```
+
+Aquí sí tiene mucho sentido `async/await`.
+
+¿Por qué?
+
+Porque EF Core está hablando con la base de datos.
+
+---
+
+# 14. `CancellationToken`
+
+En APIs modernas de .NET, especialmente .NET 10, es recomendable aprender también:
+
+```csharp
+CancellationToken
+```
+
+Por ejemplo:
+
+```csharp
+public async Task<Equipo?> GetByIdAsync(
+    Guid id,
+    CancellationToken cancellationToken = default)
+{
+    return await _context.Equipos
+        .FirstOrDefaultAsync(
+            e => e.Id == id,
+            cancellationToken);
+}
+```
+
+Esto permite cancelar una operación si ya no tiene sentido continuarla.
+
+Por ejemplo:
+
+```text
+Cliente
+   │
+   │ GET /equipos/123
+   ▼
+API
+   │
+   │ consulta SQL
+   ▼
+SQL Server
+```
+
+Pero el cliente cancela la petición:
+
+```text
+Cliente
+   X
+   │
+   ▼
+Request cancelada
+```
+
+El `CancellationToken` puede propagarse.
+
+---
+
+# 15. Application Layer
+
+Ahora creemos un caso de uso:
+
+```text
+ObtenerEquipoPorId
+```
+
+Podríamos tener:
+
+```csharp
+public sealed class ObtenerEquipoPorIdHandler
+{
+    private readonly IEquipoRepository _repository;
+
+    public ObtenerEquipoPorIdHandler(
+        IEquipoRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<EquipoDto?> ExecuteAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var equipo = await _repository.GetByIdAsync(
+            id,
+            cancellationToken);
+
+        if (equipo is null)
+            return null;
+
+        return new EquipoDto
+        {
+            Id = equipo.Id,
+            Nombre = equipo.Nombre
+        };
+    }
+}
+```
+
+Observa algo importante:
+
+```csharp
+var equipo = await _repository.GetByIdAsync(...);
+```
+
+El Application Layer **no conoce EF Core**.
+
+Solamente conoce:
+
+```csharp
+IEquipoRepository
+```
+
+Eso encaja perfectamente con Clean Architecture.
+
+---
+
+# 16. Controller
+
+Finalmente:
+
+```csharp
+[ApiController]
+[Route("api/equipos")]
+public class EquiposController : ControllerBase
+{
+    private readonly ObtenerEquipoPorIdHandler _handler;
+
+    public EquiposController(
+        ObtenerEquipoPorIdHandler handler)
+    {
+        _handler = handler;
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<EquipoDto>> Get(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var equipo = await _handler.ExecuteAsync(
+            id,
+            cancellationToken);
+
+        if (equipo is null)
+            return NotFound();
+
+        return Ok(equipo);
+    }
+}
+```
+
+Aquí tenemos:
+
+```text
+HTTP Request
+     │
+     ▼
+Controller
+     │ await
+     ▼
+Application
+     │ await
+     ▼
+Repository
+     │ await
+     ▼
+EF Core
+     │ await
+     ▼
+SQL Server
+```
+
+---
+
+# 17. ¿Por qué `Task<ActionResult<T>>`?
+
+Puedes encontrarte esto:
+
+```csharp
+public async Task<ActionResult<EquipoDto>> Get(...)
+```
+
+Hay dos conceptos diferentes:
+
+```csharp
+ActionResult<EquipoDto>
+```
+
+representa el resultado HTTP.
+
+Mientras:
+
+```csharp
+Task<...>
+```
+
+representa la operación asíncrona.
+
+Por eso:
+
+```csharp
+Task<ActionResult<EquipoDto>>
+```
+
+significa:
+
+> "Una operación asíncrona que finalmente producirá un resultado HTTP que contiene un `EquipoDto`."
+
+---
+
+# 18. Crear un equipo
+
+Ahora hagamos algo más interesante desde DDD.
+
+Supongamos:
+
+```csharp
+public class Equipo : AggregateRoot
+{
+    public string Nombre { get; private set; }
+
+    private Equipo()
+    {
+    }
+
+    public Equipo(string nombre)
+    {
+        if (string.IsNullOrWhiteSpace(nombre))
+            throw new DomainException(
+                "El nombre del equipo es obligatorio.");
+
+        Nombre = nombre;
+    }
+}
+```
+
+El dominio:
+
+```csharp
+new Equipo("Compresor #1");
+```
+
+es síncrono.
+
+Porque:
+
+```text
+Crear entidad
+      ↓
+Validar reglas
+      ↓
+Crear estado
+```
+
+Todo ocurre en memoria.
+
+---
+
+# 19. Application para crear
+
+```csharp
+public async Task<Guid> ExecuteAsync(
+    CrearEquipoCommand command,
+    CancellationToken cancellationToken = default)
+{
+    var equipo = new Equipo(command.Nombre);
+
+    await _repository.AddAsync(
+        equipo,
+        cancellationToken);
+
+    await _unitOfWork.SaveChangesAsync(
+        cancellationToken);
+
+    return equipo.Id;
+}
+```
+
+Aquí tenemos una separación muy bonita:
+
+**Domain**
+
+```csharp
+var equipo = new Equipo(command.Nombre);
+```
+
+Regla de negocio.
+
+**Infrastructure**
+
+```csharp
+await _repository.AddAsync(...);
+```
+
+Persistencia.
+
+**Application**
+
+Orquesta:
+
+```text
+crear entidad
+      ↓
+guardar
+      ↓
+confirmar transacción
+```
+
+---
+
+# 20. `SaveChangesAsync`
+
+En EF Core:
+
+```csharp
+await _context.SaveChangesAsync(
+    cancellationToken);
+```
+
+es importante porque el guardado implica comunicación con la base de datos.
+
+Por ejemplo:
+
+```text
+Application
+     │
+     ▼
+Domain Entity
+     │
+     ▼
+Repository
+     │
+     ▼
+DbContext
+     │
+     ▼
+SaveChangesAsync()
+     │
+     ▼
+SQL Server
+```
+
+---
+
+# 21. ¿Debo poner `async` en todos los métodos?
+
+**No.**
+
+Este método:
+
+```csharp
+public void CambiarNombre(string nombre)
+{
+    if (string.IsNullOrWhiteSpace(nombre))
+        throw new DomainException(...);
+
+    Nombre = nombre;
+}
+```
+
+no debería convertirse artificialmente en:
+
+```csharp
+public async Task CambiarNombreAsync(string nombre)
+```
+
+Eso sería incorrecto si no existe ninguna operación asíncrona.
+
+No hagas:
+
+```csharp
+await Task.CompletedTask;
+```
+
+solo para poder usar `async`.
+
+---
+
+# 22. Un ejemplo incorrecto
+
+❌ Evita esto:
+
+```csharp
+public async Task CambiarNombreAsync(string nombre)
+{
+    if (string.IsNullOrWhiteSpace(nombre))
+        throw new DomainException();
+
+    Nombre = nombre;
+
+    await Task.CompletedTask;
+}
+```
+
+No hay I/O.
+
+Por lo tanto:
+
+```csharp
+public void CambiarNombre(string nombre)
+```
+
+es mejor.
+
+---
+
+# 23. `async` tampoco significa paralelismo
+
+Este punto suele generar mucha confusión.
+
+Esto:
+
+```csharp
+await repository.GetByIdAsync(id);
+```
+
+**no significa necesariamente**:
+
+> "ejecuta esto en otro hilo."
+
+Async y paralelismo son conceptos diferentes.
+
+### Async
+
+```text
+Inicio ──────── espera I/O ──────── fin
+```
+
+### Paralelismo
+
+```text
+       ┌── trabajo A
+Inicio ┤
+       └── trabajo B
+```
+
+Puedes tener async sin paralelismo.
+
+---
+
+# 24. ¿Y si necesito dos consultas?
+
+Supongamos que necesitas:
+
+```text
+Equipo
+Actividades
+```
+
+Podrías hacer:
+
+```csharp
+var equipo = await _equipoRepository
+    .GetByIdAsync(id, cancellationToken);
+
+var actividades = await _actividadRepository
+    .GetByEquipoIdAsync(id, cancellationToken);
+```
+
+Esto es **secuencial**:
+
+```text
+Equipo ──────► termina
+                  │
+                  ▼
+             Actividades
+```
+
+Si las dos operaciones son independientes, potencialmente puedes hacer:
+
+```csharp
+var equipoTask = _equipoRepository
+    .GetByIdAsync(id, cancellationToken);
+
+var actividadesTask = _actividadRepository
+    .GetByEquipoIdAsync(id, cancellationToken);
+
+await Task.WhenAll(
+    equipoTask,
+    actividadesTask);
+
+var equipo = await equipoTask;
+var actividades = await actividadesTask;
+```
+
+Ahora pueden avanzar concurrentemente.
+
+```text
+              ┌── Equipo
+Inicio ───────┤
+              └── Actividades
+```
+
+Pero **no debes usar `Task.WhenAll` automáticamente**. Hay que considerar si realmente son operaciones independientes y, en EF Core, evitar operaciones concurrentes sobre el mismo `DbContext`.
+
+---
+
+# 25. Un punto MUY importante con EF Core
+
+No hagas esto sobre el mismo `DbContext`:
+
+```csharp
+var task1 = _context.Equipos.ToListAsync();
+var task2 = _context.Actividades.ToListAsync();
+
+await Task.WhenAll(task1, task2);
+```
+
+El mismo `DbContext` no está diseñado para ejecutar múltiples operaciones simultáneamente.
+
+En muchos casos es mejor:
+
+```csharp
+var equipos = await _context.Equipos
+    .ToListAsync(cancellationToken);
+
+var actividades = await _context.Actividades
+    .ToListAsync(cancellationToken);
+```
+
+O diseñar una consulta que obtenga los datos necesarios de manera eficiente.
+
+---
+
+# 26. `Task.Run` en una Web API
+
+Otro error frecuente es pensar:
+
+> "Para que sea async debo utilizar `Task.Run`."
+
+❌ No.
+
+Por ejemplo:
+
+```csharp
+await Task.Run(() =>
+{
+    return repository.GetById(id);
+});
+```
+
+No es la solución correcta para convertir una consulta de base de datos síncrona en una consulta asíncrona.
+
+Si EF Core proporciona:
+
+```csharp
+FirstOrDefaultAsync()
+```
+
+usa:
+
+```csharp
+await _context.Equipos
+    .FirstOrDefaultAsync(...);
+```
+
+---
+
+# 27. Regla práctica para tu proyecto
+
+Para tu arquitectura:
+
+```text
+                 DDD
+                  │
+        ┌─────────┴─────────┐
+        │                   │
+     Domain             Application
+        │                   │
+   Reglas de             Casos de uso
+    negocio                   │
+                            async
+                              │
+                              ▼
+                       Infrastructure
+                              │
+                          EF Core
+                              │
+                         async/await
+                              │
+                              ▼
+                         SQL Server
+```
+
+Una regla sencilla:
+
+**Domain**
+
+```text
+❌ async
+❌ await
+❌ EF Core
+❌ DbContext
+```
+
+**Application**
+
+```text
+✅ async
+✅ await
+✅ CancellationToken
+❌ EF Core directamente
+```
+
+**Infrastructure**
+
+```text
+✅ async
+✅ await
+✅ EF Core
+✅ DbContext
+```
+
+**API**
+
+```text
+✅ async
+✅ await
+✅ CancellationToken
+```
+
+---
+
+# 28. El patrón que quiero que memorices
+
+Cuando hagas un caso de uso que consulta una base de datos:
+
+```csharp
+public async Task<T> ExecuteAsync(
+    ...,
+    CancellationToken cancellationToken)
+{
+    var entity = await repository.GetAsync(
+        ...,
+        cancellationToken);
+
+    // reglas/orquestación
+
+    await repository.SaveAsync(
+        ...,
+        cancellationToken);
+
+    return result;
+}
+```
+
+Y el Controller:
+
+```csharp
+public async Task<ActionResult<T>> Get(
+    ...,
+    CancellationToken cancellationToken)
+{
+    var result = await handler.ExecuteAsync(
+        ...,
+        cancellationToken);
+
+    return Ok(result);
+}
+```
+
+Y el Repository:
+
+```csharp
+public async Task<Entity?> GetAsync(
+    ...,
+    CancellationToken cancellationToken)
+{
+    return await _context.Entities
+        .FirstOrDefaultAsync(
+            ...,
+            cancellationToken);
+}
+```
+
+---
+
+# 29. Resumen mental
+
+Quédate con esta imagen:
+
+```text
+async
+  │
+  ▼
+"Este método puede esperar operaciones asíncronas"
+  │
+  ▼
+await
+  │
+  ▼
+"Espera el resultado sin bloquear innecesariamente el hilo"
+```
+
+Y en Clean Architecture:
+
+```text
+                    HTTP
+                     │
+                     ▼
+                Controller
+                     │
+                  await
+                     │
+                     ▼
+                 Use Case
+                     │
+                  await
+                     │
+                     ▼
+                Repository
+                     │
+                  await
+                     │
+                     ▼
+                  EF Core
+                     │
+                  await
+                     │
+                     ▼
+                 Database
+```
+
+Mientras tanto:
+
+```text
+Domain
+  │
+  ├── Entity
+  ├── Aggregate
+  ├── Value Object
+  ├── Domain Service
+  └── Domain Rules
+
+        ↓
+
+   normalmente síncrono
+```
+
+### Las 6 reglas que te recomiendo memorizar
+
+1. **`async` no significa crear un hilo.**
+2. **`await` evita bloquear mientras esperas I/O.**
+3. **No uses `.Result` ni `.Wait()` para esperar tareas.**
+4. **No uses `Task.Run` para "hacer async" una consulta de EF Core.**
+5. **El async normalmente se utiliza desde API → Application → Infrastructure.**
+6. **El Domain debe permanecer independiente de la infraestructura y normalmente no necesita `async/await`.**
+
+En tu proyecto HVAC, el siguiente paso natural es entender **`Task`, `Task<T>`, `ValueTask<T>`, `CancellationToken` y cómo diseñar correctamente interfaces de repositorio asíncronas en DDD**, porque ahí aparecen varias decisiones importantes de arquitectura.

@@ -1,0 +1,1143 @@
+---
+title: "Enum enfocado en DDD "
+date: "2026-09-09"
+description: "Enum enfocado en DDD "
+slug: "Enum-csharp"
+category: "clean Arquitecture"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+Claro. En **C# 14**, un `enum` es una forma de representar un conjunto **cerrado y conocido de valores relacionados**. En DDD es especialmente útil cuando un concepto del dominio tiene estados o categorías bien definidos.
+
+Para tu proyecto de **mantenimiento HVAC**, los `enum` encajan muy bien para cosas como:
+
+* Estado de una orden de servicio.
+* Tipo de respuesta.
+* Tipo de equipo.
+* Prioridad.
+* Tipo de mantenimiento.
+* Estado de una actividad.
+
+Pero hay una regla importante en DDD:
+
+> **No todo lo que parece una lista de opciones debe ser un `enum`.**
+
+Vamos paso a paso.
+
+---
+
+# 1. ¿Qué es un `enum`?
+
+Un `enum` permite darle nombres legibles a valores enteros.
+
+Por ejemplo:
+
+```csharp
+public enum MaintenanceOrderStatus
+{
+    Pending,
+    InProgress,
+    Completed,
+    Cancelled
+}
+```
+
+Internamente, por defecto, C# asigna:
+
+```text
+Pending     = 0
+InProgress  = 1
+Completed   = 2
+Cancelled   = 3
+```
+
+Entonces podemos hacer:
+
+```csharp
+MaintenanceOrderStatus status =
+    MaintenanceOrderStatus.Pending;
+```
+
+En lugar de trabajar directamente con:
+
+```csharp
+int status = 0;
+```
+
+Esto es mucho más expresivo.
+
+---
+
+# 2. ¿Por qué es mejor que usar `int`?
+
+Imagina que haces esto:
+
+```csharp
+public class MaintenanceOrder
+{
+    public int Status { get; set; }
+}
+```
+
+¿Qué significa esto?
+
+```csharp
+order.Status = 2;
+```
+
+No lo sabemos.
+
+¿2 significa completada?
+
+¿Cancelada?
+
+¿En progreso?
+
+En cambio:
+
+```csharp
+public MaintenanceOrderStatus Status { get; private set; }
+```
+
+y:
+
+```csharp
+order.Status = MaintenanceOrderStatus.Completed;
+```
+
+es mucho más claro.
+
+El código expresa directamente el lenguaje del negocio.
+
+Esto es muy importante en **DDD**.
+
+---
+
+# 3. `enum` pertenece al dominio
+
+En Clean Architecture + DDD, si el concepto pertenece al negocio, normalmente el `enum` debe estar en:
+
+```text
+Domain
+```
+
+Por ejemplo:
+
+```text
+TribuSoft.Domain
+│
+├── Entities
+│
+├── Enums
+│   ├── MaintenanceOrderStatus.cs
+│   ├── MaintenanceType.cs
+│   └── AnswerType.cs
+│
+├── ValueObjects
+│
+├── Events
+│
+└── Exceptions
+```
+
+Por ejemplo:
+
+```csharp
+namespace TribuSoft.Domain.Enums;
+
+public enum MaintenanceOrderStatus
+{
+    Pending,
+    InProgress,
+    Completed,
+    Cancelled
+}
+```
+
+---
+
+# 4. Usarlo dentro de una entidad
+
+Supongamos que tienes:
+
+```csharp
+public class MaintenanceOrder
+{
+    public Guid Id { get; private set; }
+
+    public MaintenanceOrderStatus Status { get; private set; }
+
+    private MaintenanceOrder()
+    {
+    }
+
+    public MaintenanceOrder(Guid id)
+    {
+        Id = id;
+        Status = MaintenanceOrderStatus.Pending;
+    }
+}
+```
+
+Ahora la entidad controla su propio estado.
+
+Esto:
+
+```csharp
+order.Status = MaintenanceOrderStatus.Completed;
+```
+
+no debería permitirse desde cualquier parte si `Status` tiene:
+
+```csharp
+private set;
+```
+
+En DDD queremos que el cambio ocurra mediante comportamiento del dominio.
+
+Por ejemplo:
+
+```csharp
+public void Start()
+{
+    if (Status != MaintenanceOrderStatus.Pending)
+        throw new DomainException(
+            "La orden no puede iniciarse."
+        );
+
+    Status = MaintenanceOrderStatus.InProgress;
+}
+```
+
+Y:
+
+```csharp
+public void Complete()
+{
+    if (Status != MaintenanceOrderStatus.InProgress)
+        throw new DomainException(
+            "La orden debe estar en progreso."
+        );
+
+    Status = MaintenanceOrderStatus.Completed;
+}
+```
+
+Esto es mucho más interesante desde el punto de vista de DDD.
+
+El `enum` **representa el estado**.
+
+La entidad **protege las reglas de transición**.
+
+---
+
+# 5. El `enum` no contiene las reglas del negocio
+
+Esta es una distinción muy importante.
+
+No hacemos:
+
+```csharp
+public enum MaintenanceOrderStatus
+{
+    Pending,
+    InProgress,
+    Completed,
+    Cancelled
+}
+```
+
+y esperamos que el `enum` controle:
+
+```text
+Pending → InProgress
+InProgress → Completed
+Pending → Cancelled
+```
+
+El `enum` solamente representa los posibles estados.
+
+Las reglas pertenecen al dominio.
+
+Por ejemplo:
+
+```csharp
+public void Cancel()
+{
+    if (Status == MaintenanceOrderStatus.Completed)
+        throw new DomainException(
+            "Una orden completada no puede cancelarse."
+        );
+
+    Status = MaintenanceOrderStatus.Cancelled;
+}
+```
+
+---
+
+# 6. Valores explícitos
+
+Aunque C# asigna automáticamente `0, 1, 2...`, en aplicaciones reales recomiendo considerar valores explícitos:
+
+```csharp
+public enum MaintenanceOrderStatus
+{
+    Pending = 1,
+    InProgress = 2,
+    Completed = 3,
+    Cancelled = 4
+}
+```
+
+Esto puede ser importante especialmente cuando esos valores terminan almacenándose en una base de datos.
+
+Por ejemplo:
+
+```text
+1 → Pending
+2 → InProgress
+3 → Completed
+4 → Cancelled
+```
+
+Así evitas depender accidentalmente del orden.
+
+---
+
+# 7. ¿Qué pasa si agregamos un nuevo estado?
+
+Supongamos:
+
+```csharp
+public enum MaintenanceOrderStatus
+{
+    Pending = 1,
+    InProgress = 2,
+    Completed = 3,
+    Cancelled = 4,
+    Suspended = 5
+}
+```
+
+No deberíamos asumir que simplemente agregar el valor es suficiente.
+
+Hay que revisar:
+
+* reglas del dominio;
+* EF Core;
+* API;
+* DTOs;
+* frontend;
+* reportes;
+* consultas;
+* serialización;
+* base de datos.
+
+Porque un `enum` representa un **conjunto cerrado de posibilidades**.
+
+---
+
+# 8. Ejemplo HVAC: tipo de mantenimiento
+
+En tu sistema HVAC podrías tener:
+
+```csharp
+public enum MaintenanceType
+{
+    Preventive = 1,
+    Corrective = 2,
+    Predictive = 3
+}
+```
+
+Y una entidad:
+
+```csharp
+public class MaintenanceOrder
+{
+    public Guid Id { get; private set; }
+
+    public MaintenanceType Type { get; private set; }
+
+    public MaintenanceOrder(
+        Guid id,
+        MaintenanceType type)
+    {
+        Id = id;
+        Type = type;
+    }
+}
+```
+
+Uso:
+
+```csharp
+var order = new MaintenanceOrder(
+    Guid.NewGuid(),
+    MaintenanceType.Preventive);
+```
+
+Esto expresa claramente:
+
+> Esta orden corresponde a un mantenimiento preventivo.
+
+---
+
+# 9. Otro ejemplo: prioridad
+
+```csharp
+public enum MaintenancePriority
+{
+    Low = 1,
+    Medium = 2,
+    High = 3,
+    Critical = 4
+}
+```
+
+Podríamos tener:
+
+```csharp
+public class MaintenanceOrder
+{
+    public MaintenancePriority Priority { get; private set; }
+
+    public void SetPriority(MaintenancePriority priority)
+    {
+        Priority = priority;
+    }
+}
+```
+
+Pero cuidado con algo.
+
+Podrías pensar:
+
+```csharp
+if (Priority >= MaintenancePriority.High)
+{
+    // ...
+}
+```
+
+Esto **funciona técnicamente**, porque el enum tiene valores numéricos.
+
+Pero conceptualmente puede ser peligroso.
+
+El orden numérico:
+
+```text
+Low = 1
+Medium = 2
+High = 3
+Critical = 4
+```
+
+no necesariamente significa que el dominio permita hacer comparaciones numéricas entre prioridades.
+
+Si existe una regla real:
+
+> High y Critical requieren atención inmediata.
+
+es mejor expresar esa regla mediante comportamiento.
+
+---
+
+# 10. `enum` para tipo de respuesta HVAC
+
+Este ejemplo conecta directamente con lo que hemos estado trabajando.
+
+Podrías tener:
+
+```csharp
+public enum AnswerType
+{
+    Boolean = 1,
+    Numeric = 2,
+    Text = 3,
+    Measurement = 4
+}
+```
+
+Pero aquí aparece una cuestión importante.
+
+Recuerda tus ejemplos:
+
+```text
+Chequeo ventilador
+→ verdadero/falso
+
+Presión descarga PSI
+→ número
+
+Compresor #1
+Lectura amperaje RS
+Lectura amperaje RT
+Lectura amperaje ST
+→ tres mediciones
+```
+
+Un `enum` puede indicar **qué tipo de respuesta espera una actividad**, pero no debería intentar almacenar la respuesta.
+
+Por ejemplo:
+
+```csharp
+public class MaintenanceQuestion
+{
+    public Guid Id { get; private set; }
+
+    public string Description { get; private set; }
+
+    public AnswerType AnswerType { get; private set; }
+}
+```
+
+Entonces:
+
+```text
+Pregunta                         AnswerType
+------------------------------------------------
+Chequeo ventilador                Boolean
+Presión descarga PSI              Numeric
+Temperatura retorno               Measurement
+Observación                       Text
+```
+
+El `enum` describe la estructura esperada.
+
+---
+
+# 11. `enum` vs Value Object
+
+Aquí entramos en una de las partes **más importantes de DDD**.
+
+Supongamos:
+
+```csharp
+public enum Unit
+{
+    PSI,
+    Ampere,
+    Volt,
+    Celsius,
+    Fahrenheit
+}
+```
+
+Parece correcto.
+
+Pero si tu dominio necesita:
+
+```text
+valor = 850
+unidad = PSI
+mínimo = 800
+máximo = 900
+tolerancia = 20
+```
+
+el `enum` ya no es suficiente.
+
+Podrías necesitar un **Value Object**.
+
+Por ejemplo:
+
+```csharp
+public sealed class Measurement
+{
+    public decimal Value { get; }
+    public string Unit { get; }
+
+    public Measurement(
+        decimal value,
+        string unit)
+    {
+        Value = value;
+        Unit = unit;
+    }
+}
+```
+
+O una solución más rica:
+
+```csharp
+public sealed class Pressure
+{
+    public decimal Value { get; }
+
+    public Pressure(decimal value)
+    {
+        if (value < 0)
+            throw new DomainException(
+                "La presión no puede ser negativa.");
+
+        Value = value;
+    }
+}
+```
+
+Aquí tenemos una regla de negocio.
+
+Por eso:
+
+> **Enum = conjunto pequeño y cerrado de opciones.**
+
+> **Value Object = concepto del dominio que tiene identidad por sus valores y puede tener reglas.**
+
+---
+
+# 12. ¿Cuándo NO usar un enum?
+
+Este punto es fundamental.
+
+Imagina que tienes tipos de equipos HVAC:
+
+```text
+Minisplit
+Cassette
+Piso-Techo
+Chiller
+AHU
+VRF
+Bomba
+...
+```
+
+Podrías hacer:
+
+```csharp
+public enum EquipmentType
+{
+    MiniSplit,
+    Cassette,
+    FloorCeiling,
+    Chiller,
+    AHU,
+    VRF,
+    Pump
+}
+```
+
+Pero en tu sistema **probablemente no es la mejor solución**.
+
+¿Por qué?
+
+Porque tú quieres un catálogo configurable:
+
+```text
+Category
+   ↓
+Type
+   ↓
+Subtype
+   ↓
+Application
+```
+
+Y probablemente en el futuro aparecerán:
+
+```text
+Nuevo fabricante
+Nuevo tipo
+Nuevo subtipo
+Nueva aplicación
+```
+
+Eso no es un conjunto cerrado de valores definido permanentemente en el código.
+
+Por tanto, sería mejor una entidad:
+
+```csharp
+public class EquipmentType
+{
+    public Guid Id { get; private set; }
+
+    public string Name { get; private set; }
+}
+```
+
+almacenada en PostgreSQL/SQL Server.
+
+---
+
+# 13. Regla práctica para tu proyecto HVAC
+
+Puedes utilizar esta regla:
+
+### Usa `enum` cuando:
+
+El conjunto de valores es **pequeño, estable y pertenece al código del dominio**.
+
+Por ejemplo:
+
+```csharp
+public enum MaintenanceOrderStatus
+{
+    Pending = 1,
+    InProgress = 2,
+    Completed = 3,
+    Cancelled = 4
+}
+```
+
+```csharp
+public enum MaintenanceType
+{
+    Preventive = 1,
+    Corrective = 2,
+    Predictive = 3
+}
+```
+
+```csharp
+public enum AnswerType
+{
+    Boolean = 1,
+    Numeric = 2,
+    Text = 3,
+    Measurement = 4
+}
+```
+
+---
+
+### Usa Entity cuando:
+
+Los valores son configurables y tienen identidad propia.
+
+Por ejemplo:
+
+```text
+EquipmentCategory
+EquipmentType
+EquipmentSubtype
+Activity
+Question
+UnitOfMeasurement
+Manufacturer
+```
+
+---
+
+### Usa Value Object cuando:
+
+El concepto tiene significado propio y reglas.
+
+Por ejemplo:
+
+```text
+Pressure
+Temperature
+Voltage
+Current
+Tolerance
+DateRange
+Email
+DocumentNumber
+```
+
+---
+
+# 14. Enum en DTO vs Domain
+
+Una cuestión importante de Clean Architecture.
+
+Supongamos:
+
+```csharp
+public record CreateMaintenanceOrderRequest(
+    MaintenanceType Type);
+```
+
+Podrías utilizar el mismo enum del dominio.
+
+Pero también puedes tener DTOs específicos de Application.
+
+Por ejemplo:
+
+```csharp
+public record CreateMaintenanceOrderRequest(
+    int MaintenanceType);
+```
+
+y luego mapear:
+
+```csharp
+var type = (MaintenanceType)request.MaintenanceType;
+```
+
+Pero hay un problema.
+
+Esto:
+
+```csharp
+(MaintenanceType)99
+```
+
+puede producir un valor que **no está definido** en el enum.
+
+Por eso debemos validar.
+
+```csharp
+if (!Enum.IsDefined(
+        typeof(MaintenanceType),
+        request.MaintenanceType))
+{
+    throw new ValidationException(
+        "Tipo de mantenimiento inválido.");
+}
+```
+
+---
+
+# 15. `Enum.IsDefined`
+
+Ejemplo:
+
+```csharp
+var value = 2;
+
+bool valid = Enum.IsDefined(
+    typeof(MaintenanceType),
+    value);
+```
+
+Si `2` corresponde a:
+
+```csharp
+Corrective = 2
+```
+
+entonces:
+
+```text
+true
+```
+
+Pero:
+
+```csharp
+var value = 99;
+```
+
+produce:
+
+```text
+false
+```
+
+Esto es especialmente útil en los límites de la aplicación.
+
+---
+
+# 16. Cuidado con `Enum.Parse`
+
+Puedes hacer:
+
+```csharp
+var status = Enum.Parse<MaintenanceOrderStatus>(
+    "Completed");
+```
+
+Pero si la entrada viene del usuario/API, puede lanzar una excepción.
+
+Una opción más segura:
+
+```csharp
+if (Enum.TryParse<MaintenanceOrderStatus>(
+        value,
+        out var status))
+{
+    // válido
+}
+```
+
+Incluso así, si aceptas números, conviene verificar además `Enum.IsDefined`.
+
+---
+
+# 17. `enum` con `switch`
+
+Los enums funcionan muy bien con `switch`.
+
+Por ejemplo:
+
+```csharp
+public string GetDescription(
+    MaintenanceOrderStatus status)
+{
+    return status switch
+    {
+        MaintenanceOrderStatus.Pending =>
+            "Pendiente",
+
+        MaintenanceOrderStatus.InProgress =>
+            "En progreso",
+
+        MaintenanceOrderStatus.Completed =>
+            "Completada",
+
+        MaintenanceOrderStatus.Cancelled =>
+            "Cancelada",
+
+        _ => throw new ArgumentOutOfRangeException()
+    };
+}
+```
+
+Esto es muy útil para lógica de aplicación o presentación.
+
+---
+
+# 18. Pero cuidado con poner lógica de presentación en Domain
+
+No recomiendo hacer esto dentro de Domain:
+
+```csharp
+public enum MaintenanceOrderStatus
+{
+    Pending = 1,
+    InProgress = 2,
+    Completed = 3,
+    Cancelled = 4
+}
+```
+
+y luego agregar:
+
+```csharp
+public string GetSpanishDescription()
+```
+
+El dominio no debería preocuparse por:
+
+```text
+Español
+Inglés
+UI
+JSON
+React
+Android
+etc.
+```
+
+La traducción/presentación pertenece a capas externas.
+
+---
+
+# 19. EF Core y enum
+
+EF Core puede mapear directamente un enum.
+
+Por ejemplo:
+
+```csharp
+public MaintenanceOrderStatus Status { get; private set; }
+```
+
+Por defecto, EF Core puede almacenarlo como un entero.
+
+Por ejemplo:
+
+```text
+status
+------
+1
+2
+3
+4
+```
+
+También puedes almacenarlo como texto.
+
+Por ejemplo:
+
+```text
+Pending
+InProgress
+Completed
+Cancelled
+```
+
+Configurándolo:
+
+```csharp
+builder.Property(x => x.Status)
+    .HasConversion<string>();
+```
+
+Esto tiene ventajas de legibilidad en la BD.
+
+Pero también tiene implicaciones de mantenimiento si posteriormente cambias los nombres.
+
+Para un sistema de producción, la decisión debería hacerse conscientemente según tu estrategia de persistencia.
+
+---
+
+# 20. Un ejemplo completo en tu arquitectura
+
+Podríamos tener:
+
+```text
+TribuSoft.Domain
+│
+├── Entities
+│   └── MaintenanceOrder.cs
+│
+└── Enums
+    ├── MaintenanceOrderStatus.cs
+    ├── MaintenanceType.cs
+    └── AnswerType.cs
+```
+
+### Enum
+
+```csharp
+namespace TribuSoft.Domain.Enums;
+
+public enum MaintenanceOrderStatus
+{
+    Pending = 1,
+    InProgress = 2,
+    Completed = 3,
+    Cancelled = 4
+}
+```
+
+### Entidad
+
+```csharp
+public class MaintenanceOrder
+{
+    public Guid Id { get; private set; }
+
+    public MaintenanceOrderStatus Status { get; private set; }
+
+    private MaintenanceOrder()
+    {
+    }
+
+    public MaintenanceOrder(Guid id)
+    {
+        Id = id;
+        Status = MaintenanceOrderStatus.Pending;
+    }
+
+    public void Start()
+    {
+        if (Status != MaintenanceOrderStatus.Pending)
+        {
+            throw new DomainException(
+                "Solo una orden pendiente puede iniciarse.");
+        }
+
+        Status = MaintenanceOrderStatus.InProgress;
+    }
+
+    public void Complete()
+    {
+        if (Status != MaintenanceOrderStatus.InProgress)
+        {
+            throw new DomainException(
+                "Solo una orden en progreso puede completarse.");
+        }
+
+        Status = MaintenanceOrderStatus.Completed;
+    }
+
+    public void Cancel()
+    {
+        if (Status == MaintenanceOrderStatus.Completed)
+        {
+            throw new DomainException(
+                "Una orden completada no puede cancelarse.");
+        }
+
+        Status = MaintenanceOrderStatus.Cancelled;
+    }
+}
+```
+
+Aquí se ve muy claramente la separación:
+
+```text
+ENUM
+ ↓
+Representa estados posibles
+
+ENTITY
+ ↓
+Protege las reglas de transición
+
+APPLICATION
+ ↓
+Orquesta el caso de uso
+
+INFRASTRUCTURE
+ ↓
+Persiste el enum mediante EF Core
+
+API
+ ↓
+Expone el resultado mediante HTTP/JSON
+```
+
+---
+
+# 21. Una idea muy importante para tu proyecto
+
+Para tu sistema HVAC yo clasificaría inicialmente los conceptos así:
+
+| Concepto              | Recomendación                     |
+| --------------------- | --------------------------------- |
+| Estado de orden       | `enum`                            |
+| Tipo de mantenimiento | `enum`                            |
+| Tipo de respuesta     | `enum`                            |
+| Prioridad             | posiblemente `enum`               |
+| Estado de actividad   | `enum`                            |
+| Categoría de equipo   | Entity                            |
+| Tipo de equipo        | Entity                            |
+| Subtipo de equipo     | Entity                            |
+| Actividad             | Entity                            |
+| Pregunta              | Entity                            |
+| Unidad de medida      | probablemente Entity/Value Object |
+| Presión               | Value Object                      |
+| Temperatura           | Value Object                      |
+| Voltaje               | Value Object                      |
+| Amperaje              | Value Object                      |
+| Rango permitido       | Value Object                      |
+
+Y esto es especialmente importante:
+
+```text
+Enum
+   ↓
+Opciones cerradas
+
+Entity
+   ↓
+Objeto del negocio con identidad
+
+Value Object
+   ↓
+Concepto del negocio definido por sus valores
+```
+
+### La regla que quiero que te quede
+
+Cuando estés diseñando una clase y pienses:
+
+> "Tengo una lista de opciones."
+
+pregúntate:
+
+**¿Esta lista va a cambiar mediante configuración/datos?**
+
+Si la respuesta es **sí** → probablemente **Entity**.
+
+Si la respuesta es **no, son opciones fijas del dominio** → probablemente **enum**.
+
+Si además el concepto tiene **valor + unidad + reglas + validaciones** → probablemente **Value Object**.
+
+Esto te va a ayudar muchísimo cuando continuemos construyendo las clases de tu sistema de mantenimiento HVAC.

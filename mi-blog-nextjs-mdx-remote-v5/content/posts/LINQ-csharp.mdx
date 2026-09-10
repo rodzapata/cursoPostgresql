@@ -1,0 +1,245 @@
+---
+title: "LINQ en CSharp"
+date: "2026-09-07"
+description: "Aprender LINQ en el 2026"
+slug: "LINQ-csharp"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+> LINQ es ORM ?
+
+No. **LINQ no es un ORM**.
+
+Son conceptos diferentes, aunque en .NET suelen trabajar juntos.
+
+### 1. ¿Qué es LINQ?
+
+**LINQ (Language Integrated Query)** es una funcionalidad de C#/.NET que permite consultar y transformar datos usando una sintaxis común.
+
+Por ejemplo, con una colección en memoria:
+
+```csharp
+var equipos = new List<Equipo>
+{
+    new("Compresor", true),
+    new("Evaporador", false),
+    new("Condensador", true)
+};
+
+var equiposActivos = equipos
+    .Where(e => e.Activo)
+    .ToList();
+```
+
+Aquí **LINQ está consultando objetos en memoria**.
+
+No hay base de datos ni ORM.
+
+---
+
+### 2. ¿Qué es un ORM?
+
+**ORM (Object-Relational Mapper)** es una tecnología que permite trabajar con una base de datos relacional utilizando objetos del lenguaje.
+
+En .NET, un ejemplo muy conocido es **Entity Framework Core**.
+
+Por ejemplo:
+
+```csharp
+var equipos = await context.Equipos
+    .Where(e => e.Activo)
+    .ToListAsync();
+```
+
+Aquí tenemos:
+
+```text
+C#
+ │
+ ├── LINQ
+ │     └── .Where()
+ │
+ └── Entity Framework Core
+       └── ORM
+             │
+             ▼
+          SQL Server
+```
+
+LINQ proporciona la forma de expresar la consulta:
+
+```csharp
+.Where(e => e.Activo)
+```
+
+Mientras que **EF Core**, como ORM, se encarga de traducir esa consulta a SQL.
+
+Conceptualmente podría terminar generando algo como:
+
+```sql
+SELECT *
+FROM Equipos
+WHERE Activo = 1;
+```
+
+---
+
+## 3. Entonces, ¿LINQ trabaja con ORM?
+
+**Sí.**
+
+Esta es una de las cosas que suele generar confusión.
+
+LINQ puede trabajar sobre:
+
+```text
+List<T>
+Array
+Dictionary
+IEnumerable<T>
+IQueryable<T>
+Entity Framework Core
+...
+```
+
+Por ejemplo:
+
+### LINQ + objetos
+
+```csharp
+IEnumerable<Equipo> equipos = listaEquipos;
+
+var resultado = equipos
+    .Where(e => e.Activo);
+```
+
+La consulta se ejecuta **en memoria**.
+
+---
+
+### LINQ + EF Core
+
+```csharp
+IQueryable<Equipo> equipos = context.Equipos;
+
+var resultado = equipos
+    .Where(e => e.Activo);
+```
+
+Aquí EF Core puede traducir la expresión LINQ a SQL.
+
+---
+
+# 4. La diferencia importante: `IEnumerable` vs `IQueryable`
+
+Esto conecta directamente con lo que estábamos viendo anteriormente sobre colecciones.
+
+### `IEnumerable<T>`
+
+Normalmente significa:
+
+> "Los datos ya están disponibles y los voy a recorrer/consultar."
+
+Ejemplo:
+
+```csharp
+IEnumerable<Equipo> equipos = listaEquipos;
+
+var resultado = equipos
+    .Where(e => e.Activo);
+```
+
+El filtro ocurre en .NET:
+
+```text
+Base de datos
+     ↓
+   todos los datos
+     ↓
+     .NET
+     ↓
+   Where()
+```
+
+---
+
+### `IQueryable<T>`
+
+Permite construir una consulta que otro proveedor puede interpretar.
+
+Con EF Core:
+
+```csharp
+IQueryable<Equipo> equipos = context.Equipos;
+
+var resultado = equipos
+    .Where(e => e.Activo)
+    .OrderBy(e => e.Nombre)
+    .Take(10);
+```
+
+EF Core puede convertirla en SQL:
+
+```text
+LINQ
+  ↓
+IQueryable
+  ↓
+EF Core
+  ↓
+SQL
+  ↓
+SQL Server
+```
+
+Por eso `IQueryable<T>` es especialmente importante cuando hablamos de **LINQ + EF Core**.
+
+---
+
+## 5. Una forma fácil de recordarlo
+
+Piensa en estas tres piezas:
+
+| Tecnología     | ¿Qué es?                  | Responsabilidad                              |
+| -------------- | ------------------------- | -------------------------------------------- |
+| **LINQ**       | Lenguaje/API de consultas | Expresar consultas                           |
+| **EF Core**    | ORM                       | Mapear objetos ↔ tablas y traducir consultas |
+| **SQL Server** | Base de datos             | Almacenar y consultar datos                  |
+
+Por ejemplo:
+
+```csharp
+var equipos = await context.Equipos
+    .Where(e => e.Activo)
+    .OrderBy(e => e.Nombre)
+    .ToListAsync();
+```
+
+Tenemos:
+
+```text
+.Where()
+.OrderBy()
+.ToListAsync()
+     │
+     ▼
+    LINQ
+     │
+     ▼
+ Entity Framework Core
+     │
+     ▼
+     SQL
+     │
+     ▼
+ SQL Server
+```
+
+### En una frase:
+
+> **LINQ es el mecanismo para expresar consultas; EF Core es el ORM que puede utilizar LINQ para consultar una base de datos.**
+
+Y en **DDD + Clean Architecture**, esta diferencia es muy importante porque normalmente **LINQ puede aparecer en Application/Infrastructure**, mientras que **EF Core pertenece a Infrastructure**, no al Domain.

@@ -1,0 +1,1192 @@
+---
+title: "Modelando DDD parte 4 Tipo de Respuesta"
+date: "2026-09-08"
+description: "Modelamos el tipo de respuesta"
+slug: "modelando-DDD-4"
+category: "clean Arquitecture"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+Perfecto. Ahora vamos a resolver **el corazón del modelo de respuestas de tu sistema HVAC**.
+
+Hasta ahora tenemos:
+
+```text
+ActividadCatalogo
+        ↓
+ActividadRealizada
+        ↓
+Respuesta
+```
+
+Pero necesitamos responder una pregunta más profunda:
+
+> **¿Cómo definimos que una actividad requiere uno, dos, tres o muchos valores de respuesta?**
+
+---
+
+# 1. El problema que queremos solucionar
+
+Tenemos actividades muy diferentes.
+
+### Caso A — Boolean
+
+```text
+¿Ventilador funcionando?
+
+☑ Sí
+☐ No
+```
+
+### Caso B — Numérico
+
+```text
+Presión de descarga:
+
+120 PSI
+```
+
+### Caso C — Texto
+
+```text
+Observaciones:
+
+Se encontró suciedad en el serpentín.
+```
+
+### Caso D — Tres mediciones
+
+```text
+Lectura de amperaje del compresor #1
+
+RS = 20.1 A
+RT = 20.5 A
+ST = 20.3 A
+```
+
+### Caso E — Temperatura
+
+```text
+Temperatura de retorno:
+
+24.5 °C
+```
+
+El problema aparece si diseñamos:
+
+```csharp
+public class ActividadRealizada
+{
+    public bool? RespuestaBoolean { get; set; }
+    public decimal? RespuestaNumerica { get; set; }
+    public string? RespuestaTexto { get; set; }
+
+    public decimal? RS { get; set; }
+    public decimal? RT { get; set; }
+    public decimal? ST { get; set; }
+}
+```
+
+Esto empieza a romper el modelo.
+
+---
+
+# 2. Pensemos al revés
+
+En lugar de preguntar:
+
+> "¿Qué columnas necesita la tabla?"
+
+preguntemos:
+
+> **"¿Qué información necesita esta actividad para ser respondida?"**
+
+Por ejemplo:
+
+```text
+Actividad:
+Lectura de amperaje
+
+Necesita:
+    RS
+    RT
+    ST
+```
+
+Entonces podemos modelar:
+
+```text
+ActividadCatalogo
+        │
+        └── ParametrosRespuesta
+                │
+                ├── RS
+                ├── RT
+                └── ST
+```
+
+Mientras que:
+
+```text
+Actividad:
+Presión descarga
+
+Necesita:
+    Presión
+```
+
+Y:
+
+```text
+Actividad:
+Chequeo ventilador
+
+Necesita:
+    Funcionando
+```
+
+---
+
+# 3. Introducimos `ParametroRespuesta`
+
+Podemos conceptualizar:
+
+```text
+ParametroRespuesta
+----------------------
+Codigo
+Nombre
+TipoDato
+Unidad
+Obligatorio
+Orden
+```
+
+Por ejemplo:
+
+```text
+RS
+----------------
+Código: RS
+Nombre: Corriente RS
+TipoDato: Decimal
+Unidad: A
+Obligatorio: Sí
+Orden: 1
+```
+
+Luego:
+
+```text
+RT
+----------------
+Código: RT
+Nombre: Corriente RT
+TipoDato: Decimal
+Unidad: A
+Obligatorio: Sí
+Orden: 2
+```
+
+Y:
+
+```text
+ST
+----------------
+Código: ST
+Nombre: Corriente ST
+TipoDato: Decimal
+Unidad: A
+Obligatorio: Sí
+Orden: 3
+```
+
+---
+
+# 4. Ahora nuestra actividad queda mucho más poderosa
+
+Tenemos:
+
+```text
+ActividadCatalogo
+│
+├── Id
+├── Codigo
+├── Nombre
+└── ParametrosRespuesta
+       │
+       ├── RS
+       ├── RT
+       └── ST
+```
+
+Otra actividad:
+
+```text
+ActividadCatalogo
+│
+├── Id
+├── Codigo
+├── Nombre
+└── ParametrosRespuesta
+       │
+       └── Presion
+```
+
+Otra:
+
+```text
+ActividadCatalogo
+│
+├── Id
+├── Codigo
+├── Nombre
+└── ParametrosRespuesta
+       │
+       └── Funcionando
+```
+
+Esto elimina la necesidad de tener columnas especiales para cada posible respuesta.
+
+---
+
+# 5. Pero aquí hay una distinción fundamental
+
+Tenemos:
+
+```text
+ParametroRespuesta
+```
+
+y:
+
+```text
+ValorRespuesta
+```
+
+No son lo mismo.
+
+### Parámetro
+
+Define:
+
+> **Qué debe medir/responder el técnico.**
+
+Ejemplo:
+
+```text
+RS
+Corriente RS
+Decimal
+A
+```
+
+### Valor
+
+Define:
+
+> **Qué valor obtuvo el técnico.**
+
+Ejemplo:
+
+```text
+RS
+20.1
+A
+```
+
+Por tanto:
+
+```text
+CATÁLOGO
+──────────────
+
+ParametroRespuesta
+    RS
+    RT
+    ST
+
+
+EJECUCIÓN
+──────────────
+
+ValorRespuesta
+    RS = 20.1
+    RT = 20.5
+    ST = 20.3
+```
+
+---
+
+# 6. Visualmente
+
+Tenemos dos niveles:
+
+```text
+        DEFINICIÓN
+             │
+             ▼
+    ActividadCatalogo
+             │
+             ▼
+    ParametroRespuesta
+       │       │
+       ▼       ▼
+      RS      RT      ST
+```
+
+Y posteriormente:
+
+```text
+        EJECUCIÓN
+             │
+             ▼
+    ActividadRealizada
+             │
+             ▼
+       Respuesta
+       │    │    │
+       ▼    ▼    ▼
+     20.1 20.5 20.3
+```
+
+Esta separación es extremadamente útil.
+
+---
+
+# 7. ¿Dónde pertenece cada cosa?
+
+Ahora podemos empezar a definir nuestro Aggregate.
+
+### ActividadCatalogo
+
+Podría ser:
+
+```text
+Aggregate Root
+```
+
+con sus parámetros:
+
+```text
+ActividadCatalogo
+       │
+       ├── ParametroRespuesta
+       ├── ParametroRespuesta
+       └── ParametroRespuesta
+```
+
+Los parámetros podrían ser **entidades internas** o Value Objects dependiendo de las reglas que descubramos.
+
+---
+
+### OrdenMantenimiento
+
+Otro Aggregate Root:
+
+```text
+OrdenMantenimiento
+       │
+       └── ActividadRealizada
+                │
+                └── Respuesta
+```
+
+Esto nos da dos mundos:
+
+```text
+CATÁLOGO
+
+ActividadCatalogo
+       │
+       └── ParametrosRespuesta
+```
+
+y:
+
+```text
+EJECUCIÓN
+
+OrdenMantenimiento
+       │
+       └── ActividadRealizada
+                │
+                └── ValoresRespuesta
+```
+
+---
+
+# 8. Ahora viene una decisión DDD importante
+
+¿`ParametroRespuesta` debe ser una Entity o un Value Object?
+
+Recordemos:
+
+### Entity
+
+Tiene identidad:
+
+```text
+Id
+```
+
+y esa identidad importa.
+
+### Value Object
+
+Se define por sus valores.
+
+Por ejemplo:
+
+```text
+Unidad("PSI")
+```
+
+o:
+
+```text
+TipoDato("Decimal")
+```
+
+En nuestro caso, inicialmente veo más sentido en considerar conceptos como:
+
+```text
+Unidad
+TipoDato
+```
+
+como **Value Objects o enums/value concepts**.
+
+Mientras que:
+
+```text
+ParametroRespuesta
+```
+
+podría necesitar identidad si lo administramos individualmente.
+
+Pero todavía no debemos decidirlo definitivamente.
+
+---
+
+# 9. Hay algo todavía más importante: las reglas
+
+Supongamos:
+
+```text
+Actividad:
+Presión descarga
+
+Parámetro:
+Presión
+
+Tipo:
+Decimal
+
+Unidad:
+PSI
+```
+
+Pero además tenemos:
+
+```text
+Valor mínimo
+Valor máximo
+```
+
+¿Dónde ponemos eso?
+
+Aquí aparece algo que ya discutimos anteriormente:
+
+> **Los rangos dependen del equipo.**
+
+Por ejemplo:
+
+```text
+Equipo A
+Presión:
+80 - 120 PSI
+```
+
+pero:
+
+```text
+Equipo B
+Presión:
+100 - 150 PSI
+```
+
+Entonces **NO deberíamos poner necesariamente esto en `ActividadCatalogo`:**
+
+```text
+Min = 80
+Max = 120
+```
+
+porque el rango puede depender del equipo.
+
+---
+
+# 10. Aquí empieza a aparecer nuestro verdadero modelo HVAC
+
+Podríamos tener:
+
+```text
+ActividadCatalogo
+        │
+        └── ParametroRespuesta
+                 │
+                 ├── Codigo
+                 ├── Nombre
+                 ├── TipoDato
+                 └── Unidad
+```
+
+Mientras que el equipo tiene:
+
+```text
+Equipo
+   │
+   └── Especificaciones / Parámetros técnicos
+             │
+             ├── Presión mínima
+             ├── Presión máxima
+             ├── RLA
+             ├── FLA
+             └── ...
+```
+
+Y cuando ejecutamos:
+
+```text
+Equipo
+   +
+Actividad
+   +
+Respuesta
+```
+
+podemos validar:
+
+```text
+120 PSI
+   ↓
+¿Es válido para ESTE equipo?
+   ↓
+Sí / No
+```
+
+Eso es mucho más fiel al negocio.
+
+---
+
+# 11. Ejemplo completo
+
+Supongamos:
+
+```text
+Equipo:
+Compresor #1
+
+RLA:
+22 A
+```
+
+Actividad:
+
+```text
+Lectura de amperaje
+```
+
+Parámetros:
+
+```text
+RS → Decimal → A
+RT → Decimal → A
+ST → Decimal → A
+```
+
+Durante la ejecución:
+
+```text
+RS = 20.1
+RT = 20.5
+ST = 20.3
+```
+
+Entonces podemos calcular:
+
+```text
+Promedio = (20.1 + 20.5 + 20.3) / 3
+
+Promedio = 20.3 A
+```
+
+y luego:
+
+```text
+Desbalance
+```
+
+utilizando la regla de negocio correspondiente.
+
+Observa algo importante:
+
+**El cálculo de desbalance no debería estar en el Controller.**
+
+Tampoco debería estar en EF Core.
+
+Y tampoco debería ser responsabilidad de la base de datos.
+
+Es comportamiento del dominio.
+
+---
+
+# 12. Ahí es donde DDD realmente comienza a aportar
+
+Podríamos terminar teniendo algo conceptualmente parecido a:
+
+```csharp
+public class LecturaAmperaje
+{
+    public decimal RS { get; }
+    public decimal RT { get; }
+    public decimal ST { get; }
+
+    public decimal Promedio =>
+        (RS + RT + ST) / 3;
+
+    public LecturaAmperaje(
+        decimal rs,
+        decimal rt,
+        decimal st)
+    {
+        RS = rs;
+        RT = rt;
+        ST = st;
+    }
+}
+```
+
+Y eventualmente:
+
+```csharp
+public decimal CalcularDesbalance()
+{
+    // regla de dominio
+}
+```
+
+Esto ya no es CRUD.
+
+Estamos modelando conocimiento del negocio HVAC.
+
+---
+
+# 13. Nuestra arquitectura empieza a tomar forma
+
+```text
+                 API
+                  │
+                  ▼
+            Application
+                  │
+          ┌───────┴────────┐
+          │                │
+          ▼                ▼
+    CrearOrden       RegistrarActividad
+          │                │
+          └───────┬────────┘
+                  ▼
+                DOMAIN
+                  │
+       ┌──────────┴───────────┐
+       │                      │
+       ▼                      ▼
+    Equipo            OrdenMantenimiento
+ Aggregate Root          Aggregate Root
+                              │
+                              ▼
+                      ActividadRealizada
+                              │
+                              ▼
+                          Respuesta
+```
+
+Y aparte:
+
+```text
+ActividadCatalogo
+      │
+      ▼
+ParametrosRespuesta
+```
+
+---
+
+# 14. Pero NO implementemos todavía
+
+Hay una razón.
+
+Antes de crear las clases definitivas necesitamos descubrir **todas las formas de respuesta que existen en tu catálogo real**.
+
+Porque podríamos encontrar:
+
+```text
+Boolean
+Decimal
+Entero
+Texto
+Fecha
+Hora
+Selección
+Selección múltiple
+Medición
+Medición compuesta
+RS/RT/ST
+Presión
+Temperatura
+Voltaje
+Amperaje
+```
+
+Y dependiendo de eso cambiaremos el modelo.
+
+Por eso, para el siguiente paso quiero que hagamos algo muy concreto:
+
+### Construir la matriz del dominio
+
+| Actividad           | Parámetro   | Tipo de dato | Unidad | ¿Múltiple? | ¿Depende del equipo? |
+| ------------------- | ----------- | ------------ | ------ | ---------- | -------------------- |
+| Chequeo ventilador  | Funcionando | Boolean      | —      | No         | No                   |
+| Presión descarga    | Presión     | Decimal      | PSI    | No         | Sí                   |
+| Temperatura retorno | Temperatura | Decimal      | °C     | No         | Sí                   |
+| Lectura amperaje    | RS          | Decimal      | A      | Sí         | Sí                   |
+| Lectura amperaje    | RT          | Decimal      | A      | Sí         | Sí                   |
+| Lectura amperaje    | ST          | Decimal      | A      | Sí         | Sí                   |
+
+**Con esa matriz podremos diseñar el modelo definitivo de `ActividadCatalogo → ParametroRespuesta → ActividadRealizada → ValorRespuesta` y determinar exactamente qué debe ser Entity, Value Object y Aggregate.**
+
+Si quieres hacerlo sobre **tu catálogo real de actividades**, puedes adjuntar el Excel que estás utilizando y trabajamos directamente sobre sus actividades, en lugar de inventar ejemplos.
+
+> Antes de continuar con respecto a las respuestas de mantenimiento hay actividades que se hacen 2 veces, por ejemplo el amperaje del compresor se mide antes de hacerle el mantenimiento y despues de hacerle el mantenimiento, en este caso como seria la mejor forma de manejarlo, duplicando la pregunta especificando antes y despues o tener valorDeRespuestaAntes, valorRespuestaDespues
+
+Sí. Y aquí hay una distinción importante: **yo no duplicaría la actividad** ni crearía en `Respuesta` algo como `ValorRespuestaAntes` y `ValorRespuestaDespues` como solución general.
+
+Para tu sistema HVAC, recomiendo modelar **una actividad ejecutada con múltiples mediciones asociadas a diferentes momentos o etapas del mantenimiento**.
+
+### 1. El problema real
+
+Por ejemplo, tienes:
+
+> **Lectura de amperaje del compresor #1**
+
+Y quieres registrar:
+
+| Momento                   |     RS |     RT |     ST |
+| ------------------------- | -----: | -----: | -----: |
+| Antes del mantenimiento   | 20.1 A | 20.5 A | 20.3 A |
+| Después del mantenimiento | 18.7 A | 19.0 A | 18.9 A |
+
+La pregunta/actividad es **la misma**.
+
+Lo que cambia es el **momento de ejecución/medición**.
+
+Por eso conceptualmente tenemos:
+
+```text
+ActividadCatalogo
+    │
+    └── Lectura de amperaje del compresor
+              │
+              ├── Medición ANTES
+              │     ├── RS = 20.1
+              │     ├── RT = 20.5
+              │     └── ST = 20.3
+              │
+              └── Medición DESPUÉS
+                    ├── RS = 18.7
+                    ├── RT = 19.0
+                    └── ST = 18.9
+```
+
+### 2. No recomiendo esto
+
+```csharp
+public class Respuesta
+{
+    public decimal ValorRespuestaAntes { get; set; }
+    public decimal ValorRespuestaDespues { get; set; }
+}
+```
+
+Porque hoy tienes:
+
+```text
+Antes
+Después
+```
+
+pero mañana podrías necesitar:
+
+```text
+Antes
+Durante
+Después
+```
+
+o:
+
+```text
+Inicial
+Después de limpieza
+Después de reparación
+Verificación final
+```
+
+Entonces terminarías modificando el modelo cada vez que aparezca una nueva etapa.
+
+Tampoco haría:
+
+```text
+Lectura amperaje antes
+Lectura amperaje después
+```
+
+como dos actividades independientes del catálogo.
+
+Eso duplicaría el catálogo y conceptualmente son **dos ejecuciones de la misma actividad**.
+
+---
+
+# 3. La solución que recomiendo
+
+Introduce el concepto de **Momento/Etapa de medición**.
+
+Por ejemplo:
+
+```csharp
+public enum MomentoMantenimiento
+{
+    Antes = 1,
+    Despues = 2
+}
+```
+
+Entonces podrías tener:
+
+```csharp
+public class Respuesta
+{
+    public MomentoMantenimiento Momento { get; private set; }
+
+    // valor...
+}
+```
+
+Pero aquí todavía tenemos otro problema: recuerda que una actividad puede tener **varios parámetros**.
+
+Para amperaje:
+
+```text
+Actividad:
+Lectura de amperaje compresor #1
+
+Parámetros:
+RS
+RT
+ST
+```
+
+Por lo tanto, conceptualmente sería mejor:
+
+```text
+ActividadRealizada
+│
+├── Respuesta ANTES
+│     ├── RS = 20.1 A
+│     ├── RT = 20.5 A
+│     └── ST = 20.3 A
+│
+└── Respuesta DESPUÉS
+      ├── RS = 18.7 A
+      ├── RT = 19.0 A
+      └── ST = 18.9 A
+```
+
+---
+
+# 4. Esto además resuelve otros casos
+
+Supongamos:
+
+### Actividad 1
+
+**Chequeo ventilador**
+
+```text
+ANTES     → true
+DESPUÉS   → true
+```
+
+### Actividad 2
+
+**Presión de descarga**
+
+```text
+ANTES     → 145 PSI
+DESPUÉS   → 125 PSI
+```
+
+### Actividad 3
+
+**Temperatura de retorno**
+
+```text
+ANTES     → 28.5 °C
+DESPUÉS   → 23.1 °C
+```
+
+### Actividad 4
+
+**Amperaje compresor #1**
+
+```text
+ANTES
+    RS = 20.1 A
+    RT = 20.5 A
+    ST = 20.3 A
+
+DESPUÉS
+    RS = 18.7 A
+    RT = 19.0 A
+    ST = 18.9 A
+```
+
+La estructura general es exactamente la misma:
+
+```text
+ActividadRealizada
+       │
+       └── Mediciones
+              │
+              ├── Momento: ANTES
+              │       └── Valores
+              │
+              └── Momento: DESPUÉS
+                      └── Valores
+```
+
+---
+
+# 5. Una ventaja muy importante para DDD
+
+Esto tiene mucho más sentido desde el dominio.
+
+No estás diciendo:
+
+> "Tengo dos preguntas."
+
+Estás diciendo:
+
+> "Tengo una actividad de mantenimiento que requiere realizar una medición en diferentes momentos del proceso."
+
+Eso es mucho más cercano al negocio.
+
+Por ejemplo, podrías tener:
+
+```csharp
+public enum EtapaMantenimiento
+{
+    Antes = 1,
+    Despues = 2
+}
+```
+
+Y posteriormente, si el negocio lo necesita:
+
+```csharp
+public enum EtapaMantenimiento
+{
+    Antes = 1,
+    Durante = 2,
+    Despues = 3
+}
+```
+
+sin tener que cambiar toda la estructura de respuestas.
+
+---
+
+# 6. Pero haría una pequeña mejora
+
+No llamaría necesariamente al concepto `Momento`.
+
+Me gusta más:
+
+```text
+EtapaMantenimiento
+```
+
+porque representa mejor el proceso:
+
+```text
+ANTES
+   ↓
+DIAGNÓSTICO
+   ↓
+MANTENIMIENTO
+   ↓
+DESPUÉS
+   ↓
+VERIFICACIÓN
+```
+
+Entonces:
+
+```csharp
+public enum EtapaMantenimiento
+{
+    Antes = 1,
+    Despues = 2
+}
+```
+
+Y una respuesta podría quedar conceptualmente:
+
+```csharp
+public class Respuesta
+{
+    public EtapaMantenimiento Etapa { get; private set; }
+
+    // valores de la respuesta
+}
+```
+
+---
+
+# 7. Hay otra decisión importante
+
+Antes de escribir definitivamente las clases C# quiero que tengamos en cuenta algo:
+
+No todas las actividades necesariamente necesitan:
+
+```text
+ANTES + DESPUÉS
+```
+
+Por ejemplo:
+
+> "Verificar estado físico de la carcasa"
+
+podría realizarse solamente:
+
+```text
+Durante el mantenimiento
+```
+
+Mientras que:
+
+> "Presión de descarga"
+
+podría requerir:
+
+```text
+Antes
+Después
+```
+
+Por eso **la etapa no debería ser obligatoria para absolutamente todas las actividades**.
+
+Podríamos configurar en el catálogo algo como:
+
+```text
+Actividad
+    ↓
+¿Requiere medición antes?
+¿Requiere medición después?
+¿Requiere una sola medición?
+```
+
+Incluso podemos hacerlo más flexible:
+
+```text
+ActividadCatalogo
+    │
+    └── EtapasConfiguradas
+            ├── Antes
+            └── Despues
+```
+
+Así el catálogo determina **qué etapas necesita esa actividad**.
+
+---
+
+## Mi recomendación para tu modelo
+
+Yo iría hacia esta estructura:
+
+```text
+ActividadCatalogo
+│
+├── ParámetrosRespuesta
+│      ├── RS
+│      ├── RT
+│      └── ST
+│
+└── EtapasPermitidas
+       ├── ANTES
+       └── DESPUÉS
+
+
+OrdenMantenimiento
+│
+└── ActividadRealizada
+       │
+       ├── Ejecución ANTES
+       │      └── Respuestas
+       │
+       └── Ejecución DESPUÉS
+              └── Respuestas
+```
+
+Y esto es todavía mejor que simplemente poner `Etapa` dentro de cada valor individual, porque **RS, RT y ST pertenecen a una misma medición de amperaje**.
+
+Es decir:
+
+```text
+Medición
+    Etapa = ANTES
+    RS = 20.1
+    RT = 20.5
+    ST = 20.3
+```
+
+y:
+
+```text
+Medición
+    Etapa = DESPUÉS
+    RS = 18.7
+    RT = 19.0
+    ST = 18.9
+```
+
+Esto nos deja un modelo mucho más limpio y preparado para calcular después cosas como:
+
+```text
+Desbalance antes
+Desbalance después
+Diferencia de amperaje
+Mejora porcentual
+Cumplimiento de rango
+```
+
+**Y esas comparaciones son comportamiento del dominio**, no simplemente datos almacenados.
+
+Si quieres, el siguiente paso natural es que construyamos **las clases C# 14 completas de `ActividadCatalogo → ActividadRealizada → Medicion → Respuesta`**, incluyendo boolean, decimal, texto y el caso compuesto `RS/RT/ST`, y veamos cómo quedaría en EF Core 10.
+
+Tipo de respuesta boolean ahora tiene 3 valores [tipo de respuestas boolean](/blog/modelando-DDD-5)
+
+

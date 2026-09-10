@@ -1,0 +1,1240 @@
+---
+title: "Excepciones en CSharp mas usada en .net 10 "
+date: "2026-09-07"
+description: "Excepciones en CSharp"
+slug: "excepciones-csharp"
+category: "clean Arquitecture"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Claro. En **DDD + Clean Architecture**, las excepciones no deberían verse simplemente como `try/catch`, sino como una forma de **representar situaciones excepcionales del negocio o problemas técnicos**, manteniendo cada responsabilidad en la capa correcta.
+
+Voy a explicarlo desde cero usando **C# 14 / .NET 10**, y además lo relacionaré con tu proyecto de mantenimiento HVAC.
+
+---
+
+# 1. ¿Qué es una excepción?
+
+Una excepción representa una situación que impide continuar normalmente con una operación.
+
+Por ejemplo:
+
+```csharp
+public void PerformMaintenance()
+{
+    if (!IsActive)
+        throw new Exception("El equipo está inactivo.");
+
+    // continuar...
+}
+```
+
+Aquí estamos diciendo:
+
+> "No puedo realizar el mantenimiento porque el equipo está inactivo."
+
+Pero en una aplicación con **DDD + Clean Architecture**, esto:
+
+```csharp
+throw new Exception(...)
+```
+
+es demasiado genérico.
+
+Queremos expresar **qué tipo de problema ocurrió**.
+
+---
+
+# 2. No todos los errores son iguales
+
+Una de las ideas más importantes es distinguir:
+
+```text
+                    EXCEPCIONES
+                         │
+          ┌──────────────┴──────────────┐
+          │                             │
+     Negocio / Dominio             Técnicas
+          │                             │
+    DomainException              DbException
+    BusinessException             Timeout
+    ValidationException           IOException
+```
+
+Por ejemplo:
+
+### Problema de negocio
+
+> No se puede cerrar una orden de mantenimiento porque tiene actividades pendientes.
+
+### Problema técnico
+
+> La base de datos no está disponible.
+
+Son problemas completamente diferentes.
+
+---
+
+# 3. ¿Dónde deben manejarse las excepciones?
+
+En Clean Architecture podemos pensar así:
+
+```text
+┌───────────────────────────────────────────┐
+│                  API                      │
+│       HTTP / Controllers / Middleware     │
+└─────────────────────▲─────────────────────┘
+                      │
+┌─────────────────────┴─────────────────────┐
+│              APPLICATION                  │
+│              Use Cases                    │
+│                                           │
+│  Orquesta el caso de uso                  │
+└─────────────────────▲─────────────────────┘
+                      │
+┌─────────────────────┴─────────────────────┐
+│                 DOMAIN                    │
+│                                           │
+│  Entidades                                │
+│  Value Objects                            │
+│  Aggregate Roots                          │
+│  Reglas de negocio                        │
+│                                           │
+│  DomainException                          │
+└─────────────────────▲─────────────────────┘
+                      │
+┌─────────────────────┴─────────────────────┐
+│              INFRASTRUCTURE               │
+│                                           │
+│  EF Core                                  │
+│  SQL Server                               │
+│  APIs externas                            │
+│  archivos                                 │
+└───────────────────────────────────────────┘
+```
+
+Una regla muy importante:
+
+> **La capa que conoce el problema debería generar la excepción, pero normalmente no debería ser la responsable de convertirla en una respuesta HTTP.**
+
+La API es la que finalmente decide:
+
+```text
+DomainException
+       ↓
+HTTP 400 / 409
+```
+
+o:
+
+```text
+Exception técnica
+       ↓
+HTTP 500
+```
+
+---
+
+# 4. DomainException
+
+En DDD, una excepción de dominio representa una **violación de una regla del dominio**.
+
+Podemos crear:
+
+```csharp
+namespace TribuSoft.Domain.Exceptions;
+
+public class DomainException : Exception
+{
+    public DomainException(string message)
+        : base(message)
+    {
+    }
+}
+```
+
+Ahora tenemos una excepción específica para el dominio.
+
+---
+
+# 5. Ejemplo con Equipment
+
+Supongamos que tenemos:
+
+```csharp
+public class Equipment
+{
+    public Guid Id { get; private set; }
+
+    public string Name { get; private set; }
+
+    public bool IsActive { get; private set; }
+
+    public Equipment(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new DomainException(
+                "El nombre del equipo es obligatorio.");
+
+        Name = name;
+        IsActive = true;
+    }
+}
+```
+
+Tenemos una regla:
+
+> Un equipo no puede crearse sin nombre.
+
+Esto es una **regla de dominio**.
+
+Por eso:
+
+```csharp
+throw new DomainException(...)
+```
+
+tiene sentido.
+
+---
+
+# 6. ¿Por qué no poner el `try/catch` aquí?
+
+Un error común sería:
+
+```csharp
+public Equipment(...)
+{
+    try
+    {
+        if (...)
+            throw new DomainException(...);
+    }
+    catch (DomainException ex)
+    {
+        // ...
+    }
+}
+```
+
+No.
+
+El dominio debe decir:
+
+> "Esta operación viola una regla."
+
+No debe preocuparse por:
+
+```text
+HTTP
+JSON
+Controller
+StatusCode
+ILogger
+Response
+```
+
+El dominio no sabe que existe una API REST.
+
+---
+
+# 7. Excepción específica del dominio
+
+Incluso podemos ser más específicos.
+
+Por ejemplo:
+
+```csharp
+public sealed class EquipmentInactiveException : DomainException
+{
+    public EquipmentInactiveException(Guid equipmentId)
+        : base($"El equipo '{equipmentId}' está inactivo.")
+    {
+    }
+}
+```
+
+Entonces:
+
+```csharp
+public void StartMaintenance()
+{
+    if (!IsActive)
+        throw new EquipmentInactiveException(Id);
+
+    // ...
+}
+```
+
+Esto es mucho más expresivo que:
+
+```csharp
+throw new Exception("Error");
+```
+
+---
+
+# 8. Ejemplo real de HVAC
+
+Imaginemos:
+
+```text
+Equipo
+ └── Aire acondicionado
+       │
+       └── Orden de mantenimiento
+              │
+              └── Actividades
+```
+
+Tenemos una regla:
+
+> Una orden de mantenimiento no puede cerrarse si existen actividades pendientes.
+
+Podríamos tener:
+
+```csharp
+public sealed class WorkOrderCannotBeClosedException 
+    : DomainException
+{
+    public WorkOrderCannotBeClosedException(Guid workOrderId)
+        : base(
+            $"La orden '{workOrderId}' no puede cerrarse porque tiene actividades pendientes.")
+    {
+    }
+}
+```
+
+Y dentro del Aggregate Root:
+
+```csharp
+public class WorkOrder
+{
+    private readonly List<MaintenanceActivity> _activities = [];
+
+    public Guid Id { get; private set; }
+
+    public void Close()
+    {
+        if (_activities.Any(x => !x.IsCompleted))
+        {
+            throw new WorkOrderCannotBeClosedException(Id);
+        }
+
+        // Cambiar estado
+    }
+}
+```
+
+Esto es **DDD puro**.
+
+La entidad protege su propia regla.
+
+---
+
+# 9. ¿Qué significa que el Aggregate Root proteja las reglas?
+
+Supongamos:
+
+```csharp
+WorkOrder order;
+```
+
+No queremos que desde cualquier lugar hagan:
+
+```csharp
+order.Status = WorkOrderStatus.Closed;
+```
+
+porque podrían saltarse las reglas.
+
+Por eso:
+
+```csharp
+public WorkOrderStatus Status { get; private set; }
+```
+
+y:
+
+```csharp
+public void Close()
+{
+    if (_activities.Any(x => !x.IsCompleted))
+        throw new WorkOrderCannotBeClosedException(Id);
+
+    Status = WorkOrderStatus.Closed;
+}
+```
+
+El Aggregate Root dice:
+
+> "Si quieres cerrar la orden, debes hacerlo mediante `Close()`."
+
+Y `Close()` protege la invariantes del agregado.
+
+---
+
+# 10. DomainException vs BusinessException
+
+Aquí hay una distinción que suele generar confusión.
+
+Puedes encontrar proyectos que utilizan:
+
+```text
+DomainException
+```
+
+y otros:
+
+```text
+BusinessException
+```
+
+No existe una obligación de usar ambos.
+
+Para DDD normalmente recomiendo:
+
+```text
+DomainException
+```
+
+para reglas pertenecientes al dominio.
+
+Por ejemplo:
+
+```text
+EquipmentInactiveException
+WorkOrderCannotBeClosedException
+InvalidMaintenanceActivityException
+```
+
+Todas pueden heredar de:
+
+```csharp
+DomainException
+```
+
+---
+
+# 11. ¿Qué pasa con validaciones?
+
+Aquí aparece otra categoría.
+
+Por ejemplo, un DTO:
+
+```csharp
+public sealed record CreateEquipmentRequest(
+    string Name,
+    Guid EquipmentTypeId);
+```
+
+Si llega:
+
+```json
+{
+    "name": "",
+    "equipmentTypeId": "..."
+}
+```
+
+esto puede considerarse una **validación de entrada**.
+
+No necesariamente es una excepción de dominio.
+
+Podemos tener:
+
+```text
+Request inválido
+       ↓
+Validation
+       ↓
+HTTP 400
+```
+
+Mientras que:
+
+```text
+Regla del negocio violada
+       ↓
+DomainException
+       ↓
+HTTP 400 / 409
+```
+
+---
+
+# 12. Ejemplo de Application Layer
+
+Supongamos un caso de uso:
+
+```csharp
+public sealed class CloseWorkOrderHandler
+{
+    private readonly IWorkOrderRepository _repository;
+
+    public CloseWorkOrderHandler(
+        IWorkOrderRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task Handle(
+        Guid workOrderId,
+        CancellationToken cancellationToken)
+    {
+        var workOrder =
+            await _repository.GetByIdAsync(
+                workOrderId,
+                cancellationToken);
+
+        if (workOrder is null)
+        {
+            throw new WorkOrderNotFoundException(workOrderId);
+        }
+
+        workOrder.Close();
+
+        await _repository.SaveAsync(
+            workOrder,
+            cancellationToken);
+    }
+}
+```
+
+Aquí aparece otra excepción:
+
+```text
+WorkOrderNotFoundException
+```
+
+¿Es una regla del dominio?
+
+No necesariamente.
+
+Es una situación relacionada con el **caso de uso**:
+
+> "Necesito cerrar una orden, pero esa orden no existe."
+
+Por eso podríamos tener:
+
+```csharp
+public sealed class WorkOrderNotFoundException : Exception
+{
+    public WorkOrderNotFoundException(Guid id)
+        : base($"La orden '{id}' no existe.")
+    {
+    }
+}
+```
+
+---
+
+# 13. Una posible estructura
+
+En tu proyecto podrías organizarlo así:
+
+```text
+TribuSoft.Domain
+│
+├── Entities
+│   ├── Equipment.cs
+│   └── WorkOrder.cs
+│
+├── ValueObjects
+│
+├── Exceptions
+│   ├── DomainException.cs
+│   ├── EquipmentInactiveException.cs
+│   └── WorkOrderCannotBeClosedException.cs
+│
+└── ...
+```
+
+Application:
+
+```text
+TribuSoft.Application
+│
+├── Exceptions
+│   ├── WorkOrderNotFoundException.cs
+│   └── EquipmentNotFoundException.cs
+│
+├── UseCases
+│   └── WorkOrders
+│       └── CloseWorkOrder
+│
+└── ...
+```
+
+Infrastructure:
+
+```text
+TribuSoft.Infrastructure
+│
+├── Persistence
+│
+├── Repositories
+│
+└── ...
+```
+
+API:
+
+```text
+TribuSoft.Api
+│
+├── Controllers
+│
+├── Middleware
+│   └── ExceptionHandlingMiddleware.cs
+│
+└── ...
+```
+
+---
+
+# 14. ¿Quién captura las excepciones?
+
+Aquí está una de las ideas fundamentales.
+
+No queremos hacer esto en cada Controller:
+
+```csharp
+try
+{
+    ...
+}
+catch (DomainException ex)
+{
+    ...
+}
+catch (Exception ex)
+{
+    ...
+}
+```
+
+porque terminaríamos repitiendo código.
+
+En ASP.NET Core podemos utilizar un **middleware global de excepciones**.
+
+Conceptualmente:
+
+```text
+HTTP Request
+     ↓
+Controller
+     ↓
+Application
+     ↓
+Domain
+     ↓
+Exception
+     ↑
+Middleware
+     ↓
+HTTP Response
+```
+
+---
+
+# 15. Exception Middleware
+
+Por ejemplo:
+
+```csharp
+public sealed class ExceptionHandlingMiddleware
+{
+    private readonly RequestDelegate _next;
+
+    public ExceptionHandlingMiddleware(RequestDelegate next)
+    {
+        _next = next;
+    }
+
+    public async Task InvokeAsync(HttpContext context)
+    {
+        try
+        {
+            await _next(context);
+        }
+        catch (Exception ex)
+        {
+            await HandleExceptionAsync(context, ex);
+        }
+    }
+
+    private static async Task HandleExceptionAsync(
+        HttpContext context,
+        Exception exception)
+    {
+        context.Response.StatusCode =
+            StatusCodes.Status500InternalServerError;
+
+        await context.Response.WriteAsJsonAsync(
+            new
+            {
+                message = exception.Message
+            });
+    }
+}
+```
+
+Pero todavía podemos mejorarlo.
+
+---
+
+# 16. Mapear excepciones a HTTP
+
+Podemos hacer:
+
+```csharp
+private static async Task HandleExceptionAsync(
+    HttpContext context,
+    Exception exception)
+{
+    var statusCode = exception switch
+    {
+        DomainException =>
+            StatusCodes.Status409Conflict,
+
+        WorkOrderNotFoundException =>
+            StatusCodes.Status404NotFound,
+
+        _ =>
+            StatusCodes.Status500InternalServerError
+    };
+
+    context.Response.StatusCode = statusCode;
+
+    await context.Response.WriteAsJsonAsync(
+        new
+        {
+            status = statusCode,
+            message = exception.Message
+        });
+}
+```
+
+Ahora tenemos:
+
+```text
+DomainException
+       ↓
+409 Conflict
+
+NotFoundException
+       ↓
+404 Not Found
+
+Exception desconocida
+       ↓
+500 Internal Server Error
+```
+
+---
+
+# 17. Pero cuidado con devolver `exception.Message`
+
+En producción no recomiendo hacer:
+
+```csharp
+message = exception.Message
+```
+
+para absolutamente todas las excepciones.
+
+¿Por qué?
+
+Porque una excepción de infraestructura podría contener información sensible:
+
+```text
+SqlException:
+Login failed for user...
+Connection string...
+Database...
+```
+
+o:
+
+```text
+NullReferenceException
+Object reference not set...
+```
+
+El cliente no necesita conocer esos detalles.
+
+Por eso normalmente:
+
+```text
+DomainException
+    → mensaje controlado
+
+Exception técnica
+    → mensaje genérico
+    → logging interno
+```
+
+Por ejemplo:
+
+```csharp
+var response = exception switch
+{
+    DomainException ex => new
+    {
+        status = 409,
+        message = ex.Message
+    },
+
+    WorkOrderNotFoundException ex => new
+    {
+        status = 404,
+        message = ex.Message
+    },
+
+    _ => new
+    {
+        status = 500,
+        message = "Ocurrió un error interno."
+    }
+};
+```
+
+---
+
+# 18. ¿Dónde se registra el error?
+
+Aquí entra:
+
+```csharp
+ILogger
+```
+
+Por ejemplo:
+
+```csharp
+catch (Exception ex)
+{
+    logger.LogError(
+        ex,
+        "Error procesando la solicitud.");
+
+    ...
+}
+```
+
+Pero hay una diferencia importante.
+
+Una excepción de negocio esperada:
+
+```text
+WorkOrderCannotBeClosedException
+```
+
+no necesariamente debería registrarse como:
+
+```text
+ERROR
+```
+
+porque no significa que el sistema esté fallando.
+
+Por ejemplo:
+
+```text
+Usuario intenta cerrar orden
+        ↓
+Hay actividades pendientes
+        ↓
+DomainException
+        ↓
+409 Conflict
+```
+
+Eso puede ser un comportamiento perfectamente normal del sistema.
+
+---
+
+# 19. Excepciones técnicas
+
+Ahora imaginemos:
+
+```csharp
+await _dbContext.SaveChangesAsync();
+```
+
+y SQL Server no responde.
+
+Eso no es una regla de negocio.
+
+Es una excepción de infraestructura.
+
+Por ejemplo:
+
+```text
+Database unavailable
+Timeout
+Connection failure
+IOException
+External API unavailable
+```
+
+La infraestructura puede generar excepciones técnicas, pero normalmente conviene **traducirlas** antes de que contaminen el dominio.
+
+---
+
+# 20. Un ejemplo importante con EF Core
+
+Supongamos:
+
+```csharp
+try
+{
+    await _dbContext.SaveChangesAsync(cancellationToken);
+}
+catch (DbUpdateException ex)
+{
+    throw new PersistenceException(
+        "No fue posible guardar los cambios.",
+        ex);
+}
+```
+
+Creamos:
+
+```csharp
+public sealed class PersistenceException : Exception
+{
+    public PersistenceException(
+        string message,
+        Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
+```
+
+Ahora la aplicación recibe:
+
+```text
+PersistenceException
+```
+
+en lugar de tener que conocer detalles específicos de EF Core.
+
+---
+
+# 21. ¿Por qué es importante esto en Clean Architecture?
+
+Porque queremos evitar:
+
+```text
+Domain
+   ↓
+EF Core
+   ↓
+SQL Server
+```
+
+El dominio no debería saber que existe EF Core.
+
+Por ejemplo, esto sería mala arquitectura:
+
+```csharp
+public class WorkOrder
+{
+    public void Close()
+    {
+        try
+        {
+            // EF Core...
+        }
+        catch (DbUpdateException)
+        {
+        }
+    }
+}
+```
+
+❌ Incorrecto.
+
+El dominio no debería depender de:
+
+```text
+Microsoft.EntityFrameworkCore
+```
+
+---
+
+# 22. Flujo completo
+
+Imagina esta situación:
+
+> El técnico intenta cerrar una orden HVAC.
+
+Tenemos:
+
+```text
+POST /api/work-orders/{id}/close
+             │
+             ▼
+        Controller
+             │
+             ▼
+      Application
+             │
+             ▼
+       WorkOrder.Close()
+             │
+             ▼
+    ¿Hay actividades pendientes?
+             │
+       ┌─────┴─────┐
+      SI            NO
+       │             │
+       ▼             ▼
+ DomainException   Status = Closed
+       │             │
+       └──────┬──────┘
+              ▼
+          Middleware
+              │
+              ▼
+        HTTP 409 Conflict
+```
+
+El cliente podría recibir:
+
+```json
+{
+    "status": 409,
+    "message": "La orden no puede cerrarse porque tiene actividades pendientes."
+}
+```
+
+---
+
+# 23. ¿Cuándo usar excepciones?
+
+Una buena regla práctica:
+
+### Usa excepción cuando la operación no puede continuar normalmente.
+
+Por ejemplo:
+
+```csharp
+if (!IsActive)
+    throw new EquipmentInactiveException(Id);
+```
+
+Tiene sentido.
+
+Pero no hagas esto:
+
+```csharp
+public bool IsValid()
+{
+    if (...)
+        throw new Exception();
+
+    return true;
+}
+```
+
+si la validación forma parte del flujo normal y puedes representar el resultado directamente.
+
+---
+
+# 24. Excepciones vs Result Pattern
+
+Aquí aparece un concepto importante en arquitecturas modernas.
+
+No necesariamente todo debe ser una excepción.
+
+Podemos tener:
+
+```csharp
+Result
+```
+
+para resultados esperados.
+
+Por ejemplo:
+
+```text
+Buscar equipo
+       ↓
+¿Existe?
+ ┌─────┴─────┐
+ NO          SÍ
+ ↓            ↓
+Result.Fail   Result.Success
+```
+
+Mientras que una situación realmente excepcional podría ser:
+
+```text
+Database connection failed
+```
+
+Entonces:
+
+```text
+Resultado esperado
+        → Result
+
+Regla de dominio violada
+        → DomainException
+
+Fallo técnico inesperado
+        → Exception específica
+```
+
+Aunque la frontera entre `Result` y excepciones depende del estilo arquitectónico que adoptes.
+
+---
+
+# 25. Una clasificación que te recomiendo para TribuSoft
+
+Para tu proyecto HVAC, yo utilizaría aproximadamente:
+
+```text
+TribuSoft.Domain
+│
+└── Exceptions
+    │
+    ├── DomainException
+    │
+    ├── EquipmentInactiveException
+    ├── InvalidEquipmentException
+    ├── WorkOrderCannotBeClosedException
+    └── InvalidMaintenanceActivityException
+```
+
+Application:
+
+```text
+TribuSoft.Application
+│
+└── Exceptions
+    │
+    ├── NotFoundException
+    ├── EquipmentNotFoundException
+    └── WorkOrderNotFoundException
+```
+
+Infrastructure:
+
+```text
+TribuSoft.Infrastructure
+│
+└── Exceptions
+    │
+    └── PersistenceException
+```
+
+API:
+
+```text
+TribuSoft.Api
+│
+└── Middleware
+    │
+    └── ExceptionHandlingMiddleware
+```
+
+---
+
+# 26. Jerarquía final
+
+Podríamos tener:
+
+```text
+Exception
+│
+├── DomainException
+│   │
+│   ├── EquipmentInactiveException
+│   ├── WorkOrderCannotBeClosedException
+│   └── InvalidMaintenanceActivityException
+│
+├── ApplicationException
+│   │
+│   ├── NotFoundException
+│   └── ConflictException
+│
+└── InfrastructureException
+    │
+    └── PersistenceException
+```
+
+Aunque **no es obligatorio** crear todas esas clases base. De hecho, conviene evitar jerarquías innecesariamente complejas.
+
+---
+
+# 27. La idea más importante
+
+En DDD + Clean Architecture piensa así:
+
+```text
+                 ¿Quién conoce el problema?
+                           │
+          ┌────────────────┼────────────────┐
+          │                │                │
+       Domain         Application      Infrastructure
+          │                │                │
+          ▼                ▼                ▼
+ DomainException    NotFoundException   PersistenceException
+          │                │                │
+          └────────────────┼────────────────┘
+                           ▼
+                    API / Middleware
+                           │
+                           ▼
+                      HTTP Response
+```
+
+Y recuerda esta regla:
+
+> **El dominio expresa reglas de negocio; Application coordina casos de uso; Infrastructure maneja problemas técnicos; API transforma las excepciones en respuestas HTTP.**
+
+Para tu proyecto HVAC, esto es especialmente útil porque tienes muchas reglas como:
+
+```text
+Equipo debe estar activo
+Orden debe existir
+Orden no puede cerrarse con actividades pendientes
+Actividad requiere determinado tipo de respuesta
+Lecturas RS/RT/ST deben ser válidas
+No se puede registrar una actividad inexistente
+```
+
+Estas reglas **no deberían estar en los Controllers**. Deben vivir cerca del modelo de dominio que las protege.
+
+### Siguiente paso recomendado
+
+Podemos continuar con un ejemplo completo de **TribuSoft**, construyendo paso a paso:
+
+```text
+DomainException
+      ↓
+EquipmentInactiveException
+      ↓
+WorkOrderCannotBeClosedException
+      ↓
+Application Use Case
+      ↓
+Repository
+      ↓
+Exception Middleware
+      ↓
+ProblemDetails
+      ↓
+HTTP 400 / 404 / 409 / 500
+```
+
+y hacerlo siguiendo **DDD + Clean Architecture + .NET 10 + C# 14**, incluyendo el código de cada proyecto (`Domain`, `Application`, `Infrastructure` y `Api`).
+
+

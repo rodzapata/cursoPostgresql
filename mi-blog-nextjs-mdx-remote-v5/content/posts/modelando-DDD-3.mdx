@@ -1,0 +1,763 @@
+---
+title: "Modelando DDD parte 3 "
+date: "2026-09-08"
+description: "Separacion de correctamente Actividad, Actividad Realizada y Respuestas"
+slug: "modelando-DDD-3"
+category: "clean Arquitecture"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+Perfecto. Ahora vamos a entrar en una de las partes **más importantes de tu modelo HVAC**: separar correctamente **Actividad**, **ActividadRealizada** y **Respuesta**.
+
+La idea es que al terminar tengamos claro:
+
+```text
+Entity
+Value Object
+Aggregate Root
+Aggregate interno
+```
+
+y después podremos llevarlo a **C# 14 + .NET 10 + EF Core 10**.
+
+---
+
+# 1. Primero diferenciemos dos conceptos
+
+Tenemos una actividad del catálogo:
+
+> **"Lectura de amperaje del compresor #1"**
+
+y tenemos la ejecución de esa actividad:
+
+> En la orden 2026-000123, el técnico realizó la lectura y obtuvo RS=20.1, RT=20.5, ST=20.3.
+
+Son dos cosas diferentes.
+
+```text
+ACTIVIDAD DEL CATÁLOGO
+        │
+        │ define QUÉ hacer
+        ▼
+"Lectura de amperaje
+del compresor #1"
+
+
+ACTIVIDAD REALIZADA
+        │
+        │ registra QUÉ ocurrió
+        ▼
+Orden #123
+RS = 20.1
+RT = 20.5
+ST = 20.3
+```
+
+Esta separación es fundamental.
+
+---
+
+# 2. ActividadCatalogo
+
+Yo la conceptualizaría inicialmente así:
+
+```text
+ActividadCatalogo
+-------------------------
+Id
+Codigo
+Nombre
+Descripcion
+TipoRespuesta
+Unidad
+```
+
+Ejemplos:
+
+```text
+A001
+Chequeo ventilador
+Boolean
+
+A002
+Presión de descarga
+Decimal
+PSI
+
+A003
+Lectura amperaje
+Compuesta
+A
+```
+
+La actividad del catálogo responde:
+
+> **¿Qué debe hacer el técnico?**
+
+No contiene el resultado.
+
+Por ejemplo:
+
+```text
+"Medir presión de descarga"
+```
+
+No debería guardar:
+
+```text
+120 PSI
+```
+
+porque `120 PSI` pertenece a una ejecución concreta.
+
+---
+
+# 3. ActividadRealizada
+
+Ahora tenemos:
+
+```text
+OrdenMantenimiento
+        │
+        └── ActividadRealizada
+```
+
+Esta representa:
+
+> **La ejecución de una actividad dentro de una orden específica.**
+
+Podría contener:
+
+```text
+ActividadRealizada
+-------------------------
+Id
+ActividadCatalogoId
+FechaHora
+TecnicoId
+Estado
+Respuesta
+Observaciones
+```
+
+Por ejemplo:
+
+```text
+Orden: OM-000123
+
+Actividad:
+A002 - Presión de descarga
+
+Fecha:
+2026-09-08
+
+Resultado:
+120 PSI
+
+Observación:
+Presión dentro del rango.
+```
+
+---
+
+# 4. ¿ActividadRealizada es un Aggregate Root?
+
+Aquí aplicamos lo que acabamos de aprender.
+
+Preguntamos:
+
+> ¿Puede existir una ActividadRealizada sin una OrdenMantenimiento?
+
+En nuestro modelo:
+
+```text
+NO
+```
+
+Entonces tiene mucho sentido que pertenezca al Aggregate de la orden:
+
+```text
+┌─────────────────────────────────┐
+│       OrdenMantenimiento        │
+│                                 │
+│       AGGREGATE ROOT            │
+│                                 │
+│  ├── ActividadRealizada         │
+│  │       └── Respuesta          │
+│  │                              │
+│  ├── ActividadRealizada         │
+│  │       └── Respuesta          │
+│  │                              │
+│  └── ActividadRealizada         │
+└─────────────────────────────────┘
+```
+
+Por tanto:
+
+**No necesitamos necesariamente un `ActividadRealizadaRepository`.**
+
+El acceso sería a través de:
+
+```csharp
+OrdenMantenimiento
+```
+
+---
+
+# 5. Ahora viene la parte complicada: Respuesta
+
+Aquí está uno de los problemas más interesantes de tu aplicación.
+
+Una actividad puede solicitar:
+
+### Boolean
+
+```text
+¿Ventilador funcionando?
+
+Sí
+```
+
+### Decimal
+
+```text
+Presión descarga:
+
+120 PSI
+```
+
+### Texto
+
+```text
+Observación:
+
+Se encontró suciedad.
+```
+
+### Múltiples valores
+
+```text
+Amperaje compresor #1:
+
+RS = 20.1 A
+RT = 20.5 A
+ST = 20.3 A
+```
+
+Entonces no recomiendo diseñar simplemente:
+
+```csharp
+public string Respuesta { get; set; }
+```
+
+porque perderíamos semántica.
+
+---
+
+# 6. Tampoco haría esto
+
+```csharp
+public class ActividadRealizada
+{
+    public bool? RespuestaBoolean { get; set; }
+
+    public decimal? RespuestaNumerica { get; set; }
+
+    public string? RespuestaTexto { get; set; }
+
+    public decimal? RS { get; set; }
+
+    public decimal? RT { get; set; }
+
+    public decimal? ST { get; set; }
+}
+```
+
+Porque terminaríamos con algo como:
+
+```text
+RespuestaBoolean
+RespuestaNumerica
+RespuestaTexto
+RS
+RT
+ST
+R1
+R2
+R3
+...
+```
+
+y el modelo se volvería difícil de mantener.
+
+Además, cada nueva actividad con una estructura diferente obligaría a modificar el modelo.
+
+---
+
+# 7. Mejor pensemos en la respuesta como concepto del dominio
+
+Podemos tener:
+
+```text
+Respuesta
+```
+
+que representa:
+
+> **El resultado obtenido al ejecutar una actividad.**
+
+Conceptualmente:
+
+```text
+ActividadRealizada
+        │
+        ▼
+     Respuesta
+        │
+        ├── Tipo
+        └── Valores
+```
+
+Por ejemplo:
+
+```text
+Respuesta
+----------------
+Tipo: Decimal
+
+Valor:
+120
+
+Unidad:
+PSI
+```
+
+O:
+
+```text
+Respuesta
+----------------
+Tipo: Boolean
+
+Valor:
+true
+```
+
+O:
+
+```text
+Respuesta
+----------------
+Tipo: Compuesta
+
+RS = 20.1
+RT = 20.5
+ST = 20.3
+```
+
+---
+
+# 8. Aquí aparece un Value Object
+
+Una pregunta importante:
+
+> ¿La respuesta necesita identidad propia?
+
+Normalmente:
+
+```text
+Respuesta #123
+```
+
+no es algo que el negocio necesite identificar independientemente.
+
+Lo que importa es:
+
+```text
+qué valores tiene
+```
+
+Por eso `Respuesta` **podría ser un Value Object**.
+
+Por ejemplo:
+
+```csharp
+public sealed record RespuestaNumerica(
+    decimal Valor,
+    string Unidad);
+```
+
+Y:
+
+```csharp
+public sealed record RespuestaBoolean(
+    bool Valor);
+```
+
+Y una respuesta compuesta:
+
+```csharp
+public sealed record RespuestaAmperaje(
+    decimal RS,
+    decimal RT,
+    decimal ST,
+    string Unidad);
+```
+
+Observa algo:
+
+```text
+RespuestaNumerica
+RespuestaBoolean
+RespuestaAmperaje
+```
+
+no son Aggregates.
+
+Son posibles **Value Objects especializados**.
+
+---
+
+# 9. Pero aparece otra pregunta
+
+¿Realmente necesitamos crear una clase para cada tipo?
+
+Podríamos tener:
+
+```text
+Respuesta
+   │
+   ├── Boolean
+   ├── Numeric
+   ├── Text
+   └── Composite
+```
+
+o utilizar otro diseño.
+
+Todavía **no elegiría la implementación definitiva**.
+
+Primero necesitamos conocer todas las formas de respuesta de tu catálogo.
+
+Esto es muy importante porque el modelo debe responder al negocio, no al revés.
+
+---
+
+# 10. Ahora volvamos a Aggregate
+
+Podríamos tener:
+
+```text
+OrdenMantenimiento
+│
+├── ActividadRealizada
+│      │
+│      └── Respuesta
+│
+├── ActividadRealizada
+│      │
+│      └── Respuesta
+│
+└── ActividadRealizada
+       │
+       └── Respuesta
+```
+
+La orden controla:
+
+```csharp
+orden.RegistrarActividad(...);
+```
+
+y:
+
+```csharp
+orden.RegistrarRespuesta(...);
+```
+
+Por ejemplo:
+
+```csharp
+public void RegistrarRespuesta(
+    Guid actividadId,
+    Respuesta respuesta)
+{
+    var actividad = _actividades
+        .FirstOrDefault(x => x.Id == actividadId);
+
+    if (actividad is null)
+        throw new DomainException(
+            "La actividad no pertenece a la orden.");
+
+    actividad.RegistrarRespuesta(respuesta);
+}
+```
+
+Esto mantiene el control dentro del Aggregate.
+
+---
+
+# 11. Una regla importante
+
+Imaginemos:
+
+```text
+Orden = Cancelada
+```
+
+y alguien intenta:
+
+```text
+Registrar respuesta
+```
+
+No debería permitirse.
+
+Podríamos tener:
+
+```csharp
+public void RegistrarRespuesta(...)
+{
+    if (Estado != EstadoOrden.EnProceso)
+        throw new DomainException(
+            "No se pueden registrar respuestas " +
+            "en una orden que no está en proceso.");
+
+    // ...
+}
+```
+
+¿Quién conoce el estado?
+
+```text
+OrdenMantenimiento
+```
+
+Por eso tiene sentido que la Orden sea el Aggregate Root.
+
+---
+
+# 12. Ahora pensemos en el catálogo
+
+Hay otra relación interesante:
+
+```text
+ActividadRealizada
+        │
+        └── ActividadCatalogoId
+```
+
+No necesitamos copiar toda la actividad:
+
+```csharp
+public Guid ActividadCatalogoId { get; private set; }
+```
+
+Esto permite:
+
+```text
+ActividadCatalogo
+       │
+       │ Id
+       ▼
+ActividadRealizada
+```
+
+La actividad realizada dice:
+
+> "Estoy ejecutando la actividad A003."
+
+---
+
+# 13. Nuestro modelo conceptual empieza a quedar así
+
+```text
+                    DOMAIN
+                       │
+       ┌───────────────┼───────────────────┐
+       │               │                   │
+       ▼               ▼                   ▼
+    Equipo        ActividadCatalogo     Cliente
+ Aggregate Root    Aggregate Root      Aggregate Root
+       │
+       │
+       │ EquipoId
+       ▼
+┌────────────────────────────────────┐
+│       OrdenMantenimiento           │
+│                                    │
+│          AGGREGATE ROOT            │
+│                                    │
+│  Id                                │
+│  EquipoId                          │
+│  TecnicoId                         │
+│  Estado                            │
+│                                    │
+│  ┌────────────────────────────┐    │
+│  │ ActividadRealizada         │    │
+│  │                            │    │
+│  │ ActividadCatalogoId        │    │
+│  │ Respuesta                  │    │
+│  └────────────────────────────┘    │
+│                                    │
+│  ┌────────────────────────────┐    │
+│  │ ActividadRealizada         │    │
+│  │                            │    │
+│  │ ActividadCatalogoId        │    │
+│  │ Respuesta                  │    │
+│  └────────────────────────────┘    │
+└────────────────────────────────────┘
+```
+
+---
+
+# 14. ¿Qué hemos conseguido?
+
+Hemos separado tres conceptos que fácilmente podrían terminar mezclados:
+
+### `ActividadCatalogo`
+
+Define:
+
+> **Qué hay que hacer.**
+
+```text
+"Medir presión de descarga"
+```
+
+### `ActividadRealizada`
+
+Define:
+
+> **Qué actividad se ejecutó en una orden.**
+
+```text
+Orden #123
+Actividad A002
+Ejecutada 08/09/2026
+```
+
+### `Respuesta`
+
+Define:
+
+> **Qué resultado produjo esa ejecución.**
+
+```text
+120 PSI
+```
+
+o:
+
+```text
+RS = 20.1
+RT = 20.5
+ST = 20.3
+```
+
+---
+
+# 15. Y esto nos lleva al siguiente problema importante
+
+Ahora debemos responder:
+
+> **¿Cómo sabemos qué tipo de respuesta debe proporcionar una actividad?**
+
+Por ejemplo:
+
+```text
+ActividadCatalogo
+       │
+       ├── Nombre
+       ├── Descripción
+       └── TipoRespuesta
+```
+
+Podríamos tener:
+
+```csharp
+public enum TipoRespuesta
+{
+    Boolean,
+    Numerica,
+    Texto,
+    Compuesta
+}
+```
+
+Pero en tu caso hay una pregunta aún más importante:
+
+```text
+"Lectura de amperaje RS - RT - ST"
+```
+
+¿Es simplemente:
+
+```text
+TipoRespuesta = Compuesta
+```
+
+o realmente estamos ante una **estructura de parámetros de respuesta**?
+
+Por ejemplo:
+
+```text
+Respuesta
+│
+├── RS
+│   ├── Valor
+│   └── Unidad
+│
+├── RT
+│   ├── Valor
+│   └── Unidad
+│
+└── ST
+    ├── Valor
+    └── Unidad
+```
+
+Y esto se vuelve todavía más interesante cuando tenemos:
+
+```text
+Presión descarga
+    → PSI
+
+Temperatura
+    → °C
+
+Amperaje
+    → A
+
+Voltaje
+    → V
+
+Chequeo ventilador
+    → Boolean
+```
+
+### Mi recomendación
+
+**Antes de escribir las clases definitivas**, el siguiente paso debería ser diseñar el **modelo de respuesta de actividades**:
+
+```text
+ActividadCatalogo
+       ↓
+¿Qué parámetros debe responder?
+       ↓
+ParámetroRespuesta
+       ↓
+ActividadRealizada
+       ↓
+ValorRespuesta
+```
+
+Esto nos permitirá resolver elegantemente **Boolean, Decimal, Texto y respuestas múltiples como RS/RT/ST**, sin llenar `ActividadRealizada` de columnas que solamente sirven para ciertos tipos de actividades.
+
+Y, sobre todo, nos permitirá mantener el diseño alineado con **DDD + Clean Architecture + EF Core 10**, en lugar de diseñarlo pensando primero en cómo quedará la tabla SQL.
+
+> Continuemos con la parte 4 Modelando el tipo de respuesta
+
+
+[Modelando tipo de respuesta parte4](/blog/modelando-DDD-4)

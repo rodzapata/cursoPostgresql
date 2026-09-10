@@ -1,0 +1,1392 @@
+---
+title: "Aggregate y AggregateRoot en DDD "
+date: "2026-09-07"
+description: "Que resuelve el Aggregate en DDD"
+slug: "aggregate-csharp"
+category: "clean Arquitecture"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Perfecto. Vamos a hacerlo **desde cero y aplicado directamente a tu sistema HVAC**, porque entender Aggregate y Aggregate Root es una de las piezas más importantes de DDD.
+
+# 1. Primero: ¿qué problema resuelve un Aggregate?
+
+Supongamos que tenemos:
+
+```text
+Orden de mantenimiento
+    │
+    ├── Actividad 1
+    ├── Actividad 2
+    ├── Actividad 3
+    └── Actividad 4
+```
+
+Una pregunta fundamental es:
+
+> ¿Quién tiene la responsabilidad de garantizar que esas actividades se puedan agregar, modificar o eliminar correctamente?
+
+Si cualquier parte de la aplicación puede hacer:
+
+```csharp
+orden.Actividades.Add(...);
+```
+
+entonces estamos dejando que cualquier código pueda modificar el estado interno de la orden.
+
+Eso es peligroso en DDD.
+
+Queremos algo como:
+
+```csharp
+orden.RegistrarActividad(actividad);
+```
+
+La propia `OrdenMantenimiento` controla las reglas.
+
+Ahí empieza a aparecer el concepto de **Aggregate**.
+
+---
+
+# 2. ¿Qué es un Aggregate?
+
+Un Aggregate es:
+
+> **Un conjunto de objetos del dominio que se considera una unidad de consistencia y que tiene una única puerta de entrada: el Aggregate Root.**
+
+Visualmente:
+
+```text
+          AGGREGATE
+┌──────────────────────────────┐
+│                              │
+│    OrdenMantenimiento        │
+│       │                      │
+│       ├── ActividadRealizada │
+│       │                      │
+│       ├── ActividadRealizada │
+│       │                      │
+│       └── ActividadRealizada │
+│                              │
+└──────────────────────────────┘
+             ▲
+             │
+       Aggregate Root
+```
+
+La raíz sería:
+
+```text
+OrdenMantenimiento
+```
+
+---
+
+# 3. ¿Qué es Aggregate Root?
+
+El **Aggregate Root** es la entidad principal que controla el Aggregate.
+
+En nuestro ejemplo:
+
+```text
+OrdenMantenimiento
+       │
+       ├── ActividadRealizada
+       ├── ActividadRealizada
+       └── ActividadRealizada
+```
+
+`OrdenMantenimiento` es el **Aggregate Root**.
+
+Las otras entidades pertenecen al Aggregate.
+
+Una regla importante es:
+
+> **El exterior debería interactuar con el Aggregate a través de su Root.**
+
+Por ejemplo:
+
+```csharp
+orden.RegistrarActividad(actividad);
+```
+
+y no:
+
+```csharp
+orden.Actividades.Add(actividad);
+```
+
+---
+
+# 4. ¿Por qué?
+
+Porque el Aggregate Root puede proteger las reglas del negocio.
+
+Por ejemplo:
+
+```csharp
+public class OrdenMantenimiento
+{
+    private readonly List<ActividadRealizada> _actividades = [];
+
+    public IReadOnlyCollection<ActividadRealizada> Actividades
+        => _actividades.AsReadOnly();
+
+    public void RegistrarActividad(
+        ActividadRealizada actividad)
+    {
+        if (actividad is null)
+            throw new ArgumentNullException(nameof(actividad));
+
+        _actividades.Add(actividad);
+    }
+}
+```
+
+Ahora nadie puede hacer directamente:
+
+```csharp
+orden.Actividades.Add(...);
+```
+
+porque exponemos:
+
+```csharp
+IReadOnlyCollection<ActividadRealizada>
+```
+
+y no:
+
+```csharp
+List<ActividadRealizada>
+```
+
+Esto conecta directamente con lo que estuvimos estudiando sobre:
+
+```text
+IEnumerable<T>
+ICollection<T>
+IReadOnlyCollection<T>
+IReadOnlyList<T>
+```
+
+En DDD, esta protección es muy importante.
+
+---
+
+# 5. Ahora agreguemos una regla real de HVAC
+
+Imaginemos que una orden tiene estados:
+
+```csharp
+public enum EstadoOrden
+{
+    Programada,
+    EnProceso,
+    Finalizada,
+    Cancelada
+}
+```
+
+Una regla podría ser:
+
+```text
+Programada
+     ↓
+EnProceso
+     ↓
+Finalizada
+```
+
+Pero no:
+
+```text
+Finalizada
+     ↓
+EnProceso
+```
+
+Entonces:
+
+```csharp
+public class OrdenMantenimiento
+{
+    public EstadoOrden Estado { get; private set; }
+
+    public void Iniciar()
+    {
+        if (Estado != EstadoOrden.Programada)
+            throw new DomainException(
+                "La orden debe estar programada para poder iniciarse.");
+
+        Estado = EstadoOrden.EnProceso;
+    }
+
+    public void Finalizar()
+    {
+        if (Estado != EstadoOrden.EnProceso)
+            throw new DomainException(
+                "La orden debe estar en proceso para poder finalizarse.");
+
+        Estado = EstadoOrden.Finalizada;
+    }
+}
+```
+
+Aquí vemos algo fundamental:
+
+**La entidad contiene comportamiento.**
+
+No es simplemente:
+
+```csharp
+public class OrdenMantenimiento
+{
+    public Guid Id { get; set; }
+    public string Estado { get; set; }
+}
+```
+
+Eso sería un modelo anémico muy orientado a datos.
+
+En cambio:
+
+```csharp
+orden.Iniciar();
+orden.Finalizar();
+orden.RegistrarActividad(...);
+```
+
+representa comportamiento del dominio.
+
+---
+
+# 6. ¿Quién debería modificar las actividades?
+
+Supongamos:
+
+```text
+Orden
+│
+├── Actividad 1
+├── Actividad 2
+└── Actividad 3
+```
+
+No queremos:
+
+```csharp
+actividad.Estado = ...
+```
+
+desde cualquier lugar.
+
+Preferimos:
+
+```csharp
+orden.RegistrarActividad(actividad);
+```
+
+o:
+
+```csharp
+orden.CompletarActividad(actividadId);
+```
+
+La `OrdenMantenimiento` controla las reglas.
+
+Por ejemplo:
+
+```csharp
+public void CompletarActividad(Guid actividadId)
+{
+    var actividad = _actividades
+        .FirstOrDefault(x => x.Id == actividadId);
+
+    if (actividad is null)
+        throw new DomainException(
+            "La actividad no pertenece a la orden.");
+
+    actividad.Completar();
+}
+```
+
+Ahora la Orden controla quién puede modificar sus actividades.
+
+---
+
+# 7. ¿Y Equipo?
+
+Aquí empieza una decisión importante para **tu modelo HVAC**.
+
+Podríamos tener:
+
+```text
+Equipo
+```
+
+como un Aggregate independiente.
+
+Y:
+
+```text
+OrdenMantenimiento
+```
+
+como otro Aggregate.
+
+Visualmente:
+
+```text
+┌─────────────────────┐
+│      EQUIPO         │
+│  Aggregate Root     │
+│                     │
+│  Id                 │
+│  Marca              │
+│  Modelo             │
+│  Tipo                │
+│  Parámetros         │
+└─────────────────────┘
+
+
+┌──────────────────────────────┐
+│   ORDEN MANTENIMIENTO        │
+│      Aggregate Root          │
+│                              │
+│   Id                         │
+│   EquipoId                   │
+│   TécnicoId                  │
+│   Estado                     │
+│       │                      │
+│       ├── Actividad          │
+│       ├── Actividad          │
+│       └── Actividad          │
+└──────────────────────────────┘
+```
+
+Observa algo importante:
+
+La orden tendría:
+
+```csharp
+public Guid EquipoId { get; private set; }
+```
+
+y no necesariamente:
+
+```csharp
+public Equipo Equipo { get; private set; }
+```
+
+como parte del Aggregate.
+
+¿Por qué?
+
+Porque:
+
+```text
+Equipo
+```
+
+y
+
+```text
+OrdenMantenimiento
+```
+
+pueden tener **ciclos de vida y reglas diferentes**.
+
+---
+
+# 8. Una regla muy importante de DDD
+
+> **No debes pensar que cada relación de base de datos representa un Aggregate.**
+
+Este es uno de los errores más comunes al comenzar DDD.
+
+Por ejemplo, en SQL podrías tener:
+
+```text
+Orden
+   │
+   ├── EquipoId
+   │
+   ├── TecnicoId
+   │
+   └── ClienteId
+```
+
+Eso no significa que:
+
+```text
+Orden
+ ├── Equipo
+ ├── Técnico
+ └── Cliente
+```
+
+deban formar un único Aggregate.
+
+El diseño DDD se hace pensando en:
+
+**reglas + consistencia + comportamiento + límites del dominio**, no simplemente en las FK de SQL.
+
+---
+
+# 9. ¿Y las respuestas?
+
+Aquí tenemos algo especialmente interesante en tu proyecto.
+
+Tenemos:
+
+```text
+Orden
+   │
+   └── Actividad realizada
+          │
+          └── Respuesta
+```
+
+Por ejemplo:
+
+```text
+Actividad:
+"Compresor #1 Lectura de Amperaje RS - RT - ST"
+
+Respuesta:
+
+RS = 20.1 A
+RT = 20.5 A
+ST = 20.3 A
+```
+
+Podríamos tener:
+
+```text
+OrdenMantenimiento
+    │
+    └── ActividadRealizada
+            │
+            └── Respuesta
+```
+
+Pero **no asumiría todavía que esta es necesariamente la estructura definitiva**.
+
+Aquí debemos analizar las reglas.
+
+Por ejemplo:
+
+```text
+¿Una respuesta puede existir sin una actividad?
+
+NO
+```
+
+Entonces podría tener sentido que:
+
+```text
+Respuesta
+```
+
+pertenezca al Aggregate de:
+
+```text
+OrdenMantenimiento
+```
+
+a través de:
+
+```text
+ActividadRealizada
+```
+
+---
+
+# 10. Entonces podríamos tener inicialmente
+
+Una propuesta conceptual:
+
+```text
+                  DOMAIN
+                     │
+        ┌────────────┴────────────┐
+        │                         │
+        ▼                         ▼
+      Equipo              OrdenMantenimiento
+   Aggregate Root          Aggregate Root
+                                 │
+                                 │
+                        ┌────────┴────────┐
+                        │                 │
+                        ▼                 ▼
+                ActividadRealizada   Respuesta
+```
+
+Pero atención:
+
+**esto es un diseño inicial**, no debemos convertirlo todavía en código definitivo.
+
+Primero tenemos que descubrir las reglas del dominio.
+
+---
+
+# 11. ¿Por qué esto es diferente de un CRUD?
+
+En CRUD normalmente pensamos:
+
+```text
+POST /ordenes
+GET /ordenes
+PUT /ordenes
+DELETE /ordenes
+```
+
+En DDD pensamos:
+
+```text
+CrearOrden()
+Iniciar()
+RegistrarActividad()
+RegistrarRespuesta()
+Finalizar()
+Cancelar()
+```
+
+La diferencia es enorme.
+
+CRUD piensa principalmente en:
+
+> "¿Qué datos voy a guardar?"
+
+DDD piensa:
+
+> **"¿Qué puede hacer el negocio y qué reglas debe respetar?"**
+
+---
+
+# 12. Una regla de oro para tus Aggregates
+
+Quédate con esta frase:
+
+> **Un Aggregate debe ser lo suficientemente pequeño para poder mantener su consistencia fácilmente.**
+
+No hagamos esto:
+
+```text
+Empresa
+ │
+ ├── Clientes
+ │    ├── Equipos
+ │    │    ├── Ordenes
+ │    │    │    ├── Actividades
+ │    │    │    │    └── Respuestas
+ │    │    │    └── ...
+ │    │    └── ...
+ │    └── ...
+ └── Técnicos
+```
+
+y decir:
+
+> "Todo esto es un Aggregate."
+
+Sería enorme y problemático.
+
+Es mejor tener varios Aggregates:
+
+```text
+Cliente
+Equipo
+OrdenMantenimiento
+```
+
+y definir las relaciones entre ellos mediante identificadores.
+
+---
+
+# 13. Entonces, para tu HVAC
+
+Mi hipótesis inicial sería estudiar estos candidatos:
+
+```text
+┌─────────────────────────┐
+│ Cliente                 │
+│ Aggregate Root ?        │
+└─────────────────────────┘
+
+┌─────────────────────────┐
+│ Equipo                  │
+│ Aggregate Root ?        │
+└─────────────────────────┘
+
+┌─────────────────────────┐
+│ OrdenMantenimiento      │
+│ Aggregate Root ?        │
+└─────────────────────────┘
+
+┌─────────────────────────┐
+│ Actividad               │
+│ Aggregate Root ?        │
+└─────────────────────────┘
+
+┌─────────────────────────┐
+│ Respuesta               │
+│ Aggregate Root ?        │
+└─────────────────────────┘
+```
+
+Pero **no significa que todos sean Aggregates**.
+
+De hecho, sospecho que algunos de estos conceptos deberían ser **entidades internas, Value Objects o simplemente referencias a otros Aggregates**.
+
+Y ahí está precisamente la parte interesante del diseño.
+
+---
+
+## La idea que quiero que te quede clara
+
+### Delegate
+
+```text
+C#
+│
+└── referencia a un método
+```
+
+### Entity
+
+```text
+DDD
+│
+└── objeto con identidad
+```
+
+### Value Object
+
+```text
+DDD
+│
+└── objeto definido por sus valores
+```
+
+### Aggregate
+
+```text
+DDD
+│
+└── conjunto de objetos que forman
+    una unidad de consistencia
+```
+
+### Aggregate Root
+
+```text
+DDD
+│
+└── entidad principal que controla
+    el Aggregate
+```
+
+Y finalmente:
+
+```text
+                DDD
+                 │
+        ┌────────┴────────┐
+        │                 │
+     Entity          Value Object
+        │
+        ▼
+    Aggregate
+        │
+        ▼
+ Aggregate Root
+```
+
+**Para tu proyecto HVAC, el siguiente paso lógico es identificar los Aggregates reales a partir de las reglas del negocio**, antes de escribir las entidades definitivas de `OrdenMantenimiento`, `Equipo`, `Actividad` y `Respuesta`. Esa decisión va a influir directamente en tus repositorios, EF Core y casos de uso.
+
+---
+
+> Continuemos con nuestro análisis   
+
+Perfecto. Continuemos **paso a paso con tu dominio HVAC**. Ahora vamos a hacer algo muy importante: **determinar qué debería ser Aggregate Root, qué debería vivir dentro del Aggregate y qué debería ser un Aggregate independiente**.
+
+# 14. Empecemos por la pregunta correcta
+
+No debemos comenzar preguntando:
+
+> "¿Qué tablas tengo?"
+
+Debemos preguntar:
+
+> **"¿Qué cosas del negocio deben mantener sus reglas y consistencia juntas?"**
+
+Para tu sistema tenemos, simplificando:
+
+```text
+Cliente
+   │
+   └── Equipos
+          │
+          └── Orden de mantenimiento
+                  │
+                  ├── Actividades
+                  │
+                  └── Respuestas
+```
+
+Pero este árbol **no significa automáticamente** que tengamos un único Aggregate.
+
+---
+
+# 15. Primer candidato: Equipo
+
+Pensemos en un equipo HVAC:
+
+```text
+Equipo
+├── Id
+├── TipoEquipo
+├── Marca
+├── Modelo
+├── Capacidad
+├── Refrigerante
+└── Parámetros técnicos
+```
+
+¿Tiene identidad?
+
+Sí.
+
+```csharp
+public Guid Id { get; private set; }
+```
+
+Por tanto, es una **Entity**.
+
+Ahora preguntamos:
+
+> ¿El equipo tiene reglas propias?
+
+Probablemente sí.
+
+Por ejemplo:
+
+```text
+Un equipo debe tener un tipo.
+
+La capacidad debe ser válida.
+
+El refrigerante debe ser compatible.
+
+Determinados parámetros dependen del tipo de equipo.
+```
+
+Entonces:
+
+```text
+Equipo
+   ↓
+Entity
+```
+
+y posiblemente:
+
+```text
+Equipo
+   ↓
+Aggregate Root
+```
+
+### Primera hipótesis
+
+```text
+┌──────────────────────────┐
+│         EQUIPO           │
+│                          │
+│    Aggregate Root        │
+│                          │
+│    Id                    │
+│    Tipo                  │
+│    Marca                 │
+│    Modelo                │
+│    Capacidad             │
+│    Refrigerante          │
+└──────────────────────────┘
+```
+
+Pero todavía no estamos diciendo que sea definitivo.
+
+---
+
+# 16. Segundo candidato: OrdenMantenimiento
+
+Aquí tenemos un candidato mucho más fuerte.
+
+Una orden tiene:
+
+```text
+OrdenMantenimiento
+├── Id
+├── EquipoId
+├── TécnicoId
+├── Fecha
+├── Estado
+└── Actividades realizadas
+```
+
+Y tiene comportamiento:
+
+```text
+Crear
+Iniciar
+Registrar actividad
+Registrar respuesta
+Finalizar
+Cancelar
+```
+
+Esto es exactamente el tipo de concepto que suele convertirse en Aggregate Root.
+
+```csharp
+public class OrdenMantenimiento
+{
+    public Guid Id { get; private set; }
+
+    public Guid EquipoId { get; private set; }
+
+    public Guid TecnicoId { get; private set; }
+
+    public EstadoOrden Estado { get; private set; }
+
+    public void Iniciar()
+    {
+        // regla
+    }
+
+    public void Finalizar()
+    {
+        // regla
+    }
+}
+```
+
+Por tanto:
+
+```text
+OrdenMantenimiento
+        ↓
+      Entity
+        ↓
+ Aggregate Root
+```
+
+Aquí tenemos un candidato muy fuerte.
+
+---
+
+# 17. Ahora viene la pregunta importante: Actividad
+
+Supongamos que tienes:
+
+```text
+Orden #1001
+│
+├── Revisar presión de descarga
+├── Revisar ventilador
+├── Medir amperaje
+└── Revisar temperatura
+```
+
+¿Una actividad puede existir independientemente de una orden?
+
+En tu dominio probablemente hay que distinguir dos conceptos:
+
+### Actividad definida en el catálogo
+
+```text
+"Medir amperaje del compresor"
+```
+
+de:
+
+### Actividad realizada
+
+```text
+Orden #1001
+
+Actividad:
+Medir amperaje del compresor
+
+Resultado:
+RS = 20.1
+RT = 20.5
+ST = 20.3
+```
+
+¡Esta diferencia es importantísima!
+
+---
+
+# 18. Catálogo de Actividades
+
+El catálogo podría contener:
+
+```text
+Actividad
+----------------------------
+Id
+Código
+Nombre
+Descripción
+Tipo de respuesta
+Unidad
+```
+
+Por ejemplo:
+
+```text
+A001
+"Chequeo ventilador"
+Boolean
+
+A002
+"Presión descarga"
+Decimal
+PSI
+
+A003
+"Lectura amperaje"
+Compuesta
+RS / RT / ST
+```
+
+Esto probablemente sería un concepto independiente del mantenimiento concreto.
+
+Podría ser:
+
+```text
+ActividadCatalogo
+       ↓
+     Entity
+```
+
+y potencialmente:
+
+```text
+ActividadCatalogo
+       ↓
+ Aggregate Root
+```
+
+---
+
+# 19. Actividad realizada es diferente
+
+Cuando ejecutas una orden:
+
+```text
+OrdenMantenimiento #1001
+       │
+       └── ActividadRealizada
+```
+
+Por ejemplo:
+
+```text
+Actividad:
+Presión de descarga
+
+Valor:
+120 PSI
+```
+
+Esta actividad realizada **depende de la orden**.
+
+No tendría sentido:
+
+```text
+ActividadRealizada #500
+```
+
+existiendo independientemente de:
+
+```text
+Orden #1001
+```
+
+Por lo tanto, una posibilidad muy interesante es:
+
+```text
+OrdenMantenimiento
+        │
+        ├── ActividadRealizada
+        ├── ActividadRealizada
+        └── ActividadRealizada
+```
+
+Aquí `ActividadRealizada` podría ser una **Entity interna del Aggregate**.
+
+---
+
+# 20. Ahora llegamos a Respuesta
+
+Esta parte conecta directamente con la pregunta que hiciste anteriormente.
+
+Tienes:
+
+### Boolean
+
+```text
+¿Chequeo ventilador?
+
+Sí
+```
+
+### Decimal
+
+```text
+Presión descarga PSI
+
+120
+```
+
+### Compuesta
+
+```text
+Amperaje compresor #1
+
+RS = 20.1
+RT = 20.5
+ST = 20.3
+```
+
+No necesariamente necesitamos:
+
+```text
+RespuestaBoolean
+RespuestaDecimal
+RespuestaAmperaje
+```
+
+como Aggregates independientes.
+
+Podríamos modelar la respuesta como parte del contexto de la actividad realizada.
+
+Conceptualmente:
+
+```text
+OrdenMantenimiento
+       │
+       └── ActividadRealizada
+               │
+               └── Respuesta
+```
+
+Por ejemplo:
+
+```text
+Orden
+ │
+ └── ActividadRealizada
+        │
+        ├── ActividadId
+        ├── Fecha
+        └── Respuesta
+              │
+              ├── Tipo
+              └── Valores
+```
+
+---
+
+# 21. Entonces nuestro Aggregate podría quedar así
+
+Inicialmente:
+
+```text
+┌──────────────────────────────────────┐
+│        ORDEN MANTENIMIENTO           │
+│                                      │
+│          AGGREGATE ROOT              │
+│                                      │
+│  Id                                  │
+│  EquipoId                            │
+│  TecnicoId                           │
+│  Estado                              │
+│                                      │
+│  ┌──────────────────────────────┐    │
+│  │ ActividadRealizada           │    │
+│  │                              │    │
+│  │ ActividadId                  │    │
+│  │ Estado                       │    │
+│  │ Respuesta                    │    │
+│  └──────────────────────────────┘    │
+│                                      │
+│  ┌──────────────────────────────┐    │
+│  │ ActividadRealizada           │    │
+│  │ ...                          │    │
+│  └──────────────────────────────┘    │
+│                                      │
+└──────────────────────────────────────┘
+```
+
+La puerta de entrada sería:
+
+```csharp
+OrdenMantenimiento
+```
+
+No:
+
+```csharp
+ActividadRealizada
+```
+
+---
+
+# 22. ¿Por qué esto es interesante?
+
+Imagina que alguien intenta hacer:
+
+```csharp
+actividadRealizada.Completar();
+```
+
+desde cualquier lugar.
+
+Podríamos estar saltándonos una regla:
+
+```text
+La orden está cancelada.
+```
+
+Entonces debería ser la Orden quien controle:
+
+```csharp
+orden.RegistrarRespuesta(...);
+```
+
+y no que cualquier parte del sistema modifique directamente la actividad.
+
+---
+
+# 23. ¿Y cómo se relacionan los Aggregates?
+
+Podríamos terminar con algo parecido a:
+
+```text
+                    DOMAIN
+                       │
+       ┌───────────────┼────────────────┐
+       │               │                │
+       ▼               ▼                ▼
+     Cliente         Equipo        ActividadCatalogo
+       │               │                │
+       │               │                │
+       └───────────────┴────────────────┘
+                       │
+                       │ Ids
+                       ▼
+               OrdenMantenimiento
+                 Aggregate Root
+                       │
+                       ├── ActividadRealizada
+                       │       └── Respuesta
+                       │
+                       └── ActividadRealizada
+```
+
+La idea importante es que **no metemos todo dentro de la Orden**.
+
+Por ejemplo, no haríamos:
+
+```csharp
+public class OrdenMantenimiento
+{
+    public Equipo Equipo { get; set; }
+
+    public Cliente Cliente { get; set; }
+
+    public Tecnico Tecnico { get; set; }
+
+    public List<Actividad> Actividades { get; set; }
+}
+```
+
+simplemente porque las tablas están relacionadas.
+
+---
+
+# 24. Una regla DDD que quiero que aprendas
+
+Cuando estés diseñando un Aggregate, pregunta:
+
+### Pregunta 1
+
+> ¿Estas cosas necesitan cambiar juntas?
+
+Si sí:
+
+```text
+probablemente mismo Aggregate
+```
+
+### Pregunta 2
+
+> ¿Necesito garantizar una regla entre ellas inmediatamente?
+
+Si sí:
+
+```text
+probablemente mismo Aggregate
+```
+
+### Pregunta 3
+
+> ¿Pueden tener ciclos de vida independientes?
+
+Si sí:
+
+```text
+probablemente Aggregates diferentes
+```
+
+### Pregunta 4
+
+> ¿Puedo referenciarlo mediante su Id?
+
+Si sí, muchas veces:
+
+```text
+Aggregate diferente
+```
+
+---
+
+# 25. Aplicándolo a HVAC
+
+Por ejemplo:
+
+### Equipo y Orden
+
+¿Necesitan modificarse simultáneamente?
+
+Probablemente:
+
+```text
+NO
+```
+
+Entonces:
+
+```text
+Equipo Aggregate
+       +
+Orden Aggregate
+```
+
+relacionados mediante:
+
+```csharp
+EquipoId
+```
+
+---
+
+### Orden y ActividadRealizada
+
+¿La actividad realizada tiene sentido sin la orden?
+
+Probablemente:
+
+```text
+NO
+```
+
+Entonces:
+
+```text
+Orden
+ └── ActividadRealizada
+```
+
+mismo Aggregate.
+
+---
+
+### Actividad de catálogo y Orden
+
+¿El catálogo de actividades necesita existir aunque no haya órdenes?
+
+Sí.
+
+Entonces:
+
+```text
+ActividadCatalogo
+```
+
+puede ser otro Aggregate.
+
+La orden solamente guarda:
+
+```csharp
+ActividadId
+```
+
+---
+
+# 26. Nuestra propuesta inicial
+
+Yo empezaría investigando este diseño:
+
+```text
+┌───────────────────────┐
+│       Cliente         │
+│    Aggregate Root     │
+└───────────────────────┘
+
+
+┌───────────────────────┐
+│        Equipo         │
+│    Aggregate Root     │
+└───────────────────────┘
+
+
+┌───────────────────────┐
+│  ActividadCatalogo    │
+│    Aggregate Root     │
+└───────────────────────┘
+
+
+┌────────────────────────────────┐
+│     OrdenMantenimiento         │
+│       Aggregate Root           │
+│                                │
+│  ├── ActividadRealizada        │
+│  │      └── Respuesta          │
+│  │                             │
+│  └── ActividadRealizada        │
+│         └── Respuesta          │
+└────────────────────────────────┘
+```
+
+**Pero todavía no lo implementaría en código.**
+
+Primero debemos validar esta estructura contra las **reglas reales de tu negocio HVAC**.
+
+Y hay una pregunta especialmente importante que debemos resolver ahora:
+
+> **¿`Actividad` representa una definición reutilizable del catálogo, mientras que `ActividadRealizada` representa la ejecución concreta dentro de una orden?**
+
+Si la respuesta es sí, acabamos de separar dos conceptos que en un CRUD tradicional probablemente terminarían mezclados.
+
+Ese sería nuestro **siguiente paso de modelado DDD**: definir `ActividadCatalogo`, `ActividadRealizada` y `Respuesta`, y decidir exactamente qué es **Entity, Value Object y Aggregate** en cada caso.
+
+> Si, continuemos con el siguiente paso parte 3
+
+Modelando DDD parte 3 [modelado parte 3](/blog/modelando-DDD-3)

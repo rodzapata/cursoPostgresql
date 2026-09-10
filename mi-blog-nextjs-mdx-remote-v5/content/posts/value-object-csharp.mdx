@@ -1,0 +1,1409 @@
+---
+title: "Value Object en CSharp"
+date: "2026-09-09"
+description: "Aprender Value Object en CSharp hoy en el 2026"
+slug: "value-object-csharp"
+category: "Netcore"
+tags: ["netcore", "csharp", "backend"]
+published: true
+featured: true
+---
+
+Perfecto. El **Value Object** es uno de los conceptos más importantes de DDD, y además encaja muy bien con tu proyecto HVAC.
+
+La idea fundamental es:
+
+> **Un Value Object representa un concepto del dominio definido por sus valores, no por una identidad propia.**
+
+Vamos paso a paso.
+
+---
+
+# 1. Primero: Entity vs Value Object
+
+Esta diferencia es fundamental.
+
+Imagina un cliente:
+
+```text
+Cliente
+Id: 125
+Nombre: ACME S.A.S.
+```
+
+El cliente tiene una identidad:
+
+```text
+Id = 125
+```
+
+Aunque cambie su nombre:
+
+```text
+ACME S.A.S.
+       ↓
+ACME Colombia S.A.S.
+```
+
+sigue siendo el mismo cliente.
+
+Por eso es una **Entity**.
+
+---
+
+Ahora piensa en una temperatura:
+
+```text
+25 °C
+```
+
+No necesitas un `Id` para identificar esa temperatura.
+
+Si tienes:
+
+```text
+Temperatura A = 25 °C
+Temperatura B = 25 °C
+```
+
+desde el punto de vista del dominio:
+
+```text
+A == B
+```
+
+porque tienen el mismo valor.
+
+Eso es un **Value Object**.
+
+---
+
+# 2. Una comparación sencilla
+
+Piensa en esto:
+
+```text
+ENTITY
+
+Cliente
+┌─────────────────────┐
+│ Id: 123             │
+│ Nombre: ACME        │
+└─────────────────────┘
+```
+
+Tiene identidad.
+
+En cambio:
+
+```text
+VALUE OBJECT
+
+Temperatura
+┌─────────────────────┐
+│ Valor: 25           │
+│ Unidad: °C          │
+└─────────────────────┘
+```
+
+No necesita identidad.
+
+---
+
+# 3. ¿Por qué no utilizar simplemente `decimal`?
+
+Podríamos hacer:
+
+```csharp
+public decimal Temperature { get; private set; }
+```
+
+Pero tenemos un problema.
+
+¿Qué significa esto?
+
+```csharp
+Temperature = 25;
+```
+
+¿25 qué?
+
+```text
+25 °C
+25 °F
+25 K
+```
+
+El tipo `decimal` no expresa el concepto del dominio.
+
+En cambio:
+
+```csharp
+public Temperature Temperature { get; private set; }
+```
+
+dice claramente:
+
+> Esta propiedad representa una temperatura.
+
+Esto es **Domain Modeling**.
+
+---
+
+# 4. Primer Value Object
+
+Vamos a crear:
+
+```csharp
+public sealed class Temperature
+{
+    public decimal Value { get; }
+
+    public Temperature(decimal value)
+    {
+        Value = value;
+    }
+}
+```
+
+Ahora podemos hacer:
+
+```csharp
+var temperature = new Temperature(25);
+```
+
+Y tenemos:
+
+```text
+Temperature
+    ↓
+25
+```
+
+Pero todavía nos falta algo importante.
+
+---
+
+# 5. Un Value Object debe proteger sus reglas
+
+Supongamos que en nuestro dominio no permitimos temperaturas inferiores a:
+
+```text
+-273.15 °C
+```
+
+porque corresponde al cero absoluto.
+
+Podemos proteger la regla:
+
+```csharp
+public sealed class Temperature
+{
+    public decimal Value { get; }
+
+    public Temperature(decimal value)
+    {
+        if (value < -273.15m)
+        {
+            throw new DomainException(
+                "La temperatura no puede ser inferior al cero absoluto.");
+        }
+
+        Value = value;
+    }
+}
+```
+
+Ahora:
+
+```csharp
+var temperature = new Temperature(-300);
+```
+
+produce una excepción de dominio.
+
+El Value Object está protegiendo una **invariante del dominio**.
+
+---
+
+# 6. Esto es muy importante en DDD
+
+Observa la diferencia.
+
+Sin Value Object:
+
+```csharp
+public decimal Temperature { get; private set; }
+```
+
+Cualquier parte podría intentar introducir:
+
+```text
+-500
+```
+
+Con Value Object:
+
+```csharp
+public Temperature Temperature { get; private set; }
+```
+
+la propia clase controla qué valores son válidos.
+
+Por eso podemos pensar:
+
+```text
+Value Object
+       │
+       ├── representa un concepto
+       ├── encapsula sus valores
+       └── protege sus reglas
+```
+
+---
+
+# 7. Los Value Objects normalmente son inmutables
+
+Esto es muy importante.
+
+Imagina:
+
+```csharp
+var temperature = new Temperature(25);
+```
+
+No queremos hacer:
+
+```csharp
+temperature.Value = 30;
+```
+
+Por eso:
+
+```csharp
+public decimal Value { get; }
+```
+
+en lugar de:
+
+```csharp
+public decimal Value { get; set; }
+```
+
+El objeto no cambia.
+
+Si necesitamos otra temperatura:
+
+```csharp
+var newTemperature = new Temperature(30);
+```
+
+Tenemos un nuevo Value Object.
+
+---
+
+# 8. Igualdad por valor
+
+Esta es probablemente la característica más importante.
+
+Supongamos:
+
+```csharp
+var temperature1 = new Temperature(25);
+var temperature2 = new Temperature(25);
+```
+
+Conceptualmente:
+
+```text
+temperature1
+     ↓
+    25 °C
+
+temperature2
+     ↓
+    25 °C
+```
+
+Son equivalentes porque tienen el mismo valor.
+
+Esto es diferente de una Entity.
+
+```text
+Entity
+
+Cliente #1
+Cliente #2
+```
+
+aunque tengan:
+
+```text
+Nombre = "ACME"
+```
+
+siguen siendo dos entidades diferentes si sus IDs son diferentes.
+
+---
+
+# 9. Un ejemplo mucho más interesante: presión HVAC
+
+Aquí es donde el concepto comienza a ser realmente útil para tu proyecto.
+
+Supongamos:
+
+```text
+Presión de descarga = 350 PSI
+```
+
+Podríamos hacer:
+
+```csharp
+public decimal DischargePressure { get; private set; }
+```
+
+Pero nuevamente perdemos información.
+
+Podemos crear:
+
+```csharp
+public sealed class Pressure
+{
+    public decimal Value { get; }
+
+    public Pressure(decimal value)
+    {
+        if (value < 0)
+        {
+            throw new DomainException(
+                "La presión no puede ser negativa.");
+        }
+
+        Value = value;
+    }
+}
+```
+
+Y nuestra entidad:
+
+```csharp
+public class MaintenanceAnswer
+{
+    public Pressure? Pressure { get; private set; }
+}
+```
+
+Ahora el dominio dice:
+
+```text
+MaintenanceAnswer
+        │
+        └── Pressure
+              │
+              └── Value = 350
+```
+
+Es mucho más expresivo.
+
+---
+
+# 10. Value Object para amperaje
+
+En tu sistema HVAC tienes algo como:
+
+```text
+Compresor #1
+
+RS = 18.5 A
+RT = 19.2 A
+ST = 18.9 A
+```
+
+Podríamos crear:
+
+```csharp
+public sealed class ElectricalCurrent
+{
+    public decimal Amperes { get; }
+
+    public ElectricalCurrent(decimal amperes)
+    {
+        if (amperes < 0)
+        {
+            throw new DomainException(
+                "El amperaje no puede ser negativo.");
+        }
+
+        Amperes = amperes;
+    }
+}
+```
+
+Entonces:
+
+```csharp
+var rs = new ElectricalCurrent(18.5m);
+var rt = new ElectricalCurrent(19.2m);
+var st = new ElectricalCurrent(18.9m);
+```
+
+Ahora tenemos:
+
+```text
+RS → ElectricalCurrent
+RT → ElectricalCurrent
+ST → ElectricalCurrent
+```
+
+en lugar de tres `decimal` sin significado.
+
+---
+
+# 11. Y podemos agregar comportamiento
+
+Aquí está una de las grandes ventajas.
+
+Podríamos tener:
+
+```csharp
+public sealed class ElectricalCurrent
+{
+    public decimal Amperes { get; }
+
+    public ElectricalCurrent(decimal amperes)
+    {
+        if (amperes < 0)
+        {
+            throw new DomainException(
+                "El amperaje no puede ser negativo.");
+        }
+
+        Amperes = amperes;
+    }
+
+    public decimal DifferenceFrom(ElectricalCurrent other)
+    {
+        return Math.Abs(Amperes - other.Amperes);
+    }
+}
+```
+
+Entonces:
+
+```csharp
+var rs = new ElectricalCurrent(18.5m);
+var rt = new ElectricalCurrent(19.2m);
+
+var difference = rs.DifferenceFrom(rt);
+```
+
+El comportamiento relacionado con **ElectricalCurrent** está encapsulado en el propio concepto.
+
+---
+
+# 12. Value Object para un rango
+
+Esto es todavía más interesante para tu sistema.
+
+Tienes ejemplos como:
+
+```text
+Voltaje nominal: 220 V
+Tolerancia: ±10%
+
+Rango válido:
+198 V → 242 V
+```
+
+Podemos representar un rango:
+
+```csharp
+public sealed class DecimalRange
+{
+    public decimal Minimum { get; }
+    public decimal Maximum { get; }
+
+    public DecimalRange(
+        decimal minimum,
+        decimal maximum)
+    {
+        if (minimum > maximum)
+        {
+            throw new DomainException(
+                "El mínimo no puede ser mayor que el máximo.");
+        }
+
+        Minimum = minimum;
+        Maximum = maximum;
+    }
+
+    public bool Contains(decimal value)
+    {
+        return value >= Minimum &&
+               value <= Maximum;
+    }
+}
+```
+
+Uso:
+
+```csharp
+var validRange = new DecimalRange(198, 242);
+
+bool valid = validRange.Contains(220);
+```
+
+Resultado:
+
+```text
+true
+```
+
+Mientras:
+
+```csharp
+validRange.Contains(250);
+```
+
+produce:
+
+```text
+false
+```
+
+---
+
+# 13. Aquí empezamos a modelar realmente el negocio
+
+Podríamos tener:
+
+```csharp
+var voltageRange = new DecimalRange(
+    198m,
+    242m);
+```
+
+Y:
+
+```csharp
+if (!voltageRange.Contains(measuredVoltage))
+{
+    // Medición fuera de rango
+}
+```
+
+Esto representa directamente una regla del dominio.
+
+No estamos simplemente manipulando `decimal`.
+
+Estamos trabajando con:
+
+```text
+Rango permitido
+```
+
+que es un concepto del negocio.
+
+---
+
+# 14. Value Object compuesto
+
+Un Value Object puede estar compuesto por otros Value Objects.
+
+Por ejemplo:
+
+```text
+ElectricalMeasurement
+       │
+       ├── Value
+       ├── Unit
+       └── Tolerance
+```
+
+Podríamos crear:
+
+```csharp
+public sealed class Measurement
+{
+    public decimal Value { get; }
+
+    public UnitOfMeasurement Unit { get; }
+
+    public Measurement(
+        decimal value,
+        UnitOfMeasurement unit)
+    {
+        Value = value;
+        Unit = unit;
+    }
+}
+```
+
+Y:
+
+```csharp
+public enum UnitOfMeasurement
+{
+    Ampere = 1,
+    Volt = 2,
+    PSI = 3,
+    Celsius = 4
+}
+```
+
+Aunque aquí debemos tener cuidado: dependiendo de cómo evolucione tu catálogo de unidades, `UnitOfMeasurement` podría ser mejor como **Value Object o Entity** en vez de `enum`.
+
+---
+
+# 15. Value Object vs Enum
+
+Esto conecta directamente con la pregunta anterior.
+
+### Enum
+
+```csharp
+public enum AnswerType
+{
+    Boolean = 1,
+    Numeric = 2,
+    Text = 3
+}
+```
+
+Representa:
+
+> Una opción entre un conjunto cerrado.
+
+---
+
+**Value Object**
+
+```csharp
+public sealed class Pressure
+{
+    public decimal Value { get; }
+
+    ...
+}
+```
+
+Representa:
+
+> Un concepto del dominio con valores y reglas.
+
+Por eso:
+
+```text
+AnswerType
+    ↓
+Enum
+
+Pressure
+    ↓
+Value Object
+```
+
+---
+
+# 16. Value Object vs Entity
+
+Otra diferencia fundamental.
+
+### Entity
+
+```csharp
+public class Equipment
+{
+    public Guid Id { get; private set; }
+
+    public string SerialNumber { get; private set; }
+}
+```
+
+Tiene identidad:
+
+```text
+Id = 123
+```
+
+---
+
+**Value Object**
+
+```csharp
+public sealed class Temperature
+{
+    public decimal Value { get; }
+}
+```
+
+No necesita:
+
+```text
+Id
+```
+
+porque su identidad está determinada por sus valores.
+
+---
+
+# 17. Un ejemplo de dirección
+
+Un ejemplo clásico de DDD es una dirección.
+
+Podríamos tener:
+
+```csharp
+public sealed class Address
+{
+    public string Street { get; }
+    public string City { get; }
+    public string PostalCode { get; }
+
+    public Address(
+        string street,
+        string city,
+        string postalCode)
+    {
+        Street = street;
+        City = city;
+        PostalCode = postalCode;
+    }
+}
+```
+
+Un cliente podría tener:
+
+```csharp
+public class Customer
+{
+    public Guid Id { get; private set; }
+
+    public Address Address { get; private set; }
+}
+```
+
+La dirección no necesita necesariamente una identidad independiente.
+
+Por eso puede ser Value Object.
+
+---
+
+# 18. En C# moderno podemos usar `record`
+
+C# proporciona una herramienta muy interesante para Value Objects:
+
+```csharp
+public record Address(
+    string Street,
+    string City,
+    string PostalCode);
+```
+
+Los `record` están diseñados para trabajar con **igualdad por valor**.
+
+Por ejemplo:
+
+```csharp
+var address1 = new Address(
+    "Calle 10",
+    "Barranquilla",
+    "080001");
+
+var address2 = new Address(
+    "Calle 10",
+    "Barranquilla",
+    "080001");
+```
+
+Conceptualmente:
+
+```csharp
+address1 == address2
+```
+
+es verdadero porque tienen los mismos valores.
+
+Esto hace que `record` sea muy atractivo para determinados Value Objects.
+
+---
+
+# 19. ¿Entonces siempre debo usar `record`?
+
+No.
+
+No debes pensar:
+
+> "Value Object = record."
+
+Más correctamente:
+
+```text
+Value Object
+    ↓
+Concepto de DDD
+```
+
+y puedes implementarlo mediante:
+
+```text
+record
+record class
+class
+```
+
+dependiendo de las necesidades.
+
+Si tienes reglas complejas:
+
+```csharp
+public sealed class Pressure
+{
+    ...
+}
+```
+
+puede ser perfectamente apropiado.
+
+---
+
+# 20. Ejemplo más completo para tu HVAC
+
+Imaginemos que tenemos:
+
+```text
+Compresor #1
+
+Amperaje:
+RS = 18.5 A
+RT = 19.2 A
+ST = 18.9 A
+
+RLA = 22 A
+```
+
+Podemos crear:
+
+```csharp
+public sealed class ElectricalCurrent
+{
+    public decimal Amperes { get; }
+
+    public ElectricalCurrent(decimal amperes)
+    {
+        if (amperes < 0)
+        {
+            throw new DomainException(
+                "El amperaje no puede ser negativo.");
+        }
+
+        Amperes = amperes;
+    }
+}
+```
+
+Después:
+
+```csharp
+public sealed class ThreePhaseCurrent
+{
+    public ElectricalCurrent RS { get; }
+    public ElectricalCurrent RT { get; }
+    public ElectricalCurrent ST { get; }
+
+    public ThreePhaseCurrent(
+        ElectricalCurrent rs,
+        ElectricalCurrent rt,
+        ElectricalCurrent st)
+    {
+        RS = rs;
+        RT = rt;
+        ST = st;
+    }
+}
+```
+
+Ahora el dominio tiene:
+
+```text
+ThreePhaseCurrent
+│
+├── RS → 18.5 A
+├── RT → 19.2 A
+└── ST → 18.9 A
+```
+
+Esto es mucho más rico que:
+
+```csharp
+decimal rs;
+decimal rt;
+decimal st;
+```
+
+---
+
+# 21. Y podemos poner la fórmula de desbalance
+
+Recuerda la fórmula que vimos:
+
+```text
+Promedio = (RS + RT + ST) / 3
+```
+
+y:
+
+```text
+Desbalance % =
+    Máxima desviación respecto al promedio
+    --------------------------------------- × 100
+              Promedio
+```
+
+Podemos encapsular esto:
+
+```csharp
+public decimal CalculateImbalancePercentage()
+{
+    var average =
+        (RS.Amperes +
+         RT.Amperes +
+         ST.Amperes) / 3;
+
+    var maxDeviation = Math.Max(
+        Math.Abs(RS.Amperes - average),
+        Math.Max(
+            Math.Abs(RT.Amperes - average),
+            Math.Abs(ST.Amperes - average)));
+
+    return maxDeviation / average * 100;
+}
+```
+
+Ahora tenemos:
+
+```csharp
+var current = new ThreePhaseCurrent(
+    new ElectricalCurrent(18.5m),
+    new ElectricalCurrent(19.2m),
+    new ElectricalCurrent(18.9m));
+
+var imbalance =
+    current.CalculateImbalancePercentage();
+```
+
+El cálculo pertenece conceptualmente al objeto:
+
+```text
+ThreePhaseCurrent
+```
+
+porque es una propiedad/comportamiento de una medición trifásica.
+
+---
+
+# 22. Esto empieza a cambiar completamente nuestro modelo
+
+En lugar de tener una entidad llena de `decimal`:
+
+```csharp
+public class MaintenanceAnswer
+{
+    public decimal RS { get; set; }
+
+    public decimal RT { get; set; }
+
+    public decimal ST { get; set; }
+
+    public decimal RLA { get; set; }
+
+    public decimal Pressure { get; set; }
+
+    public decimal Temperature { get; set; }
+}
+```
+
+podemos evolucionar hacia:
+
+```csharp
+public class MaintenanceAnswer
+{
+    public ThreePhaseCurrent? Current { get; private set; }
+
+    public Pressure? Pressure { get; private set; }
+
+    public Temperature? Temperature { get; private set; }
+}
+```
+
+Ahora el modelo empieza a hablar el **lenguaje del negocio**.
+
+Eso es precisamente una de las metas de DDD.
+
+---
+
+# 23. Una regla práctica para identificar Value Objects
+
+Cuando estés diseñando una clase, pregúntate:
+
+### Pregunta 1
+
+**¿Tiene identidad propia?**
+
+```text
+Sí → Entity
+No → posiblemente Value Object
+```
+
+### Pregunta 2
+
+**¿Tiene significado dentro del dominio?**
+
+```text
+25 °C
+350 PSI
+18.5 A
+```
+
+Si sí, posiblemente Value Object.
+
+### Pregunta 3
+
+**¿Tiene reglas propias?**
+
+Por ejemplo:
+
+```text
+Presión >= 0
+Temperatura >= -273.15
+Amperaje >= 0
+Mínimo <= Máximo
+```
+
+Si sí, Value Object es un candidato excelente.
+
+### Pregunta 4
+
+**¿Necesito modificarlo?**
+
+Normalmente:
+
+```text
+No modificar
+↓
+Crear nuevo Value Object
+```
+
+---
+
+# 24. Una regla que te recomiendo para tu proyecto
+
+Para tu sistema HVAC podemos pensar inicialmente:
+
+```text
+DOMAIN
+│
+├── Entities
+│   ├── Equipment
+│   ├── MaintenanceOrder
+│   ├── Activity
+│   └── MaintenanceQuestion
+│
+├── ValueObjects
+│   ├── Pressure
+│   ├── Temperature
+│   ├── ElectricalCurrent
+│   ├── ElectricalVoltage
+│   ├── MeasurementRange
+│   └── ThreePhaseCurrent
+│
+└── Enums
+    ├── MaintenanceOrderStatus
+    ├── MaintenanceType
+    └── AnswerType
+```
+
+Y la relación conceptual sería:
+
+```text
+                 DOMAIN
+                    │
+       ┌────────────┼─────────────┐
+       │            │             │
+    Entity      Value Object     Enum
+       │            │             │
+       ↓            ↓             ↓
+ Equipment       Pressure       Status
+ Order           Temperature     Type
+ Activity        Amperage        AnswerType
+ Question        Voltage
+```
+
+### Lo más importante
+
+No diseñes los Value Objects pensando primero en C#.
+
+Primero pregunta:
+
+> **¿Qué concepto del negocio estoy intentando representar?**
+
+Después:
+
+> **¿Tiene identidad?**
+
+Después:
+
+> **¿Qué valores lo componen?**
+
+Después:
+
+> **¿Qué reglas debe proteger?**
+
+Y finalmente eliges cómo implementarlo en C# 14.
+
+En tu proyecto HVAC, **Pressure, Temperature, ElectricalCurrent, ElectricalVoltage, ThreePhaseCurrent y MeasurementRange** son excelentes candidatos para practicar Value Objects porque permiten que el dominio deje de trabajar con simples `decimal` y empiece a expresar conceptos reales del mantenimiento.
+
+> es recomendable que una clase que vamos utilizar para values object sea de tipo sealed (sellada) ?
+
+Sí. **Para un Value Object en DDD, normalmente es recomendable declararlo como `sealed`**.
+
+La razón principal es que un Value Object representa un **concepto específico del dominio** y normalmente no debería permitir que otras clases hereden de él y alteren su semántica.
+
+### Ejemplo
+
+Supongamos que tenemos un Value Object para el tipo de documento:
+
+```csharp
+public sealed class TipoDocumento
+{
+    public string Codigo { get; }
+
+    private TipoDocumento(string codigo)
+    {
+        Codigo = codigo;
+    }
+
+    public static TipoDocumento Cedula =>
+        new("13");
+
+    public static TipoDocumento NIT =>
+        new("31");
+}
+```
+
+Con `sealed` estamos diciendo:
+
+> "`TipoDocumento` es un concepto completo del dominio; no quiero que alguien cree `MiTipoDocumento : TipoDocumento`."
+
+Esto tiene bastante sentido en DDD.
+
+---
+
+## ¿Por qué `sealed` es útil en Value Objects?
+
+Un Value Object normalmente tiene estas características:
+
+* No tiene identidad propia.
+* Se compara por sus valores.
+* Es conceptualmente inmutable.
+* Representa una regla o concepto del dominio.
+* No suele necesitar herencia.
+
+Por ejemplo:
+
+```text
+TipoDocumento
+    ├── Código: 13
+    └── Descripción: Cédula de ciudadanía
+```
+
+No tendría mucho sentido crear:
+
+```csharp
+public class MiTipoDocumento : TipoDocumento
+{
+}
+```
+
+porque `MiTipoDocumento` seguiría representando el mismo concepto.
+
+---
+
+# Otro ejemplo: Voltaje
+
+En tu proyecto HVAC podríamos tener:
+
+```csharp
+public sealed class Voltaje
+{
+    public decimal Valor { get; }
+
+    public Voltaje(decimal valor)
+    {
+        if (valor <= 0)
+            throw new ArgumentException("El voltaje debe ser mayor que cero.");
+
+        Valor = valor;
+    }
+}
+```
+
+Y utilizarlo:
+
+```csharp
+public class Equipment
+{
+    public Voltaje Voltaje { get; private set; }
+
+    public Equipment(Voltaje voltaje)
+    {
+        Voltaje = voltaje;
+    }
+}
+```
+
+`Voltaje` es un concepto específico del dominio.
+
+No queremos que alguien haga:
+
+```csharp
+public class VoltajeEspecial : Voltaje
+{
+}
+```
+
+Por eso:
+
+```csharp
+public sealed class Voltaje
+```
+
+es una buena decisión.
+
+---
+
+# ¿Es obligatorio usar `sealed`?
+
+**No.**
+
+DDD no dice:
+
+> "Todos los Value Objects deben ser `sealed`."
+
+Es una decisión de diseño.
+
+Pero en un proyecto como el tuyo con **DDD + Clean Architecture + .NET 10**, mi recomendación sería:
+
+```text
+Value Object
+      ↓
+   sealed
+      ↓
+Inmutable
+      ↓
+Sin herencia
+```
+
+Por ejemplo:
+
+```csharp
+public sealed class TipoDocumento
+{
+    ...
+}
+```
+
+```csharp
+public sealed class Voltaje
+{
+    ...
+}
+```
+
+```csharp
+public sealed class Presion
+{
+    ...
+}
+```
+
+```csharp
+public sealed class Amperaje
+{
+    ...
+}
+```
+
+---
+
+## Una excepción importante
+
+Si realmente necesitas **polimorfismo entre Value Objects**, entonces `sealed` puede no ser apropiado.
+
+Por ejemplo, si conceptualmente tienes:
+
+```text
+Medicion
+   ↑
+   ├── Amperaje
+   ├── Voltaje
+   └── Presion
+```
+
+podrías tener una abstracción:
+
+```csharp
+public abstract class Medicion
+{
+    public decimal Valor { get; }
+
+    protected Medicion(decimal valor)
+    {
+        Valor = valor;
+    }
+}
+```
+
+y:
+
+```csharp
+public sealed class Amperaje : Medicion
+{
+    public Amperaje(decimal valor)
+        : base(valor)
+    {
+    }
+}
+```
+
+Aquí **la clase base no es `sealed`**, pero las implementaciones concretas sí pueden serlo.
+
+---
+
+### Regla práctica para tu proyecto
+
+Para los Value Objects que estamos construyendo para tu sistema HVAC:
+
+```csharp
+public sealed class Voltaje
+```
+
+```csharp
+public sealed class Amperaje
+```
+
+```csharp
+public sealed class Presion
+```
+
+```csharp
+public sealed class UnidadMedida
+```
+
+```csharp
+public sealed class TipoDocumento
+```
+
+sería una **muy buena opción por defecto**.
+
+Y hay otro detalle importante: en DDD, **`sealed` no es lo que hace que una clase sea un Value Object**. Lo fundamental es su **igualdad por valor, inmutabilidad y comportamiento del dominio**. `sealed` simplemente evita una herencia que normalmente no necesitamos.
